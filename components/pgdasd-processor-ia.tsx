@@ -1,9 +1,19 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
-import { Upload, FileText, TrendingUp, AlertCircle, Lightbulb, Target, Loader2, DollarSign } from "lucide-react"
+import {
+  Upload,
+  FileText,
+  TrendingUp,
+  AlertCircle,
+  Lightbulb,
+  Target,
+  Loader2,
+  DollarSign,
+  Package,
+  Briefcase,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -22,6 +32,21 @@ import {
   ResponsiveContainer,
   Cell,
 } from "recharts"
+
+interface Atividade {
+  descricao: string
+  IRPJ: number
+  CSLL: number
+  COFINS: number
+  PIS_Pasep: number
+  INSS_CPP: number
+  ICMS: number
+  IPI: number
+  ISS: number
+  Total: number
+}
+
+type Cenario = "servicos" | "mercadorias" | "misto"
 
 interface DASData {
   identificacao: {
@@ -44,30 +69,47 @@ interface DASData {
     IRPJ: number
     CSLL: number
     COFINS: number
-    PIS_Basep: number
+    PIS_Pasep: number
     INSS_CPP: number
     ICMS: number
     IPI: number
     ISS: number
     Total: number
   }
+  atividades?: {
+    atividade1?: Atividade
+    atividade2?: Atividade
+    servicos?: Atividade
+    mercadorias?: Atividade
+  }
   graficos?: {
-    tributosBar: {
+    tributosBar?: {
       labels: string[]
       values: number[]
     }
-    dasPie: {
+    totalTributos?: {
       labels: string[]
       values: number[]
     }
-    receitaLine: {
+    dasPie?: {
       labels: string[]
       values: number[]
     }
+    receitaLine?: {
+      labels: string[]
+      values: number[]
+    }
+    receitaMensal?: {
+      labels: string[]
+      values: number[]
+    }
+    atividadesComparativo?: any
   }
   calculos?: {
-    aliquotaEfetiva: number
-    margemLiquida: number
+    aliquotaEfetiva?: number
+    aliquotaEfetivaPercent?: number
+    margemLiquida?: number
+    margemLiquidaPercent?: number
   }
   insights?: {
     comparativoSetorial: string
@@ -75,18 +117,10 @@ interface DASData {
     oportunidades: string[]
     recomendacoes: string[]
   }
+  cenario?: Cenario
 }
 
-const CHART_COLORS = [
-  "#3b82f6", // blue
-  "#6366f1", // indigo
-  "#8b5cf6", // purple
-  "#ec4899", // pink
-  "#f43f5e", // rose
-  "#f97316", // orange
-  "#f59e0b", // amber
-  "#10b981", // emerald
-]
+const CHART_COLORS = ["#3b82f6", "#6366f1", "#8b5cf6", "#ec4899", "#f43f5e", "#f97316", "#f59e0b", "#10b981"]
 
 export function PGDASDProcessorIA() {
   const [file, setFile] = useState<File | null>(null)
@@ -94,6 +128,103 @@ export function PGDASDProcessorIA() {
   const [error, setError] = useState<string | null>(null)
   const [data, setData] = useState<DASData | null>(null)
   const [dragActive, setDragActive] = useState(false)
+
+  const detectarCenario = (atividade1?: Atividade, atividade2?: Atividade): Cenario => {
+    const temServicos = (atividade1?.ISS || 0) > 0 || (atividade2?.ISS || 0) > 0
+    const temMercadorias = (atividade1?.ICMS || 0) > 0 || (atividade2?.ICMS || 0) > 0
+
+    if (temServicos && temMercadorias) return "misto"
+    if (temServicos) return "servicos"
+    return "mercadorias"
+  }
+
+  const generateInsights = (dasData: DASData) => {
+    const aliquota = dasData.calculos?.aliquotaEfetiva || 0
+    const margem = dasData.calculos?.margemLiquida || 0
+    const totalTributos = dasData.tributos.Total || 0
+    const inss = dasData.tributos.INSS_CPP || 0
+    const rbt12 = dasData.receitas.rbt12 || 0
+    const iss = dasData.tributos.ISS || 0
+    const icms = dasData.tributos.ICMS || 0
+    const cenario = dasData.cenario || "misto"
+
+    let comparativoSetorial = ""
+    const pontosAtencao: string[] = []
+    const oportunidades: string[] = []
+    const recomendacoes: string[] = []
+
+    switch (cenario) {
+      case "servicos":
+        comparativoSetorial = `Sua alíquota efetiva de ${aliquota.toFixed(2)}% está ${aliquota > 8 ? "acima" : "dentro"} da média para prestadores de serviços (6-8%). ${iss > totalTributos * 0.15 ? "ISS representa parcela significativa dos tributos." : ""}`
+
+        if (iss > totalTributos * 0.15)
+          pontosAtencao.push("ISS representa mais de 15% do total - avaliar benefícios municipais")
+        if (inss > totalTributos * 0.35)
+          pontosAtencao.push("INSS/CPP elevado - revisar distribuição pró-labore vs lucros")
+
+        oportunidades.push("Avaliar benefícios fiscais municipais para redução de ISS")
+        oportunidades.push("Verificar enquadramento no Anexo III ou possibilidade de migração")
+
+        recomendacoes.push("Manter documentação de serviços prestados organizada")
+        recomendacoes.push("Avaliar possibilidade de retenções na fonte")
+        break
+
+      case "mercadorias":
+        comparativoSetorial = `Sua alíquota efetiva de ${aliquota.toFixed(2)}% está ${aliquota > 7 ? "acima" : "dentro"} da média para comércio (5-7%). ${icms > totalTributos * 0.12 ? "ICMS tem peso relevante na carga tributária." : ""}`
+
+        if (icms > totalTributos * 0.12)
+          pontosAtencao.push("ICMS representa mais de 12% do total - avaliar créditos fiscais")
+        if (aliquota > 7) pontosAtencao.push("Alíquota acima da média do setor - revisar enquadramento")
+
+        oportunidades.push("Aproveitar créditos de ICMS nas compras")
+        oportunidades.push("Avaliar substituição tributária para reduzir carga")
+
+        recomendacoes.push("Manter controle rigoroso de estoque e notas fiscais")
+        recomendacoes.push("Verificar possibilidade de benefícios estaduais")
+        break
+
+      case "misto":
+        comparativoSetorial = `Operação mista com alíquota efetiva de ${aliquota.toFixed(2)}%. ${iss > 0 && icms > 0 ? "Boa diversificação entre serviços e mercadorias." : ""}`
+
+        if (Math.abs(iss - icms) > totalTributos * 0.2) {
+          pontosAtencao.push("Desbalanceamento entre serviços e mercadorias - avaliar otimização")
+        }
+
+        oportunidades.push("Otimizar divisão entre serviços e mercadorias para reduzir carga")
+        oportunidades.push("Aproveitar benefícios fiscais de ambas as atividades")
+
+        recomendacoes.push("Segregar corretamente receitas de serviços e mercadorias")
+        recomendacoes.push("Avaliar qual atividade tem melhor margem para foco estratégico")
+        break
+    }
+
+    if (aliquota > 10) pontosAtencao.push("Alíquota efetiva elevada - revisar enquadramento no Simples")
+    if (margem < 10) pontosAtencao.push("Margem líquida abaixo de 10% - atenção à rentabilidade")
+
+    oportunidades.push("Receita anual permite permanência no Simples Nacional")
+    if (aliquota > 8) oportunidades.push("Possível redução de carga através de planejamento tributário")
+
+    recomendacoes.push("Manter controle rigoroso do faturamento para não ultrapassar o limite do Simples")
+    if (margem < 15) recomendacoes.push("Avaliar estrutura de custos e precificação para melhorar margem")
+
+    return {
+      comparativoSetorial,
+      pontosAtencao: pontosAtencao.filter(Boolean),
+      oportunidades: oportunidades.filter(Boolean),
+      recomendacoes: recomendacoes.filter(Boolean),
+    }
+  }
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+    }).format(value)
+  }
+
+  const formatPercent = (value: number) => {
+    return `${value.toFixed(2)}%`
+  }
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault()
@@ -151,157 +282,124 @@ export function PGDASDProcessorIA() {
       })
 
       console.log("[v0] Status da resposta:", response.status)
-      console.log("[v0] Content-Type:", response.headers.get("content-type"))
 
       if (!response.ok) {
         throw new Error(`Erro ao processar: ${response.statusText}`)
       }
 
-      const contentType = response.headers.get("content-type")
       const responseText = await response.text()
-
-      console.log("[v0] Resposta recebida (primeiros 500 chars):", responseText.substring(0, 500))
 
       if (!responseText || responseText.trim() === "") {
         throw new Error("O webhook retornou uma resposta vazia")
       }
 
-      if (!contentType?.includes("application/json")) {
-        console.log("[v0] Resposta completa:", responseText)
-        throw new Error(`O webhook retornou um tipo de conteúdo inesperado: ${contentType}`)
+      let result
+      try {
+        result = JSON.parse(responseText)
+      } catch (parseError) {
+        throw new Error("O webhook retornou dados em formato inválido")
       }
 
-  let result
-try {
-  result = JSON.parse(responseText)
-} catch (parseError) {
-  console.error("[v0] Erro ao fazer parse do JSON:", parseError)
-  console.log("[v0] Texto que causou erro:", responseText)
-  throw new Error("O webhook retornou dados em formato inválido")
-}
+      let rawData
+      if (Array.isArray(result) && result.length > 0) {
+        rawData = result[0]
+      } else {
+        rawData = result
+      }
 
-let dasData: DASData
-let graficos
+      let tributos
+      if (rawData.atividades?.totalEstabelecimento) {
+        tributos = rawData.atividades.totalEstabelecimento
+      } else if (rawData.atividades?.somaAtividades) {
+        tributos = rawData.atividades.somaAtividades
+      } else if (rawData.tributos) {
+        tributos = rawData.tributos
+      } else {
+        throw new Error("Estrutura de dados inválida: tributos não encontrados")
+      }
 
-console.log("[v0] Estrutura completa da resposta:", JSON.stringify(result, null, 2))
+      const tributosNormalizados = {
+        IRPJ: tributos.IRPJ || 0,
+        CSLL: tributos.CSLL || 0,
+        COFINS: tributos.COFINS || 0,
+        PIS_Pasep: tributos.PIS_Pasep || tributos["PIS/Pasep"] || 0,
+        INSS_CPP: tributos.INSS_CPP || tributos["INSS/CPP"] || 0,
+        ICMS: tributos.ICMS || 0,
+        IPI: tributos.IPI || 0,
+        ISS: tributos.ISS || 0,
+        Total: tributos.Total || 0,
+      }
 
-// Tenta diferentes estruturas possíveis
-if (result.success && result.dados) {
-  // Estrutura: { success: true, dados: {...}, graficos: {...} }
-  dasData = result.dados
-  graficos = result.graficos
-} else if (result.dados) {
-  // Estrutura: { dados: {...}, graficos: {...} }
-  dasData = result.dados
-  graficos = result.graficos
-} else if (Array.isArray(result) && result.length > 0) {
-  // Estrutura: [{...}] - pega o primeiro item do array
-  const firstItem = result[0]
-  if (firstItem.dados) {
-    dasData = firstItem.dados
-    graficos = firstItem.graficos
-  } else {
-    dasData = firstItem
-  }
-} else {
-  // Assume que o resultado já é os dados do DAS
-  dasData = result
-}
+      const cenario = detectarCenario(rawData.atividades?.atividade1, rawData.atividades?.atividade2)
 
-console.log("[v0] Dados extraídos:", dasData)
-console.log("[v0] Gráficos extraídos:", graficos)
+      const dasData: DASData = {
+        identificacao: rawData.identificacao,
+        receitas: rawData.receitas,
+        tributos: tributosNormalizados,
+        atividades: rawData.atividades,
+        graficos: rawData.graficos,
+        calculos: rawData.calculos,
+        cenario,
+      }
 
-// Garante que os dados mínimos existem
-if (!dasData || !dasData.tributos) {
-  throw new Error("Estrutura de dados inválida: tributos não encontrados")
-}
+      if (dasData.calculos) {
+        if (dasData.calculos.aliquotaEfetivaPercent && !dasData.calculos.aliquotaEfetiva) {
+          dasData.calculos.aliquotaEfetiva = dasData.calculos.aliquotaEfetivaPercent
+        }
+        if (dasData.calculos.margemLiquidaPercent && !dasData.calculos.margemLiquida) {
+          dasData.calculos.margemLiquida = dasData.calculos.margemLiquidaPercent
+        }
+      }
 
-if (graficos) {
-  dasData.graficos = graficos
-}
+      if (!dasData.calculos || !dasData.calculos.aliquotaEfetiva) {
+        const receitaPA = dasData.receitas.receitaPA || 0
+        const totalDAS = dasData.tributos.Total || 0
 
-if (!dasData.calculos) {
-  const receitaPA = dasData.receitas.receitaPA || 0
-  const totalDAS = dasData.tributos.Total || 0
+        dasData.calculos = {
+          aliquotaEfetiva: receitaPA > 0 ? (totalDAS / receitaPA) * 100 : 0,
+          margemLiquida: receitaPA > 0 ? ((receitaPA - totalDAS) / receitaPA) * 100 : 0,
+        }
+      }
 
-  dasData.calculos = {
-    aliquotaEfetiva: receitaPA > 0 ? (totalDAS / receitaPA) * 100 : 0,
-    margemLiquida: receitaPA > 0 ? ((receitaPA - totalDAS) / receitaPA) * 100 : 0,
-  }
-}
+      if (dasData.graficos) {
+        if (dasData.graficos.totalTributos && !dasData.graficos.tributosBar) {
+          dasData.graficos.tributosBar = dasData.graficos.totalTributos
+        }
+        if (dasData.graficos.receitaMensal && !dasData.graficos.receitaLine) {
+          dasData.graficos.receitaLine = dasData.graficos.receitaMensal
+        }
+        if (!dasData.graficos.dasPie && dasData.graficos.totalTributos) {
+          dasData.graficos.dasPie = dasData.graficos.totalTributos
+        }
+      }
 
-const insights = generateInsights(dasData)
-
-setData({ ...dasData, insights })
-} catch (err) {
-  console.error("[v0] Erro no processamento:", err)
-  setError(err instanceof Error ? err.message : "Erro ao processar o arquivo")
-} finally {
-  setLoading(false)
-}
-}
-
-// E APENAS DEPOIS vem a função generateInsights
-const generateInsights = (dasData: DASData) => {
-    const aliquota = dasData.calculos?.aliquotaEfetiva || 0
-    const margem = dasData.calculos?.margemLiquida || 0
-    const totalTributos = dasData.tributos.Total || 0 // Usando 'Total' com maiúscula
-    const inss = dasData.tributos.INSS_CPP || 0
-    const rbt12 = dasData.receitas.rbt12 || 0
-    const iss = dasData.tributos.ISS || 0
-
-    return {
-      comparativoSetorial:
-        aliquota > 8
-          ? "Sua alíquota efetiva está acima da média setorial (6-8%). Há oportunidades de otimização."
-          : "Sua alíquota efetiva está dentro da média setorial. Boa gestão tributária!",
-      pontosAtencao: [
-        aliquota > 10 && "Alíquota efetiva elevada - revisar enquadramento",
-        totalTributos > 0 && inss > totalTributos * 0.4 && "INSS representa mais de 40% do total - avaliar pró-labore",
-        margem < 10 && "Margem líquida abaixo de 10% - atenção à rentabilidade",
-      ].filter(Boolean) as string[],
-      oportunidades: [
-        rbt12 < 4800000 && "Receita anual permite permanência no Simples Nacional",
-        aliquota > 8 && "Possível redução de carga através de planejamento tributário",
-        iss > 0 && "Avaliar benefícios fiscais municipais para ISS",
-      ].filter(Boolean) as string[],
-      recomendacoes: [
-        "Manter controle rigoroso do faturamento para não ultrapassar o limite do Simples",
-        aliquota > 8 && "Consultar contador sobre possibilidade de mudança de anexo",
-        "Revisar distribuição de lucros vs. pró-labore para otimização tributária",
-        margem < 15 && "Avaliar estrutura de custos e precificação para melhorar margem",
-      ].filter(Boolean) as string[],
+      const insights = generateInsights(dasData)
+      setData({ ...dasData, insights })
+    } catch (err) {
+      console.error("[v0] Erro no processamento:", err)
+      setError(err instanceof Error ? err.message : "Erro ao processar o arquivo")
+    } finally {
+      setLoading(false)
     }
   }
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("pt-BR", {
-      style: "currency",
-      currency: "BRL",
-    }).format(value)
-  }
-
-  const formatPercent = (value: number) => {
-    return `${value.toFixed(2)}%`
-  }
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-6">
-      <div className="mx-auto max-w-7xl space-y-8">
-        {/* Header */}
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-4 sm:p-6">
+      <div className="mx-auto max-w-7xl space-y-6 sm:space-y-8">
         <div className="text-center space-y-2">
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+          <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
             Processador PGDASD com IA
           </h1>
-          <p className="text-slate-600">Análise inteligente do seu DAS com insights estratégicos</p>
+          <p className="text-sm sm:text-base text-slate-600">
+            Análise inteligente do seu DAS com insights estratégicos
+          </p>
         </div>
 
-        {/* Upload Area */}
         {!data && (
           <Card className="border-2 border-dashed border-slate-300 bg-white/50 backdrop-blur-sm">
             <CardContent className="pt-6">
               <div
-                className={`relative flex flex-col items-center justify-center rounded-lg p-12 transition-all ${
+                className={`relative flex flex-col items-center justify-center rounded-lg p-8 sm:p-12 transition-all ${
                   dragActive ? "bg-blue-50 border-2 border-blue-400" : "bg-slate-50 border-2 border-slate-200"
                 }`}
                 onDragEnter={handleDrag}
@@ -309,9 +407,13 @@ const generateInsights = (dasData: DASData) => {
                 onDragOver={handleDrag}
                 onDrop={handleDrop}
               >
-                <Upload className={`h-16 w-16 mb-4 ${dragActive ? "text-blue-500" : "text-slate-400"}`} />
-                <h3 className="text-xl font-semibold mb-2">{file ? file.name : "Arraste seu PDF aqui"}</h3>
-                <p className="text-slate-500 mb-4">ou clique para selecionar</p>
+                <Upload
+                  className={`h-12 w-12 sm:h-16 sm:w-16 mb-4 ${dragActive ? "text-blue-500" : "text-slate-400"}`}
+                />
+                <h3 className="text-lg sm:text-xl font-semibold mb-2 text-center break-words max-w-full">
+                  {file ? file.name : "Arraste seu PDF aqui"}
+                </h3>
+                <p className="text-slate-500 mb-4 text-sm sm:text-base">ou clique para selecionar</p>
 
                 <input type="file" accept=".pdf" onChange={handleFileChange} className="hidden" id="file-upload" />
                 <label htmlFor="file-upload">
@@ -348,165 +450,196 @@ const generateInsights = (dasData: DASData) => {
           </Card>
         )}
 
-        {/* Results */}
         {data && (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            {/* Company Info */}
             <Card className="bg-gradient-to-br from-slate-900 to-slate-800 text-white border-0 shadow-xl">
               <CardHeader>
                 <div className="flex items-center gap-2">
                   <FileText className="h-5 w-5" />
-                  <CardTitle>Identificação da Empresa</CardTitle>
+                  <CardTitle className="text-base sm:text-lg">Identificação da Empresa</CardTitle>
                 </div>
               </CardHeader>
-              <CardContent className="grid md:grid-cols-3 gap-4">
+              <CardContent className="grid sm:grid-cols-2 md:grid-cols-3 gap-4">
                 <div>
-                  <p className="text-slate-400 text-sm">CNPJ</p>
-                  <p className="text-lg font-semibold">{data.identificacao.cnpj}</p>
+                  <p className="text-slate-400 text-xs sm:text-sm">CNPJ</p>
+                  <p className="text-base sm:text-lg font-semibold break-words">{data.identificacao.cnpj}</p>
                 </div>
-                <div>
-                  <p className="text-slate-400 text-sm">Razão Social</p>
-                  <p className="text-lg font-semibold">{data.identificacao.razaoSocial}</p>
+                <div className="sm:col-span-2 md:col-span-1">
+                  <p className="text-slate-400 text-xs sm:text-sm">Razão Social</p>
+                  <p className="text-base sm:text-lg font-semibold break-words">{data.identificacao.razaoSocial}</p>
                 </div>
-                <div>
-                  <p className="text-slate-400 text-sm">Período</p>
-                  <p className="text-lg font-semibold">{data.identificacao.periodoApuracao}</p>
+                <div className="sm:col-span-2 md:col-span-1">
+                  <p className="text-slate-400 text-xs sm:text-sm">Período</p>
+                  <p className="text-base sm:text-lg font-semibold break-words">{data.identificacao.periodoApuracao}</p>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Main Metrics */}
-            <div className="grid md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
               <Card className="bg-gradient-to-br from-emerald-500 to-teal-600 text-white border-0 shadow-lg hover:shadow-xl transition-shadow">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium opacity-90">Receita Bruta PA</CardTitle>
+                <CardHeader className="pb-2 p-4 sm:p-6">
+                  <CardTitle className="text-xs sm:text-sm font-medium opacity-90">Receita Bruta PA</CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <p className="text-3xl font-bold">{formatCurrency(data.receitas.receitaPA)}</p>
-                  <p className="text-xs opacity-75 mt-1">Período de apuração</p>
+                <CardContent className="p-4 sm:p-6 pt-0">
+                  <p className="text-xl sm:text-3xl font-bold break-words">{formatCurrency(data.receitas.receitaPA)}</p>
+                  <p className="text-[10px] sm:text-xs opacity-75 mt-1">Período de apuração</p>
                 </CardContent>
               </Card>
 
               <Card className="bg-gradient-to-br from-rose-500 to-pink-600 text-white border-0 shadow-lg hover:shadow-xl transition-shadow">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium opacity-90">Total DAS</CardTitle>
+                <CardHeader className="pb-2 p-4 sm:p-6">
+                  <CardTitle className="text-xs sm:text-sm font-medium opacity-90">Total DAS</CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <p className="text-3xl font-bold">{formatCurrency(data.tributos.Total)}</p>
-                  <p className="text-xs opacity-75 mt-1">Valor a pagar</p>
+                <CardContent className="p-4 sm:p-6 pt-0">
+                  <p className="text-xl sm:text-3xl font-bold break-words">{formatCurrency(data.tributos.Total)}</p>
+                  <p className="text-[10px] sm:text-xs opacity-75 mt-1">Valor a pagar</p>
                 </CardContent>
               </Card>
 
               <Card className="bg-gradient-to-br from-blue-500 to-indigo-600 text-white border-0 shadow-lg hover:shadow-xl transition-shadow">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium opacity-90">Alíquota Efetiva</CardTitle>
+                <CardHeader className="pb-2 p-4 sm:p-6">
+                  <CardTitle className="text-xs sm:text-sm font-medium opacity-90">Alíquota Efetiva</CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <p className="text-3xl font-bold">{formatPercent(data.calculos?.aliquotaEfetiva || 0)}</p>
-                  <p className="text-xs opacity-75 mt-1">DAS / Receita PA</p>
+                <CardContent className="p-4 sm:p-6 pt-0">
+                  <p className="text-xl sm:text-3xl font-bold">{formatPercent(data.calculos?.aliquotaEfetiva || 0)}</p>
+                  <p className="text-[10px] sm:text-xs opacity-75 mt-1">DAS / Receita PA</p>
                 </CardContent>
               </Card>
 
               <Card className="bg-gradient-to-br from-amber-500 to-orange-600 text-white border-0 shadow-lg hover:shadow-xl transition-shadow">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium opacity-90">Margem Líquida</CardTitle>
+                <CardHeader className="pb-2 p-4 sm:p-6">
+                  <CardTitle className="text-xs sm:text-sm font-medium opacity-90">Margem Líquida</CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <p className="text-3xl font-bold">{formatPercent(data.calculos?.margemLiquida || 0)}</p>
-                  <p className="text-xs opacity-75 mt-1">Receita após impostos</p>
+                <CardContent className="p-4 sm:p-6 pt-0">
+                  <p className="text-xl sm:text-3xl font-bold">{formatPercent(data.calculos?.margemLiquida || 0)}</p>
+                  <p className="text-[10px] sm:text-xs opacity-75 mt-1">Receita após impostos</p>
                 </CardContent>
               </Card>
             </div>
 
-            {/* Discriminativo de Receitas */}
             <Card className="shadow-lg">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <DollarSign className="h-5 w-5 text-emerald-600" />
+                <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                  <DollarSign className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-600" />
                   Discriminativo de Receitas
                 </CardTitle>
-                <CardDescription>Detalhamento completo das receitas conforme PGDASD</CardDescription>
+                <CardDescription className="text-xs sm:text-sm">
+                  Detalhamento completo das receitas conforme PGDASD
+                </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b-2 border-slate-200">
-                        <th className="text-left py-3 px-4 font-semibold text-slate-700">Local de Receitas (R$)</th>
-                        <th className="text-right py-3 px-4 font-semibold text-slate-700">Mercado Interno</th>
-                        <th className="text-right py-3 px-4 font-semibold text-slate-700">Mercado Externo</th>
-                        <th className="text-right py-3 px-4 font-semibold text-slate-700 bg-slate-50">Total</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                        <td className="py-3 px-4 font-medium">Receita Bruta do PA (RPA) - Competência</td>
-                        <td className="text-right py-3 px-4">{formatCurrency(data.receitas.receitaPA)}</td>
-                        <td className="text-right py-3 px-4">{formatCurrency(0)}</td>
-                        <td className="text-right py-3 px-4 bg-slate-50 font-semibold">
-                          {formatCurrency(data.receitas.receitaPA)}
-                        </td>
-                      </tr>
-                      <tr className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                        <td className="py-3 px-4 font-medium">
-                          Receita bruta acumulada nos doze meses anteriores ao PA (RBT12)
-                        </td>
-                        <td className="text-right py-3 px-4">{formatCurrency(data.receitas.rbt12)}</td>
-                        <td className="text-right py-3 px-4">{formatCurrency(0)}</td>
-                        <td className="text-right py-3 px-4 bg-slate-50 font-semibold">
-                          {formatCurrency(data.receitas.rbt12)}
-                        </td>
-                      </tr>
-                      <tr className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                        <td className="py-3 px-4 font-medium">
-                          Receita bruta acumulada nos doze meses anteriores ao PA proporcionalizada (RBT12p)
-                        </td>
-                        <td className="text-right py-3 px-4 text-slate-400">-</td>
-                        <td className="text-right py-3 px-4 text-slate-400">-</td>
-                        <td className="text-right py-3 px-4 bg-slate-50 text-slate-400">-</td>
-                      </tr>
-                      <tr className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                        <td className="py-3 px-4 font-medium">
-                          Receita bruta acumulada no ano-calendário corrente (RBA)
-                        </td>
-                        <td className="text-right py-3 px-4">{formatCurrency(data.receitas.rba)}</td>
-                        <td className="text-right py-3 px-4">{formatCurrency(0)}</td>
-                        <td className="text-right py-3 px-4 bg-slate-50 font-semibold">
-                          {formatCurrency(data.receitas.rba)}
-                        </td>
-                      </tr>
-                      <tr className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                        <td className="py-3 px-4 font-medium">
-                          Receita bruta acumulada no ano-calendário anterior (RBAA)
-                        </td>
-                        <td className="text-right py-3 px-4">{formatCurrency(data.receitas.rbaa)}</td>
-                        <td className="text-right py-3 px-4">{formatCurrency(0)}</td>
-                        <td className="text-right py-3 px-4 bg-slate-50 font-semibold">
-                          {formatCurrency(data.receitas.rbaa)}
-                        </td>
-                      </tr>
-                      <tr className="border-b-2 border-slate-200 hover:bg-slate-50 transition-colors">
-                        <td className="py-3 px-4 font-medium">Limite de receita bruta proporcionalizado</td>
-                        <td className="text-right py-3 px-4">{formatCurrency(data.receitas.limite || 4800000)}</td>
-                        <td className="text-right py-3 px-4">{formatCurrency(data.receitas.limite || 4800000)}</td>
-                        <td className="text-right py-3 px-4 bg-slate-50 text-slate-400">-</td>
-                      </tr>
-                    </tbody>
-                  </table>
+                <div className="overflow-x-auto -mx-4 sm:mx-0">
+                  <div className="inline-block min-w-full align-middle">
+                    <table className="w-full text-xs sm:text-sm">
+                      <thead>
+                        <tr className="border-b-2 border-slate-200">
+                          <th className="text-left py-2 sm:py-3 px-2 sm:px-4 font-semibold text-slate-700">
+                            Local de Receitas (R$)
+                          </th>
+                          <th className="text-right py-2 sm:py-3 px-2 sm:px-4 font-semibold text-slate-700">
+                            Mercado Interno
+                          </th>
+                          <th className="text-right py-2 sm:py-3 px-2 sm:px-4 font-semibold text-slate-700">
+                            Mercado Externo
+                          </th>
+                          <th className="text-right py-2 sm:py-3 px-2 sm:px-4 font-semibold text-slate-700 bg-slate-50">
+                            Total
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                          <td className="py-2 sm:py-3 px-2 sm:px-4 font-medium">
+                            Receita Bruta do PA (RPA) - Competência
+                          </td>
+                          <td className="text-right py-2 sm:py-3 px-2 sm:px-4 whitespace-nowrap">
+                            {formatCurrency(data.receitas.receitaPA)}
+                          </td>
+                          <td className="text-right py-2 sm:py-3 px-2 sm:px-4 whitespace-nowrap">
+                            {formatCurrency(0)}
+                          </td>
+                          <td className="text-right py-2 sm:py-3 px-2 sm:px-4 bg-slate-50 font-semibold whitespace-nowrap">
+                            {formatCurrency(data.receitas.receitaPA)}
+                          </td>
+                        </tr>
+                        <tr className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                          <td className="py-2 sm:py-3 px-2 sm:px-4 font-medium">
+                            Receita bruta acumulada nos doze meses anteriores ao PA (RBT12)
+                          </td>
+                          <td className="text-right py-2 sm:py-3 px-2 sm:px-4 whitespace-nowrap">
+                            {formatCurrency(data.receitas.rbt12)}
+                          </td>
+                          <td className="text-right py-2 sm:py-3 px-2 sm:px-4 whitespace-nowrap">
+                            {formatCurrency(0)}
+                          </td>
+                          <td className="text-right py-2 sm:py-3 px-2 sm:px-4 bg-slate-50 font-semibold whitespace-nowrap">
+                            {formatCurrency(data.receitas.rbt12)}
+                          </td>
+                        </tr>
+                        <tr className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                          <td className="py-2 sm:py-3 px-2 sm:px-4 font-medium">
+                            Receita bruta acumulada nos doze meses anteriores ao PA proporcionalizada (RBT12p)
+                          </td>
+                          <td className="text-right py-2 sm:py-3 px-2 sm:px-4 text-slate-400">-</td>
+                          <td className="text-right py-2 sm:py-3 px-2 sm:px-4 text-slate-400">-</td>
+                          <td className="text-right py-2 sm:py-3 px-2 sm:px-4 bg-slate-50 text-slate-400">-</td>
+                        </tr>
+                        <tr className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                          <td className="py-2 sm:py-3 px-2 sm:px-4 font-medium">
+                            Receita bruta acumulada no ano-calendário corrente (RBA)
+                          </td>
+                          <td className="text-right py-2 sm:py-3 px-2 sm:px-4 whitespace-nowrap">
+                            {formatCurrency(data.receitas.rba)}
+                          </td>
+                          <td className="text-right py-2 sm:py-3 px-2 sm:px-4 whitespace-nowrap">
+                            {formatCurrency(0)}
+                          </td>
+                          <td className="text-right py-2 sm:py-3 px-2 sm:px-4 bg-slate-50 font-semibold whitespace-nowrap">
+                            {formatCurrency(data.receitas.rba)}
+                          </td>
+                        </tr>
+                        <tr className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                          <td className="py-2 sm:py-3 px-2 sm:px-4 font-medium">
+                            Receita bruta acumulada no ano-calendário anterior (RBAA)
+                          </td>
+                          <td className="text-right py-2 sm:py-3 px-2 sm:px-4 whitespace-nowrap">
+                            {formatCurrency(data.receitas.rbaa)}
+                          </td>
+                          <td className="text-right py-2 sm:py-3 px-2 sm:px-4 whitespace-nowrap">
+                            {formatCurrency(0)}
+                          </td>
+                          <td className="text-right py-2 sm:py-3 px-2 sm:px-4 bg-slate-50 font-semibold whitespace-nowrap">
+                            {formatCurrency(data.receitas.rbaa)}
+                          </td>
+                        </tr>
+                        <tr className="border-b-2 border-slate-200 hover:bg-slate-50 transition-colors">
+                          <td className="py-2 sm:py-3 px-2 sm:px-4 font-medium">
+                            Limite de receita bruta proporcionalizado
+                          </td>
+                          <td className="text-right py-2 sm:py-3 px-2 sm:px-4 whitespace-nowrap">
+                            {formatCurrency(data.receitas.limite || 4800000)}
+                          </td>
+                          <td className="text-right py-2 sm:py-3 px-2 sm:px-4 whitespace-nowrap">
+                            {formatCurrency(data.receitas.limite || 4800000)}
+                          </td>
+                          <td className="text-right py-2 sm:py-3 px-2 sm:px-4 bg-slate-50 text-slate-400">-</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
 
-                {/* Indicadores adicionais */}
-                <div className="mt-6 grid md:grid-cols-3 gap-4 pt-4 border-t border-slate-200">
-                  <div className="bg-blue-50 rounded-lg p-4">
+                <div className="mt-4 sm:mt-6 grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 pt-4 border-t border-slate-200">
+                  <div className="bg-blue-50 rounded-lg p-3 sm:p-4">
                     <p className="text-xs text-blue-600 font-medium mb-1">Utilização do Limite</p>
-                    <p className="text-2xl font-bold text-blue-900">
+                    <p className="text-xl sm:text-2xl font-bold text-blue-900">
                       {((data.receitas.rbt12 / (data.receitas.limite || 4800000)) * 100).toFixed(1)}%
                     </p>
                     <p className="text-xs text-blue-600 mt-1">RBT12 / Limite</p>
                   </div>
-                  <div className="bg-emerald-50 rounded-lg p-4">
+                  <div className="bg-emerald-50 rounded-lg p-3 sm:p-4">
                     <p className="text-xs text-emerald-600 font-medium mb-1">Crescimento Anual</p>
-                    <p className="text-2xl font-bold text-emerald-900">
+                    <p className="text-xl sm:text-2xl font-bold text-emerald-900">
                       {data.receitas.rbaa > 0
                         ? (((data.receitas.rba - data.receitas.rbaa) / data.receitas.rbaa) * 100).toFixed(1)
                         : "0.0"}
@@ -514,9 +647,9 @@ const generateInsights = (dasData: DASData) => {
                     </p>
                     <p className="text-xs text-emerald-600 mt-1">RBA vs RBAA</p>
                   </div>
-                  <div className="bg-amber-50 rounded-lg p-4">
+                  <div className="bg-amber-50 rounded-lg p-3 sm:p-4">
                     <p className="text-xs text-amber-600 font-medium mb-1">Margem até Limite</p>
-                    <p className="text-2xl font-bold text-amber-900">
+                    <p className="text-xl sm:text-2xl font-bold text-amber-900 break-words">
                       {formatCurrency((data.receitas.limite || 4800000) - data.receitas.rbt12)}
                     </p>
                     <p className="text-xs text-amber-600 mt-1">Disponível no ano</p>
@@ -525,126 +658,236 @@ const generateInsights = (dasData: DASData) => {
               </CardContent>
             </Card>
 
-            {data.graficos && (
-              <div className="grid md:grid-cols-2 gap-6">
-                {/* Gráfico de Barras - Tributos */}
-                <Card className="shadow-lg">
-                  <CardHeader>
-                    <CardTitle className="text-lg">Composição dos Tributos</CardTitle>
-                    <CardDescription>Valores por tipo de tributo</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <ResponsiveContainer width="100%" height={300}>
-                      <BarChart
-                        data={data.graficos.tributosBar.labels.map((label, idx) => ({
-                          name: label,
-                          valor: data.graficos!.tributosBar.values[idx],
-                        }))}
-                      >
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} />
-                        <YAxis />
-                        <Tooltip formatter={(value) => formatCurrency(Number(value))} />
-                        <Bar dataKey="valor" fill="#3b82f6" />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </CardContent>
-                </Card>
+            {data.cenario === "misto" && data.atividades?.atividade1 && data.atividades?.atividade2 && (
+              <Card className="bg-gradient-to-br from-purple-500 to-indigo-600 text-white border-0 shadow-xl">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                    <Package className="h-5 w-5" />
+                    Composição do DAS - Operação Mista
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="bg-white/10 rounded-lg p-4 backdrop-blur-sm">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Briefcase className="h-4 w-4" />
+                        <p className="text-sm opacity-90">Serviços</p>
+                      </div>
+                      <p className="text-2xl font-bold">{formatCurrency(data.atividades.atividade2?.Total || 0)}</p>
+                      <p className="text-xs opacity-75 mt-1">
+                        {(((data.atividades.atividade2?.Total || 0) / data.tributos.Total) * 100 || 0).toFixed(1)}% do
+                        total
+                      </p>
+                    </div>
+                    <div className="bg-white/10 rounded-lg p-4 backdrop-blur-sm">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Package className="h-4 w-4" />
+                        <p className="text-sm opacity-90">Mercadorias</p>
+                      </div>
+                      <p className="text-2xl font-bold">{formatCurrency(data.atividades.atividade1?.Total || 0)}</p>
+                      <p className="text-xs opacity-75 mt-1">
+                        {(((data.atividades.atividade1?.Total || 0) / data.tributos.Total) * 100 || 0).toFixed(1)}% do
+                        total
+                      </p>
+                    </div>
+                    <div className="bg-white/20 rounded-lg p-4 backdrop-blur-sm border-2 border-white/30">
+                      <p className="text-sm opacity-90 mb-2">Total DAS</p>
+                      <p className="text-3xl font-bold">{formatCurrency(data.tributos.Total)}</p>
+                      <p className="text-xs opacity-75 mt-1">Valor total a pagar</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
-                {/* Gráfico de Pizza - Distribuição DAS */}
-                <Card className="shadow-lg">
-                  <CardHeader>
-                    <CardTitle className="text-lg">Distribuição do DAS</CardTitle>
-                    <CardDescription>Percentual por tributo</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <ResponsiveContainer width="100%" height={300}>
-                      <PieChart>
-                        <Pie
-                          data={data.graficos.dasPie.labels
+            {data.graficos && (data.graficos.tributosBar || data.graficos.totalTributos) && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+                {data.cenario === "misto" && data.graficos.atividadesComparativo && (
+                  <Card className="shadow-lg md:col-span-2">
+                    <CardHeader>
+                      <CardTitle className="text-base sm:text-lg">Comparativo de Tributos por Atividade</CardTitle>
+                      <CardDescription className="text-xs sm:text-sm">
+                        Distribuição de tributos entre serviços e mercadorias
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <ResponsiveContainer width="100%" height={250} className="sm:h-[300px]">
+                        <BarChart
+                          data={data.graficos.atividadesComparativo.labels
+                            .filter((label: string) => label !== "Total")
+                            .map((label: string) => ({
+                              name: label,
+                              Serviços:
+                                data.graficos!.atividadesComparativo.atividade2[
+                                  label.replace("/", "_").replace(" ", "_")
+                                ] || 0,
+                              Mercadorias:
+                                data.graficos!.atividadesComparativo.atividade1[
+                                  label.replace("/", "_").replace(" ", "_")
+                                ] || 0,
+                            }))}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} tick={{ fontSize: 10 }} />
+                          <YAxis tick={{ fontSize: 10 }} />
+                          <Tooltip formatter={(value) => formatCurrency(Number(value))} />
+                          <Legend />
+                          <Bar dataKey="Serviços" stackId="a" fill="#8b5cf6" />
+                          <Bar dataKey="Mercadorias" stackId="a" fill="#3b82f6" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {(data.graficos.tributosBar || data.graficos.totalTributos) && (
+                  <Card className="shadow-lg">
+                    <CardHeader>
+                      <CardTitle className="text-base sm:text-lg">Composição dos Tributos</CardTitle>
+                      <CardDescription className="text-xs sm:text-sm">Valores por tipo de tributo</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <ResponsiveContainer width="100%" height={250} className="sm:h-[300px]">
+                        <BarChart
+                          data={(data.graficos.tributosBar || data.graficos.totalTributos)!.labels
                             .map((label, idx) => ({
                               name: label,
-                              value: data.graficos!.dasPie.values[idx],
+                              valor: (data.graficos!.tributosBar || data.graficos!.totalTributos)!.values[idx],
                             }))
-                            .filter((item) => item.value > 0)}
-                          cx="50%"
-                          cy="50%"
-                          labelLine={false}
-                          label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                          outerRadius={80}
-                          fill="#8884d8"
-                          dataKey="value"
+                            .filter((item) => item.valor > 0)}
                         >
-                          {data.graficos.dasPie.labels.map((_, index) => (
-                            <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                          ))}
-                        </Pie>
-                        <Tooltip formatter={(value) => formatCurrency(Number(value))} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </CardContent>
-                </Card>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} tick={{ fontSize: 10 }} />
+                          <YAxis tick={{ fontSize: 10 }} />
+                          <Tooltip formatter={(value) => formatCurrency(Number(value))} />
+                          <Bar dataKey="valor" fill="#3b82f6" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </CardContent>
+                  </Card>
+                )}
 
-                {/* Gráfico de Linha - Evolução de Receitas */}
-                <Card className="shadow-lg md:col-span-2">
-                  <CardHeader>
-                    <CardTitle className="text-lg">Evolução de Receitas - Mercado Interno</CardTitle>
-                    <CardDescription>Histórico mensal de receitas</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <ResponsiveContainer width="100%" height={300}>
-                      <LineChart
-                        data={data.graficos.receitaLine.labels.map((label, idx) => ({
-                          mes: label,
-                          valor: data.graficos!.receitaLine.values[idx],
-                        }))}
-                      >
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="mes" angle={-45} textAnchor="end" height={80} />
-                        <YAxis />
-                        <Tooltip formatter={(value) => formatCurrency(Number(value))} />
-                        <Legend />
-                        <Line type="monotone" dataKey="valor" stroke="#3b82f6" strokeWidth={2} dot={{ r: 4 }} />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </CardContent>
-                </Card>
+                {(data.graficos.dasPie || data.graficos.totalTributos) && (
+                  <Card className="shadow-lg">
+                    <CardHeader>
+                      <CardTitle className="text-base sm:text-lg">
+                        {data.cenario === "misto" ? "Distribuição do DAS" : "Composição Tributária"}
+                      </CardTitle>
+                      <CardDescription className="text-xs sm:text-sm">
+                        {data.cenario === "misto" ? "Percentual por atividade e tributo" : "Percentual por tributo"}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <ResponsiveContainer width="100%" height={250} className="sm:h-[300px]">
+                        <PieChart>
+                          {data.cenario === "misto" && data.atividades?.atividade1 && data.atividades?.atividade2 ? (
+                            <>
+                              <Pie
+                                data={[
+                                  { name: "Serviços", value: data.atividades.atividade2.Total },
+                                  { name: "Mercadorias", value: data.atividades.atividade1.Total },
+                                ]}
+                                cx="50%"
+                                cy="50%"
+                                outerRadius={80}
+                                fill="#8884d8"
+                                dataKey="value"
+                                label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                              >
+                                <Cell fill="#8b5cf6" />
+                                <Cell fill="#3b82f6" />
+                              </Pie>
+                            </>
+                          ) : (
+                            <Pie
+                              data={(data.graficos.dasPie || data.graficos.totalTributos)!.labels
+                                .map((label, idx) => ({
+                                  name: label,
+                                  value: (data.graficos!.dasPie || data.graficos!.totalTributos)!.values[idx],
+                                }))
+                                .filter((item) => item.value > 0)}
+                              cx="50%"
+                              cy="50%"
+                              labelLine={false}
+                              label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                              outerRadius={80}
+                              fill="#8884d8"
+                              dataKey="value"
+                            >
+                              {(data.graficos.dasPie || data.graficos.totalTributos)!.labels.map((_, index) => (
+                                <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                              ))}
+                            </Pie>
+                          )}
+                          <Tooltip formatter={(value) => formatCurrency(Number(value))} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {(data.graficos.receitaLine || data.graficos.receitaMensal) && (
+                  <Card className="shadow-lg md:col-span-2">
+                    <CardHeader>
+                      <CardTitle className="text-base sm:text-lg">Evolução de Receitas - Mercado Interno</CardTitle>
+                      <CardDescription className="text-xs sm:text-sm">Histórico mensal de receitas</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <ResponsiveContainer width="100%" height={250} className="sm:h-[300px]">
+                        <LineChart
+                          data={(data.graficos.receitaLine || data.graficos.receitaMensal)!.labels.map(
+                            (label, idx) => ({
+                              mes: label,
+                              valor: (data.graficos!.receitaLine || data.graficos!.receitaMensal)!.values[idx],
+                            }),
+                          )}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="mes" angle={-45} textAnchor="end" height={80} tick={{ fontSize: 10 }} />
+                          <YAxis tick={{ fontSize: 10 }} />
+                          <Tooltip formatter={(value) => formatCurrency(Number(value))} />
+                          <Legend />
+                          <Line type="monotone" dataKey="valor" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3 }} />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </CardContent>
+                  </Card>
+                )}
               </div>
             )}
 
-            {/* Tributos Detalhados */}
             <Card className="shadow-lg">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5 text-blue-600" />
+                <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                  <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
                   Detalhamento dos Tributos
                 </CardTitle>
-                <CardDescription>Composição do DAS por tributo</CardDescription>
+                <CardDescription className="text-xs sm:text-sm">Composição do DAS por tributo</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
+                <div className="space-y-3 sm:space-y-4">
                   {[
                     { key: "IRPJ", label: "IRPJ", color: "bg-blue-500" },
                     { key: "CSLL", label: "CSLL", color: "bg-indigo-500" },
                     { key: "COFINS", label: "COFINS", color: "bg-purple-500" },
-                    { key: "PIS_Basep", label: "PIS/PASEP", color: "bg-pink-500" },
+                    { key: "PIS_Pasep", label: "PIS/PASEP", color: "bg-pink-500" },
                     { key: "INSS_CPP", label: "INSS/CPP", color: "bg-rose-500" },
                     { key: "ICMS", label: "ICMS", color: "bg-orange-500" },
                     { key: "IPI", label: "IPI", color: "bg-amber-500" },
                     { key: "ISS", label: "ISS", color: "bg-emerald-500" },
                   ].map(({ key, label, color }) => {
                     const value = (data.tributos[key as keyof typeof data.tributos] as number) || 0
-                    const percentage = data.tributos.Total > 0 ? (value / data.tributos.Total) * 100 : 0 // Usando 'Total' com maiúscula
+                    const percentage = data.tributos.Total > 0 ? (value / data.tributos.Total) * 100 : 0
 
                     return (
                       <div key={key} className="space-y-2">
-                        <div className="flex justify-between text-sm">
+                        <div className="flex justify-between text-xs sm:text-sm">
                           <span className="font-medium">{label}</span>
                           <span className="text-slate-600">
                             {formatCurrency(value)} ({percentage.toFixed(1)}%)
                           </span>
                         </div>
-                        <div className="h-3 bg-slate-100 rounded-full overflow-hidden">
+                        <div className="h-2 sm:h-3 bg-slate-100 rounded-full overflow-hidden">
                           <div
                             className={`h-full ${color} transition-all duration-500 ease-out`}
                             style={{ width: `${percentage}%` }}
@@ -654,7 +897,7 @@ const generateInsights = (dasData: DASData) => {
                     )
                   })}
                   <div className="pt-4 border-t border-slate-200">
-                    <div className="flex justify-between text-base font-bold">
+                    <div className="flex justify-between text-sm sm:text-base font-bold">
                       <span>Total</span>
                       <span className="text-slate-900">{formatCurrency(data.tributos.Total)}</span>
                     </div>
@@ -665,37 +908,37 @@ const generateInsights = (dasData: DASData) => {
 
             {data.insights && (
               <div className="space-y-4">
-                <h2 className="text-2xl font-bold flex items-center gap-2">
-                  <Lightbulb className="h-6 w-6 text-yellow-500" />
+                <h2 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
+                  <Lightbulb className="h-5 w-5 sm:h-6 sm:w-6 text-yellow-500" />
                   Insights de IA
                 </h2>
 
-                {/* Comparativo Setorial */}
                 <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
-                  <CardContent className="pt-6">
-                    <div className="flex items-start gap-3">
-                      <TrendingUp className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                  <CardContent className="pt-4 sm:pt-6">
+                    <div className="flex items-start gap-2 sm:gap-3">
+                      <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600 mt-0.5 flex-shrink-0" />
                       <div>
-                        <h3 className="font-semibold text-blue-900 mb-1">Comparativo Setorial</h3>
-                        <p className="text-sm text-blue-800">{data.insights.comparativoSetorial}</p>
+                        <h3 className="font-semibold text-blue-900 mb-1 text-sm sm:text-base">Comparativo Setorial</h3>
+                        <p className="text-xs sm:text-sm text-blue-800">{data.insights.comparativoSetorial}</p>
                       </div>
                     </div>
                   </CardContent>
                 </Card>
 
-                {/* Grid compacto para os outros insights */}
-                <div className="grid md:grid-cols-3 gap-4">
-                  {/* Pontos de Atenção */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
                   {data.insights.pontosAtencao.length > 0 && (
                     <Card className="bg-gradient-to-br from-rose-50 to-red-50 border-rose-200">
-                      <CardContent className="pt-6">
-                        <div className="flex items-center gap-2 mb-3">
-                          <AlertCircle className="h-4 w-4 text-rose-600" />
-                          <h3 className="font-semibold text-rose-900 text-sm">Pontos de Atenção</h3>
+                      <CardContent className="pt-4 sm:pt-6">
+                        <div className="flex items-center gap-2 mb-2 sm:mb-3">
+                          <AlertCircle className="h-3 w-3 sm:h-4 sm:w-4 text-rose-600" />
+                          <h3 className="font-semibold text-rose-900 text-xs sm:text-sm">Pontos de Atenção</h3>
                         </div>
-                        <ul className="space-y-1.5">
+                        <ul className="space-y-1 sm:space-y-1.5">
                           {data.insights.pontosAtencao.map((ponto, idx) => (
-                            <li key={idx} className="flex items-start gap-1.5 text-xs text-rose-800">
+                            <li
+                              key={idx}
+                              className="flex items-start gap-1 sm:gap-1.5 text-[10px] sm:text-xs text-rose-800"
+                            >
                               <span className="text-rose-500 mt-0.5">•</span>
                               <span>{ponto}</span>
                             </li>
@@ -705,17 +948,19 @@ const generateInsights = (dasData: DASData) => {
                     </Card>
                   )}
 
-                  {/* Oportunidades */}
                   {data.insights.oportunidades.length > 0 && (
                     <Card className="bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-200">
-                      <CardContent className="pt-6">
-                        <div className="flex items-center gap-2 mb-3">
-                          <Target className="h-4 w-4 text-emerald-600" />
-                          <h3 className="font-semibold text-emerald-900 text-sm">Oportunidades</h3>
+                      <CardContent className="pt-4 sm:pt-6">
+                        <div className="flex items-center gap-2 mb-2 sm:mb-3">
+                          <Target className="h-3 w-3 sm:h-4 sm:w-4 text-emerald-600" />
+                          <h3 className="font-semibold text-emerald-900 text-xs sm:text-sm">Oportunidades</h3>
                         </div>
-                        <ul className="space-y-1.5">
+                        <ul className="space-y-1 sm:space-y-1.5">
                           {data.insights.oportunidades.map((oportunidade, idx) => (
-                            <li key={idx} className="flex items-start gap-1.5 text-xs text-emerald-800">
+                            <li
+                              key={idx}
+                              className="flex items-start gap-1 sm:gap-1.5 text-[10px] sm:text-xs text-emerald-800"
+                            >
                               <span className="text-emerald-500 mt-0.5">✓</span>
                               <span>{oportunidade}</span>
                             </li>
@@ -725,17 +970,19 @@ const generateInsights = (dasData: DASData) => {
                     </Card>
                   )}
 
-                  {/* Recomendações */}
                   {data.insights.recomendacoes.length > 0 && (
                     <Card className="bg-gradient-to-br from-amber-50 to-orange-50 border-amber-200">
-                      <CardContent className="pt-6">
-                        <div className="flex items-center gap-2 mb-3">
-                          <Lightbulb className="h-4 w-4 text-amber-600" />
-                          <h3 className="font-semibold text-amber-900 text-sm">Recomendações</h3>
+                      <CardContent className="pt-4 sm:pt-6">
+                        <div className="flex items-center gap-2 mb-2 sm:mb-3">
+                          <Lightbulb className="h-3 w-3 sm:h-4 sm:w-4 text-amber-600" />
+                          <h3 className="font-semibold text-amber-900 text-xs sm:text-sm">Recomendações</h3>
                         </div>
-                        <ul className="space-y-1.5">
+                        <ul className="space-y-1 sm:space-y-1.5">
                           {data.insights.recomendacoes.map((recomendacao, idx) => (
-                            <li key={idx} className="flex items-start gap-1.5 text-xs text-amber-800">
+                            <li
+                              key={idx}
+                              className="flex items-start gap-1 sm:gap-1.5 text-[10px] sm:text-xs text-amber-800"
+                            >
                               <span className="text-amber-500 mt-0.5">→</span>
                               <span>{recomendacao}</span>
                             </li>
@@ -748,8 +995,7 @@ const generateInsights = (dasData: DASData) => {
               </div>
             )}
 
-            {/* Botão para novo processamento */}
-            <div className="flex justify-center">
+            <div className="flex justify-center pt-4">
               <Button
                 onClick={() => {
                   setData(null)
@@ -758,6 +1004,7 @@ const generateInsights = (dasData: DASData) => {
                 }}
                 variant="outline"
                 size="lg"
+                className="w-full sm:w-auto"
               >
                 Processar Novo PDF
               </Button>
