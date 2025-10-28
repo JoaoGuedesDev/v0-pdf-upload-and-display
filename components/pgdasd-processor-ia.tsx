@@ -171,14 +171,15 @@ export function PGDASDProcessorIA() {
         throw new Error(`O webhook retornou um tipo de conteúdo inesperado: ${contentType}`)
       }
 
-      let result
-      try {
-        result = JSON.parse(responseText)
-      } catch (parseError) {
-        console.error("[v0] Erro ao fazer parse do JSON:", parseError)
-        console.log("[v0] Texto que causou erro:", responseText)
-        throw new Error("O webhook retornou dados em formato inválido")
-      }
+  let result
+try {
+  result = JSON.parse(responseText)
+} catch (parseError) {
+  console.error("[v0] Erro ao fazer parse do JSON:", parseError)
+  console.log("[v0] Texto que causou erro:", responseText)
+  throw new Error("O webhook retornou dados em formato inválido")
+}
+
 let dasData: DASData
 let graficos
 
@@ -221,7 +222,7 @@ if (graficos) {
 
 if (!dasData.calculos) {
   const receitaPA = dasData.receitas.receitaPA || 0
-  const totalDAS = dasData.tributos.Total || 0 // Usando 'Total' com maiúscula
+  const totalDAS = dasData.tributos.Total || 0
 
   dasData.calculos = {
     aliquotaEfetiva: receitaPA > 0 ? (totalDAS / receitaPA) * 100 : 0,
@@ -232,8 +233,16 @@ if (!dasData.calculos) {
 const insights = generateInsights(dasData)
 
 setData({ ...dasData, insights })
+} catch (err) {
+  console.error("[v0] Erro no processamento:", err)
+  setError(err instanceof Error ? err.message : "Erro ao processar o arquivo")
+} finally {
+  setLoading(false)
+}
+}
 
-  const generateInsights = (dasData: DASData) => {
+// E APENAS DEPOIS vem a função generateInsights
+const generateInsights = (dasData: DASData) => {
     const aliquota = dasData.calculos?.aliquotaEfetiva || 0
     const margem = dasData.calculos?.margemLiquida || 0
     const totalTributos = dasData.tributos.Total || 0 // Usando 'Total' com maiúscula
