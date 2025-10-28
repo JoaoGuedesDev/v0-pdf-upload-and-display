@@ -357,133 +357,47 @@ export function PGDASDProcessorIA() {
             </Card>
 
             {/* Main Metrics */}
-           {/* Header com Detecção de Atividade */}
-<div className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-lg p-6 shadow-lg">
-  <div className="flex items-center justify-between">
-    <div>
-      <h2 className="text-2xl font-bold mb-2">
-        {data.tributos.ICMS > 0 && data.tributos.ISS > 0 && '📊 Empresa com Revenda e Serviços'}
-        {data.tributos.ICMS > 0 && data.tributos.ISS === 0 && '🏪 Empresa com Revenda de Mercadorias'}
-        {data.tributos.ICMS === 0 && data.tributos.ISS > 0 && '🔧 Empresa com Prestação de Serviços'}
-        {data.tributos.ICMS === 0 && data.tributos.ISS === 0 && '🏢 Tipo de Atividade a Definir'}
-      </h2>
-      <p className="text-blue-100">Período: {data.identificacao.periodoApuracao}</p>
-    </div>
-    <div className="text-right">
-      <div className="flex gap-4 text-sm">
-        <div className={`px-3 py-1 rounded-full ${data.tributos.ICMS > 0 ? 'bg-green-500' : 'bg-gray-500'}`}>
-          Revenda: {data.tributos.ICMS > 0 ? '✅' : '❌'}
-        </div>
-        <div className={`px-3 py-1 rounded-full ${data.tributos.ISS > 0 ? 'bg-green-500' : 'bg-gray-500'}`}>
-          Serviços: {data.tributos.ISS > 0 ? '✅' : '❌'}
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
+            <div className="grid md:grid-cols-4 gap-4">
+              <Card className="bg-gradient-to-br from-emerald-500 to-teal-600 text-white border-0 shadow-lg hover:shadow-xl transition-shadow">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium opacity-90">Receita Bruta PA</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-3xl font-bold">{formatCurrency(data.receitas.receitaPA)}</p>
+                  <p className="text-xs opacity-75 mt-1">Período de apuração</p>
+                </CardContent>
+              </Card>
 
-{/* Cards de Atividades Dinâmicas */}
-<div className="grid md:grid-cols-3 gap-6">
-  {/* Card Revenda - Mostra apenas se tiver ICMS */}
-  {data.tributos.ICMS > 0 && (
-    <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white border-0 shadow-lg hover:shadow-xl transition-shadow">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium opacity-90 flex items-center gap-2">
-          🏪 Revenda de Mercadorias
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <p className="text-2xl font-bold">{formatCurrency(data.receitas.receitaPA)}</p>
-        <p className="text-xs opacity-75 mt-1">Receita Bruta</p>
-        <div className="mt-3 pt-3 border-t border-blue-400">
-          <p className="text-sm">Tributos: {formatCurrency(data.tributos.Total)}</p>
-          <p className="text-xs opacity-75">ICMS: {formatCurrency(data.tributos.ICMS)}</p>
-        </div>
-      </CardContent>
-    </Card>
-  )}
+              <Card className="bg-gradient-to-br from-rose-500 to-pink-600 text-white border-0 shadow-lg hover:shadow-xl transition-shadow">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium opacity-90">Total DAS</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-3xl font-bold">{formatCurrency(data.tributos.Total)}</p>
+                  <p className="text-xs opacity-75 mt-1">Valor a pagar</p>
+                </CardContent>
+              </Card>
 
-  {/* Card Serviços - Mostra apenas se tiver ISS */}
-  {data.tributos.ISS > 0 && (
-    <Card className="bg-gradient-to-br from-green-500 to-green-600 text-white border-0 shadow-lg hover:shadow-xl transition-shadow">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium opacity-90 flex items-center gap-2">
-          🔧 Prestação de Serviços
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <p className="text-2xl font-bold">{formatCurrency(data.receitas.receitaPA)}</p>
-        <p className="text-xs opacity-75 mt-1">Receita Bruta</p>
-        <div className="mt-3 pt-3 border-t border-green-400">
-          <p className="text-sm">Tributos: {formatCurrency(data.tributos.Total)}</p>
-          <p className="text-xs opacity-75">ISS: {formatCurrency(data.tributos.ISS)}</p>
-        </div>
-      </CardContent>
-    </Card>
-  )}
+              <Card className="bg-gradient-to-br from-blue-500 to-indigo-600 text-white border-0 shadow-lg hover:shadow-xl transition-shadow">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium opacity-90">Alíquota Efetiva</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-3xl font-bold">{formatPercent(data.calculos?.aliquotaEfetiva || 0)}</p>
+                  <p className="text-xs opacity-75 mt-1">DAS / Receita PA</p>
+                </CardContent>
+              </Card>
 
-  {/* Card Consolidado/Situação */}
-  <Card className="bg-gradient-to-br from-purple-500 to-purple-600 text-white border-0 shadow-lg hover:shadow-xl transition-shadow">
-    <CardHeader className="pb-2">
-      <CardTitle className="text-sm font-medium opacity-90">
-        {data.tributos.ICMS > 0 && data.tributos.ISS > 0 ? '📈 Total Consolidado' : '💰 Resumo da Atividade'}
-      </CardTitle>
-    </CardHeader>
-    <CardContent>
-      <p className="text-2xl font-bold">{formatCurrency(data.receitas.receitaPA)}</p>
-      <p className="text-xs opacity-75 mt-1">Receita Bruta Total</p>
-      <div className="mt-3 pt-3 border-t border-purple-400">
-        <p className="text-sm">Tributos Totais: {formatCurrency(data.tributos.Total)}</p>
-        <p className="text-xs opacity-75">
-          Alíquota: {data.calculos?.aliquotaEfetiva?.toFixed(2) || '0.00'}%
-        </p>
-      </div>
-    </CardContent>
-  </Card>
-</div>
-
-{/* Métricas Principais (mantém os 4 cards originais) */}
-<div className="grid md:grid-cols-4 gap-4">
-  <Card className="bg-gradient-to-br from-emerald-500 to-teal-600 text-white border-0 shadow-lg hover:shadow-xl transition-shadow">
-    <CardHeader className="pb-2">
-      <CardTitle className="text-sm font-medium opacity-90">Receita Bruta PA</CardTitle>
-    </CardHeader>
-    <CardContent>
-      <p className="text-3xl font-bold">{formatCurrency(data.receitas.receitaPA)}</p>
-      <p className="text-xs opacity-75 mt-1">Período de apuração</p>
-    </CardContent>
-  </Card>
-
-  <Card className="bg-gradient-to-br from-rose-500 to-pink-600 text-white border-0 shadow-lg hover:shadow-xl transition-shadow">
-    <CardHeader className="pb-2">
-      <CardTitle className="text-sm font-medium opacity-90">Total DAS</CardTitle>
-    </CardHeader>
-    <CardContent>
-      <p className="text-3xl font-bold">{formatCurrency(data.tributos.Total)}</p>
-      <p className="text-xs opacity-75 mt-1">Valor a pagar</p>
-    </CardContent>
-  </Card>
-
-  <Card className="bg-gradient-to-br from-blue-500 to-indigo-600 text-white border-0 shadow-lg hover:shadow-xl transition-shadow">
-    <CardHeader className="pb-2">
-      <CardTitle className="text-sm font-medium opacity-90">Alíquota Efetiva</CardTitle>
-    </CardHeader>
-    <CardContent>
-      <p className="text-3xl font-bold">{formatPercent(data.calculos?.aliquotaEfetiva || 0)}</p>
-      <p className="text-xs opacity-75 mt-1">DAS / Receita PA</p>
-    </CardContent>
-  </Card>
-
-  <Card className="bg-gradient-to-br from-amber-500 to-orange-600 text-white border-0 shadow-lg hover:shadow-xl transition-shadow">
-    <CardHeader className="pb-2">
-      <CardTitle className="text-sm font-medium opacity-90">Margem Líquida</CardTitle>
-    </CardHeader>
-    <CardContent>
-      <p className="text-3xl font-bold">{formatPercent(data.calculos?.margemLiquida || 0)}</p>
-      <p className="text-xs opacity-75 mt-1">Receita após impostos</p>
-    </CardContent>
-  </Card>
-</div>
+              <Card className="bg-gradient-to-br from-amber-500 to-orange-600 text-white border-0 shadow-lg hover:shadow-xl transition-shadow">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium opacity-90">Margem Líquida</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-3xl font-bold">{formatPercent(data.calculos?.margemLiquida || 0)}</p>
+                  <p className="text-xs opacity-75 mt-1">Receita após impostos</p>
+                </CardContent>
+              </Card>
+            </div>
 
             {/* Discriminativo de Receitas */}
             <Card className="shadow-lg">
