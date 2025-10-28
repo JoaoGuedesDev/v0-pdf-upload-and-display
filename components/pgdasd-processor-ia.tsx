@@ -179,49 +179,59 @@ export function PGDASDProcessorIA() {
         console.log("[v0] Texto que causou erro:", responseText)
         throw new Error("O webhook retornou dados em formato inválido")
       }
+let dasData: DASData
+let graficos
 
-      let dasData: DASData
-      let graficos
+console.log("[v0] Estrutura completa da resposta:", JSON.stringify(result, null, 2))
 
-      if (Array.isArray(result) && result.length > 0) {
-        const firstItem = result[0]
-        if (firstItem.success && firstItem.dados) {
-          dasData = firstItem.dados
-          graficos = firstItem.graficos // Capturando dados dos gráficos
-        } else {
-          throw new Error("Estrutura de dados inesperada no array")
-        }
-      } else if (result.dados) {
-        dasData = result.dados
-        graficos = result.graficos
-      } else {
-        dasData = result
-      }
-
-      if (graficos) {
-        dasData.graficos = graficos
-      }
-
-      if (!dasData.calculos) {
-        const receitaPA = dasData.receitas.receitaPA || 0
-        const totalDAS = dasData.tributos.Total || 0 // Usando 'Total' com maiúscula
-
-        dasData.calculos = {
-          aliquotaEfetiva: receitaPA > 0 ? (totalDAS / receitaPA) * 100 : 0,
-          margemLiquida: receitaPA > 0 ? ((receitaPA - totalDAS) / receitaPA) * 100 : 0,
-        }
-      }
-
-      const insights = generateInsights(dasData)
-
-      setData({ ...dasData, insights })
-    } catch (err) {
-      console.error("[v0] Erro no processamento:", err)
-      setError(err instanceof Error ? err.message : "Erro ao processar o arquivo")
-    } finally {
-      setLoading(false)
-    }
+// Tenta diferentes estruturas possíveis
+if (result.success && result.dados) {
+  // Estrutura: { success: true, dados: {...}, graficos: {...} }
+  dasData = result.dados
+  graficos = result.graficos
+} else if (result.dados) {
+  // Estrutura: { dados: {...}, graficos: {...} }
+  dasData = result.dados
+  graficos = result.graficos
+} else if (Array.isArray(result) && result.length > 0) {
+  // Estrutura: [{...}] - pega o primeiro item do array
+  const firstItem = result[0]
+  if (firstItem.dados) {
+    dasData = firstItem.dados
+    graficos = firstItem.graficos
+  } else {
+    dasData = firstItem
   }
+} else {
+  // Assume que o resultado já é os dados do DAS
+  dasData = result
+}
+
+console.log("[v0] Dados extraídos:", dasData)
+console.log("[v0] Gráficos extraídos:", graficos)
+
+// Garante que os dados mínimos existem
+if (!dasData || !dasData.tributos) {
+  throw new Error("Estrutura de dados inválida: tributos não encontrados")
+}
+
+if (graficos) {
+  dasData.graficos = graficos
+}
+
+if (!dasData.calculos) {
+  const receitaPA = dasData.receitas.receitaPA || 0
+  const totalDAS = dasData.tributos.Total || 0 // Usando 'Total' com maiúscula
+
+  dasData.calculos = {
+    aliquotaEfetiva: receitaPA > 0 ? (totalDAS / receitaPA) * 100 : 0,
+    margemLiquida: receitaPA > 0 ? ((receitaPA - totalDAS) / receitaPA) * 100 : 0,
+  }
+}
+
+const insights = generateInsights(dasData)
+
+setData({ ...dasData, insights })
 
   const generateInsights = (dasData: DASData) => {
     const aliquota = dasData.calculos?.aliquotaEfetiva || 0
