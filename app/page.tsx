@@ -1,7 +1,7 @@
 "use client"
 
-import { PGDASDProcessorIA } from "@/components/pgdasd-processor-ia"
+import { DashboardSimplesNacional } from "@/components/dashboard-simples-nacional"
 
 export default function Home() {
-  return <PGDASDProcessorIA />
+  return <DashboardSimplesNacional />
 }
