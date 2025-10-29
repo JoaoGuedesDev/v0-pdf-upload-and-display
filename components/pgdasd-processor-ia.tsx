@@ -50,6 +50,16 @@ interface DASData {
     ISS: number
     Total: number
   }
+  atividades?: {
+    atividade1?: {
+      descricao: string
+      Total: number
+    }
+    atividade2?: {
+      descricao: string
+      Total: number
+    }
+  }
   graficos?: {
     tributosBar?: {
       labels: string[]
@@ -88,6 +98,11 @@ interface DASData {
 }
 
 const CHART_COLORS = ["#3b82f6", "#6366f1", "#8b5cf6", "#ec4899", "#f43f5e", "#f97316", "#f59e0b", "#10b981"]
+
+const ATIVIDADES_COLORS = {
+  servicos: "#10b981", // verde
+  mercadorias: "#3b82f6", // azul
+}
 
 export function PGDASDProcessorIA() {
   const [file, setFile] = useState<File | null>(null)
@@ -260,6 +275,12 @@ export function PGDASDProcessorIA() {
         identificacao: rawData.identificacao,
         receitas: rawData.receitas,
         tributos: tributosNormalizados,
+        atividades: rawData.atividades
+          ? {
+              atividade1: rawData.atividades.atividade1,
+              atividade2: rawData.atividades.atividade2,
+            }
+          : undefined,
         graficos: rawData.graficos,
         calculos: rawData.calculos,
       }
@@ -420,8 +441,26 @@ export function PGDASDProcessorIA() {
                   <CardTitle className="text-xs sm:text-sm font-medium opacity-90">Total DAS</CardTitle>
                 </CardHeader>
                 <CardContent className="p-4 sm:p-6 pt-0">
-                  <p className="text-xl sm:text-3xl font-bold break-words">{formatCurrency(data.tributos.Total)}</p>
-                  <p className="text-[10px] sm:text-xs opacity-75 mt-1">Valor a pagar</p>
+                  {data.atividades?.atividade1 && data.atividades?.atividade2 ? (
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-xs opacity-90">
+                        <span>Mercadorias:</span>
+                        <span>{formatCurrency(data.atividades.atividade1.Total)}</span>
+                      </div>
+                      <div className="flex justify-between text-xs opacity-90">
+                        <span>Serviços:</span>
+                        <span>{formatCurrency(data.atividades.atividade2.Total)}</span>
+                      </div>
+                      <div className="pt-1 mt-1 border-t border-white/30">
+                        <p className="text-xl sm:text-2xl font-bold">{formatCurrency(data.tributos.Total)}</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <p className="text-xl sm:text-3xl font-bold break-words">{formatCurrency(data.tributos.Total)}</p>
+                      <p className="text-[10px] sm:text-xs opacity-75 mt-1">Valor a pagar</p>
+                    </>
+                  )}
                 </CardContent>
               </Card>
 
@@ -466,12 +505,6 @@ export function PGDASDProcessorIA() {
                           <th className="text-left py-2 sm:py-3 px-2 sm:px-4 font-semibold text-slate-700">
                             Local de Receitas (R$)
                           </th>
-                          <th className="text-right py-2 sm:py-3 px-2 sm:px-4 font-semibold text-slate-700">
-                            Mercado Interno
-                          </th>
-                          <th className="text-right py-2 sm:py-3 px-2 sm:px-4 font-semibold text-slate-700">
-                            Mercado Externo
-                          </th>
                           <th className="text-right py-2 sm:py-3 px-2 sm:px-4 font-semibold text-slate-700 bg-slate-50">
                             Total
                           </th>
@@ -482,12 +515,6 @@ export function PGDASDProcessorIA() {
                           <td className="py-2 sm:py-3 px-2 sm:px-4 font-medium">
                             Receita Bruta do PA (RPA) - Competência
                           </td>
-                          <td className="text-right py-2 sm:py-3 px-2 sm:px-4 whitespace-nowrap">
-                            {formatCurrency(data.receitas.receitaPA)}
-                          </td>
-                          <td className="text-right py-2 sm:py-3 px-2 sm:px-4 whitespace-nowrap">
-                            {formatCurrency(0)}
-                          </td>
                           <td className="text-right py-2 sm:py-3 px-2 sm:px-4 bg-slate-50 font-semibold whitespace-nowrap">
                             {formatCurrency(data.receitas.receitaPA)}
                           </td>
@@ -496,33 +523,13 @@ export function PGDASDProcessorIA() {
                           <td className="py-2 sm:py-3 px-2 sm:px-4 font-medium">
                             Receita bruta acumulada nos doze meses anteriores ao PA (RBT12)
                           </td>
-                          <td className="text-right py-2 sm:py-3 px-2 sm:px-4 whitespace-nowrap">
-                            {formatCurrency(data.receitas.rbt12)}
-                          </td>
-                          <td className="text-right py-2 sm:py-3 px-2 sm:px-4 whitespace-nowrap">
-                            {formatCurrency(0)}
-                          </td>
                           <td className="text-right py-2 sm:py-3 px-2 sm:px-4 bg-slate-50 font-semibold whitespace-nowrap">
                             {formatCurrency(data.receitas.rbt12)}
                           </td>
                         </tr>
                         <tr className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
                           <td className="py-2 sm:py-3 px-2 sm:px-4 font-medium">
-                            Receita bruta acumulada nos doze meses anteriores ao PA proporcionalizada (RBT12p)
-                          </td>
-                          <td className="text-right py-2 sm:py-3 px-2 sm:px-4 text-slate-400">-</td>
-                          <td className="text-right py-2 sm:py-3 px-2 sm:px-4 text-slate-400">-</td>
-                          <td className="text-right py-2 sm:py-3 px-2 sm:px-4 bg-slate-50 text-slate-400">-</td>
-                        </tr>
-                        <tr className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                          <td className="py-2 sm:py-3 px-2 sm:px-4 font-medium">
                             Receita bruta acumulada no ano-calendário corrente (RBA)
-                          </td>
-                          <td className="text-right py-2 sm:py-3 px-2 sm:px-4 whitespace-nowrap">
-                            {formatCurrency(data.receitas.rba)}
-                          </td>
-                          <td className="text-right py-2 sm:py-3 px-2 sm:px-4 whitespace-nowrap">
-                            {formatCurrency(0)}
                           </td>
                           <td className="text-right py-2 sm:py-3 px-2 sm:px-4 bg-slate-50 font-semibold whitespace-nowrap">
                             {formatCurrency(data.receitas.rba)}
@@ -532,12 +539,6 @@ export function PGDASDProcessorIA() {
                           <td className="py-2 sm:py-3 px-2 sm:px-4 font-medium">
                             Receita bruta acumulada no ano-calendário anterior (RBAA)
                           </td>
-                          <td className="text-right py-2 sm:py-3 px-2 sm:px-4 whitespace-nowrap">
-                            {formatCurrency(data.receitas.rbaa)}
-                          </td>
-                          <td className="text-right py-2 sm:py-3 px-2 sm:px-4 whitespace-nowrap">
-                            {formatCurrency(0)}
-                          </td>
                           <td className="text-right py-2 sm:py-3 px-2 sm:px-4 bg-slate-50 font-semibold whitespace-nowrap">
                             {formatCurrency(data.receitas.rbaa)}
                           </td>
@@ -546,27 +547,22 @@ export function PGDASDProcessorIA() {
                           <td className="py-2 sm:py-3 px-2 sm:px-4 font-medium">
                             Limite de receita bruta proporcionalizado
                           </td>
-                          <td className="text-right py-2 sm:py-3 px-2 sm:px-4 whitespace-nowrap">
+                          <td className="text-right py-2 sm:py-3 px-2 sm:px-4 bg-slate-50 font-semibold whitespace-nowrap">
                             {formatCurrency(data.receitas.limite || 4800000)}
                           </td>
-                          <td className="text-right py-2 sm:py-3 px-2 sm:px-4 whitespace-nowrap">
-                            {formatCurrency(data.receitas.limite || 4800000)}
-                          </td>
-                          <td className="text-right py-2 sm:py-3 px-2 sm:px-4 bg-slate-50 text-slate-400">-</td>
                         </tr>
                       </tbody>
                     </table>
                   </div>
                 </div>
 
-                {/* Indicadores adicionais */}
                 <div className="mt-4 sm:mt-6 grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 pt-4 border-t border-slate-200">
                   <div className="bg-blue-50 rounded-lg p-3 sm:p-4">
-                    <p className="text-xs text-blue-600 font-medium mb-1">Utilização do Limite</p>
+                    <p className="text-xs text-blue-600 font-medium mb-1">Utilização do Limite (RBA)</p>
                     <p className="text-xl sm:text-2xl font-bold text-blue-900">
-                      {((data.receitas.rbt12 / (data.receitas.limite || 4800000)) * 100).toFixed(1)}%
+                      {((data.receitas.rba / (data.receitas.limite || 4800000)) * 100).toFixed(1)}%
                     </p>
-                    <p className="text-xs text-blue-600 mt-1">RBT12 / Limite</p>
+                    <p className="text-xs text-blue-600 mt-1">RBA / Limite Anual</p>
                   </div>
                   <div className="bg-emerald-50 rounded-lg p-3 sm:p-4">
                     <p className="text-xs text-emerald-600 font-medium mb-1">Crescimento Anual</p>
@@ -581,7 +577,7 @@ export function PGDASDProcessorIA() {
                   <div className="bg-amber-50 rounded-lg p-3 sm:p-4">
                     <p className="text-xs text-amber-600 font-medium mb-1">Margem até Limite</p>
                     <p className="text-xl sm:text-2xl font-bold text-amber-900 break-words">
-                      {formatCurrency((data.receitas.limite || 4800000) - data.receitas.rbt12)}
+                      {formatCurrency((data.receitas.limite || 4800000) - data.receitas.rba)}
                     </p>
                     <p className="text-xs text-amber-600 mt-1">Disponível no ano</p>
                   </div>
@@ -589,7 +585,6 @@ export function PGDASDProcessorIA() {
               </CardContent>
             </Card>
 
-            {/* Gráficos */}
             {data.graficos && (data.graficos.tributosBar || data.graficos.totalTributos) && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                 {/* Gráfico de Barras - Tributos */}
@@ -620,41 +615,81 @@ export function PGDASDProcessorIA() {
                   </Card>
                 )}
 
-                {/* Gráfico de Pizza - Distribuição DAS */}
-                {(data.graficos.dasPie || data.graficos.totalTributos) && (
-                  <Card className="shadow-lg">
-                    <CardHeader>
-                      <CardTitle className="text-base sm:text-lg">Distribuição do DAS</CardTitle>
-                      <CardDescription className="text-xs sm:text-sm">Percentual por tributo</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <ResponsiveContainer width="100%" height={250} className="sm:h-[300px]">
-                        <PieChart>
-                          <Pie
-                            data={(data.graficos.dasPie || data.graficos.totalTributos)!.labels
-                              .map((label, idx) => ({
-                                name: label,
-                                value: (data.graficos!.dasPie || data.graficos!.totalTributos)!.values[idx],
-                              }))
-                              .filter((item) => item.value > 0)}
-                            cx="50%"
-                            cy="50%"
-                            labelLine={false}
-                            label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                            outerRadius={60}
-                            fill="#8884d8"
-                            dataKey="value"
-                          >
-                            {(data.graficos.dasPie || data.graficos.totalTributos)!.labels.map((_, index) => (
-                              <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                            ))}
-                          </Pie>
-                          <Tooltip formatter={(value) => formatCurrency(Number(value))} />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </CardContent>
-                  </Card>
-                )}
+                {/* Gráficos de Pizza - Menores e no mesmo card */}
+                <Card className="shadow-lg">
+                  <CardHeader>
+                    <CardTitle className="text-base sm:text-lg">Distribuição do DAS</CardTitle>
+                    <CardDescription className="text-xs sm:text-sm">
+                      Composição tributária e por atividade
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 gap-2">
+                      {/* Pizza 1: Distribuição por Tributo */}
+                      {(data.graficos.dasPie || data.graficos.totalTributos) && (
+                        <div>
+                          <p className="text-xs font-medium text-center mb-2 text-slate-600">Por Tributo</p>
+                          <ResponsiveContainer width="100%" height={180}>
+                            <PieChart>
+                              <Pie
+                                data={(data.graficos.dasPie || data.graficos.totalTributos)!.labels
+                                  .map((label, idx) => ({
+                                    name: label,
+                                    value: (data.graficos!.dasPie || data.graficos!.totalTributos)!.values[idx],
+                                  }))
+                                  .filter((item) => item.value > 0)}
+                                cx="50%"
+                                cy="50%"
+                                outerRadius={50}
+                                fill="#8884d8"
+                                dataKey="value"
+                                label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
+                              >
+                                {(data.graficos.dasPie || data.graficos.totalTributos)!.labels.map((_, index) => (
+                                  <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                                ))}
+                              </Pie>
+                              <Tooltip formatter={(value) => formatCurrency(Number(value))} />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        </div>
+                      )}
+
+                      {/* Pizza 2: Divisão por Atividade */}
+                      {data.atividades?.atividade1 && data.atividades?.atividade2 && (
+                        <div>
+                          <p className="text-xs font-medium text-center mb-2 text-slate-600">Por Atividade</p>
+                          <ResponsiveContainer width="100%" height={180}>
+                            <PieChart>
+                              <Pie
+                                data={[
+                                  {
+                                    name: "Mercadorias",
+                                    value: data.atividades.atividade1.Total,
+                                  },
+                                  {
+                                    name: "Serviços",
+                                    value: data.atividades.atividade2.Total,
+                                  },
+                                ]}
+                                cx="50%"
+                                cy="50%"
+                                outerRadius={50}
+                                fill="#8884d8"
+                                dataKey="value"
+                                label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
+                              >
+                                <Cell fill={ATIVIDADES_COLORS.mercadorias} />
+                                <Cell fill={ATIVIDADES_COLORS.servicos} />
+                              </Pie>
+                              <Tooltip formatter={(value) => formatCurrency(Number(value))} />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
 
                 {/* Gráfico de Linha - Evolução de Receitas */}
                 {(data.graficos.receitaLine || data.graficos.receitaMensal) && (
@@ -687,54 +722,117 @@ export function PGDASDProcessorIA() {
               </div>
             )}
 
-            {/* Tributos Detalhados */}
             <Card className="shadow-lg">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
                   <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
                   Detalhamento dos Tributos
                 </CardTitle>
-                <CardDescription className="text-xs sm:text-sm">Composição do DAS por tributo</CardDescription>
+                <CardDescription className="text-xs sm:text-sm">
+                  Composição do DAS por tributo e atividade
+                </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3 sm:space-y-4">
-                  {[
-                    { key: "IRPJ", label: "IRPJ", color: "bg-blue-500" },
-                    { key: "CSLL", label: "CSLL", color: "bg-indigo-500" },
-                    { key: "COFINS", label: "COFINS", color: "bg-purple-500" },
-                    { key: "PIS_Pasep", label: "PIS/PASEP", color: "bg-pink-500" },
-                    { key: "INSS_CPP", label: "INSS/CPP", color: "bg-rose-500" },
-                    { key: "ICMS", label: "ICMS", color: "bg-orange-500" },
-                    { key: "IPI", label: "IPI", color: "bg-amber-500" },
-                    { key: "ISS", label: "ISS", color: "bg-emerald-500" },
-                  ].map(({ key, label, color }) => {
-                    const value = (data.tributos[key as keyof typeof data.tributos] as number) || 0
-                    const percentage = data.tributos.Total > 0 ? (value / data.tributos.Total) * 100 : 0
+                {data.atividades?.atividade1 && data.atividades?.atividade2 ? (
+                  <div className="overflow-x-auto -mx-4 sm:mx-0">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b-2 border-slate-200">
+                          <th className="text-left py-2 px-2 font-semibold text-slate-700">Tributo</th>
+                          <th className="text-right py-2 px-2 font-semibold text-blue-700">Mercadorias</th>
+                          <th className="text-right py-2 px-2 font-semibold text-emerald-700">Serviços</th>
+                          <th className="text-right py-2 px-2 font-semibold text-slate-700 bg-slate-50">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[
+                          { key: "IRPJ", label: "IRPJ" },
+                          { key: "CSLL", label: "CSLL" },
+                          { key: "COFINS", label: "COFINS" },
+                          { key: "PIS_Pasep", label: "PIS/PASEP" },
+                          { key: "INSS_CPP", label: "INSS/CPP" },
+                          { key: "ICMS", label: "ICMS" },
+                          { key: "IPI", label: "IPI" },
+                          { key: "ISS", label: "ISS" },
+                        ].map(({ key, label }) => {
+                          const mercadorias =
+                            (data.atividades!.atividade1![key as keyof typeof data.atividades.atividade1] as number) ||
+                            0
+                          const servicos =
+                            (data.atividades!.atividade2![key as keyof typeof data.atividades.atividade2] as number) ||
+                            0
+                          const total = (data.tributos[key as keyof typeof data.tributos] as number) || 0
 
-                    return (
-                      <div key={key} className="space-y-2">
-                        <div className="flex justify-between text-xs sm:text-sm">
-                          <span className="font-medium">{label}</span>
-                          <span className="text-slate-600">
-                            {formatCurrency(value)} ({percentage.toFixed(1)}%)
-                          </span>
+                          return (
+                            <tr key={key} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                              <td className="py-2 px-2 font-medium">{label}</td>
+                              <td className="text-right py-2 px-2 text-blue-700 whitespace-nowrap">
+                                {formatCurrency(mercadorias)}
+                              </td>
+                              <td className="text-right py-2 px-2 text-emerald-700 whitespace-nowrap">
+                                {formatCurrency(servicos)}
+                              </td>
+                              <td className="text-right py-2 px-2 bg-slate-50 font-semibold whitespace-nowrap">
+                                {formatCurrency(total)}
+                              </td>
+                            </tr>
+                          )
+                        })}
+                        <tr className="border-t-2 border-slate-200 font-bold">
+                          <td className="py-2 px-2">Total</td>
+                          <td className="text-right py-2 px-2 text-blue-700 whitespace-nowrap">
+                            {formatCurrency(data.atividades.atividade1.Total)}
+                          </td>
+                          <td className="text-right py-2 px-2 text-emerald-700 whitespace-nowrap">
+                            {formatCurrency(data.atividades.atividade2.Total)}
+                          </td>
+                          <td className="text-right py-2 px-2 bg-slate-50 whitespace-nowrap">
+                            {formatCurrency(data.tributos.Total)}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="space-y-2 sm:space-y-3">
+                    {[
+                      { key: "IRPJ", label: "IRPJ", color: "bg-blue-500" },
+                      { key: "CSLL", label: "CSLL", color: "bg-indigo-500" },
+                      { key: "COFINS", label: "COFINS", color: "bg-purple-500" },
+                      { key: "PIS_Pasep", label: "PIS/PASEP", color: "bg-pink-500" },
+                      { key: "INSS_CPP", label: "INSS/CPP", color: "bg-rose-500" },
+                      { key: "ICMS", label: "ICMS", color: "bg-orange-500" },
+                      { key: "IPI", label: "IPI", color: "bg-amber-500" },
+                      { key: "ISS", label: "ISS", color: "bg-emerald-500" },
+                    ].map(({ key, label, color }) => {
+                      const value = (data.tributos[key as keyof typeof data.tributos] as number) || 0
+                      const percentage = data.tributos.Total > 0 ? (value / data.tributos.Total) * 100 : 0
+
+                      return (
+                        <div key={key} className="space-y-1">
+                          <div className="flex justify-between text-xs">
+                            <span className="font-medium">{label}</span>
+                            <span className="text-slate-600">
+                              {formatCurrency(value)} ({percentage.toFixed(1)}%)
+                            </span>
+                          </div>
+                          <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full ${color} transition-all duration-500 ease-out`}
+                              style={{ width: `${percentage}%` }}
+                            />
+                          </div>
                         </div>
-                        <div className="h-2 sm:h-3 bg-slate-100 rounded-full overflow-hidden">
-                          <div
-                            className={`h-full ${color} transition-all duration-500 ease-out`}
-                            style={{ width: `${percentage}%` }}
-                          />
-                        </div>
+                      )
+                    })}
+                    <div className="pt-3 border-t border-slate-200">
+                      <div className="flex justify-between text-sm font-bold">
+                        <span>Total</span>
+                        <span className="text-slate-900">{formatCurrency(data.tributos.Total)}</span>
                       </div>
-                    )
-                  })}
-                  <div className="pt-4 border-t border-slate-200">
-                    <div className="flex justify-between text-sm sm:text-base font-bold">
-                      <span>Total</span>
-                      <span className="text-slate-900">{formatCurrency(data.tributos.Total)}</span>
                     </div>
                   </div>
-                </div>
+                )}
               </CardContent>
             </Card>
 
