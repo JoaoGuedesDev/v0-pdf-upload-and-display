@@ -2,18 +2,7 @@
 
 import type React from "react"
 import { useState } from "react"
-import {
-  Upload,
-  FileText,
-  TrendingUp,
-  AlertCircle,
-  Lightbulb,
-  Target,
-  Loader2,
-  DollarSign,
-  Package,
-  Briefcase,
-} from "lucide-react"
+import { Upload, FileText, TrendingUp, AlertCircle, Lightbulb, Target, Loader2, DollarSign } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -32,21 +21,6 @@ import {
   ResponsiveContainer,
   Cell,
 } from "recharts"
-
-interface Atividade {
-  descricao: string
-  IRPJ: number
-  CSLL: number
-  COFINS: number
-  PIS_Pasep: number
-  INSS_CPP: number
-  ICMS: number
-  IPI: number
-  ISS: number
-  Total: number
-}
-
-type Cenario = "servicos" | "mercadorias" | "misto"
 
 interface DASData {
   identificacao: {
@@ -75,12 +49,6 @@ interface DASData {
     IPI: number
     ISS: number
     Total: number
-  }
-  atividades?: {
-    atividade1?: Atividade
-    atividade2?: Atividade
-    servicos?: Atividade
-    mercadorias?: Atividade
   }
   graficos?: {
     tributosBar?: {
@@ -117,7 +85,6 @@ interface DASData {
     oportunidades: string[]
     recomendacoes: string[]
   }
-  cenario?: Cenario
 }
 
 const CHART_COLORS = ["#3b82f6", "#6366f1", "#8b5cf6", "#ec4899", "#f43f5e", "#f97316", "#f59e0b", "#10b981"]
@@ -129,15 +96,6 @@ export function PGDASDProcessorIA() {
   const [data, setData] = useState<DASData | null>(null)
   const [dragActive, setDragActive] = useState(false)
 
-  const detectarCenario = (atividade1?: Atividade, atividade2?: Atividade): Cenario => {
-    const temServicos = (atividade1?.ISS || 0) > 0 || (atividade2?.ISS || 0) > 0
-    const temMercadorias = (atividade1?.ICMS || 0) > 0 || (atividade2?.ICMS || 0) > 0
-
-    if (temServicos && temMercadorias) return "misto"
-    if (temServicos) return "servicos"
-    return "mercadorias"
-  }
-
   const generateInsights = (dasData: DASData) => {
     const aliquota = dasData.calculos?.aliquotaEfetiva || 0
     const margem = dasData.calculos?.margemLiquida || 0
@@ -145,73 +103,28 @@ export function PGDASDProcessorIA() {
     const inss = dasData.tributos.INSS_CPP || 0
     const rbt12 = dasData.receitas.rbt12 || 0
     const iss = dasData.tributos.ISS || 0
-    const icms = dasData.tributos.ICMS || 0
-    const cenario = dasData.cenario || "misto"
-
-    let comparativoSetorial = ""
-    const pontosAtencao: string[] = []
-    const oportunidades: string[] = []
-    const recomendacoes: string[] = []
-
-    switch (cenario) {
-      case "servicos":
-        comparativoSetorial = `Sua alíquota efetiva de ${aliquota.toFixed(2)}% está ${aliquota > 8 ? "acima" : "dentro"} da média para prestadores de serviços (6-8%). ${iss > totalTributos * 0.15 ? "ISS representa parcela significativa dos tributos." : ""}`
-
-        if (iss > totalTributos * 0.15)
-          pontosAtencao.push("ISS representa mais de 15% do total - avaliar benefícios municipais")
-        if (inss > totalTributos * 0.35)
-          pontosAtencao.push("INSS/CPP elevado - revisar distribuição pró-labore vs lucros")
-
-        oportunidades.push("Avaliar benefícios fiscais municipais para redução de ISS")
-        oportunidades.push("Verificar enquadramento no Anexo III ou possibilidade de migração")
-
-        recomendacoes.push("Manter documentação de serviços prestados organizada")
-        recomendacoes.push("Avaliar possibilidade de retenções na fonte")
-        break
-
-      case "mercadorias":
-        comparativoSetorial = `Sua alíquota efetiva de ${aliquota.toFixed(2)}% está ${aliquota > 7 ? "acima" : "dentro"} da média para comércio (5-7%). ${icms > totalTributos * 0.12 ? "ICMS tem peso relevante na carga tributária." : ""}`
-
-        if (icms > totalTributos * 0.12)
-          pontosAtencao.push("ICMS representa mais de 12% do total - avaliar créditos fiscais")
-        if (aliquota > 7) pontosAtencao.push("Alíquota acima da média do setor - revisar enquadramento")
-
-        oportunidades.push("Aproveitar créditos de ICMS nas compras")
-        oportunidades.push("Avaliar substituição tributária para reduzir carga")
-
-        recomendacoes.push("Manter controle rigoroso de estoque e notas fiscais")
-        recomendacoes.push("Verificar possibilidade de benefícios estaduais")
-        break
-
-      case "misto":
-        comparativoSetorial = `Operação mista com alíquota efetiva de ${aliquota.toFixed(2)}%. ${iss > 0 && icms > 0 ? "Boa diversificação entre serviços e mercadorias." : ""}`
-
-        if (Math.abs(iss - icms) > totalTributos * 0.2) {
-          pontosAtencao.push("Desbalanceamento entre serviços e mercadorias - avaliar otimização")
-        }
-
-        oportunidades.push("Otimizar divisão entre serviços e mercadorias para reduzir carga")
-        oportunidades.push("Aproveitar benefícios fiscais de ambas as atividades")
-
-        recomendacoes.push("Segregar corretamente receitas de serviços e mercadorias")
-        recomendacoes.push("Avaliar qual atividade tem melhor margem para foco estratégico")
-        break
-    }
-
-    if (aliquota > 10) pontosAtencao.push("Alíquota efetiva elevada - revisar enquadramento no Simples")
-    if (margem < 10) pontosAtencao.push("Margem líquida abaixo de 10% - atenção à rentabilidade")
-
-    oportunidades.push("Receita anual permite permanência no Simples Nacional")
-    if (aliquota > 8) oportunidades.push("Possível redução de carga através de planejamento tributário")
-
-    recomendacoes.push("Manter controle rigoroso do faturamento para não ultrapassar o limite do Simples")
-    if (margem < 15) recomendacoes.push("Avaliar estrutura de custos e precificação para melhorar margem")
 
     return {
-      comparativoSetorial,
-      pontosAtencao: pontosAtencao.filter(Boolean),
-      oportunidades: oportunidades.filter(Boolean),
-      recomendacoes: recomendacoes.filter(Boolean),
+      comparativoSetorial:
+        aliquota > 8
+          ? "Sua alíquota efetiva está acima da média setorial (6-8%). Há oportunidades de otimização."
+          : "Sua alíquota efetiva está dentro da média setorial. Boa gestão tributária!",
+      pontosAtencao: [
+        aliquota > 10 && "Alíquota efetiva elevada - revisar enquadramento",
+        totalTributos > 0 && inss > totalTributos * 0.4 && "INSS representa mais de 40% do total - avaliar pró-labore",
+        margem < 10 && "Margem líquida abaixo de 10% - atenção à rentabilidade",
+      ].filter(Boolean) as string[],
+      oportunidades: [
+        rbt12 < 4800000 && "Receita anual permite permanência no Simples Nacional",
+        aliquota > 8 && "Possível redução de carga através de planejamento tributário",
+        iss > 0 && "Avaliar benefícios fiscais municipais para ISS",
+      ].filter(Boolean) as string[],
+      recomendacoes: [
+        "Manter controle rigoroso do faturamento para não ultrapassar o limite do Simples",
+        aliquota > 8 && "Consultar contador sobre possibilidade de mudança de anexo",
+        "Revisar distribuição de lucros vs. pró-labore para otimização tributária",
+        margem < 15 && "Avaliar estrutura de custos e precificação para melhorar margem",
+      ].filter(Boolean) as string[],
     }
   }
 
@@ -282,23 +195,36 @@ export function PGDASDProcessorIA() {
       })
 
       console.log("[v0] Status da resposta:", response.status)
+      console.log("[v0] Content-Type:", response.headers.get("content-type"))
 
       if (!response.ok) {
         throw new Error(`Erro ao processar: ${response.statusText}`)
       }
 
+      const contentType = response.headers.get("content-type")
       const responseText = await response.text()
+
+      console.log("[v0] Resposta recebida (primeiros 500 chars):", responseText.substring(0, 500))
 
       if (!responseText || responseText.trim() === "") {
         throw new Error("O webhook retornou uma resposta vazia")
+      }
+
+      if (!contentType?.includes("application/json")) {
+        console.log("[v0] Resposta completa:", responseText)
+        throw new Error(`O webhook retornou um tipo de conteúdo inesperado: ${contentType}`)
       }
 
       let result
       try {
         result = JSON.parse(responseText)
       } catch (parseError) {
+        console.error("[v0] Erro ao fazer parse do JSON:", parseError)
+        console.log("[v0] Texto que causou erro:", responseText)
         throw new Error("O webhook retornou dados em formato inválido")
       }
+
+      console.log("[v0] Estrutura completa da resposta:", JSON.stringify(result, null, 2))
 
       let rawData
       if (Array.isArray(result) && result.length > 0) {
@@ -330,17 +256,15 @@ export function PGDASDProcessorIA() {
         Total: tributos.Total || 0,
       }
 
-      const cenario = detectarCenario(rawData.atividades?.atividade1, rawData.atividades?.atividade2)
-
       const dasData: DASData = {
         identificacao: rawData.identificacao,
         receitas: rawData.receitas,
         tributos: tributosNormalizados,
-        atividades: rawData.atividades,
         graficos: rawData.graficos,
         calculos: rawData.calculos,
-        cenario,
       }
+
+      console.log("[v0] Dados normalizados:", dasData)
 
       if (dasData.calculos) {
         if (dasData.calculos.aliquotaEfetivaPercent && !dasData.calculos.aliquotaEfetiva) {
@@ -386,6 +310,7 @@ export function PGDASDProcessorIA() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-4 sm:p-6">
       <div className="mx-auto max-w-7xl space-y-6 sm:space-y-8">
+        {/* Header */}
         <div className="text-center space-y-2">
           <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
             Processador PGDASD com IA
@@ -395,6 +320,7 @@ export function PGDASDProcessorIA() {
           </p>
         </div>
 
+        {/* Upload Area */}
         {!data && (
           <Card className="border-2 border-dashed border-slate-300 bg-white/50 backdrop-blur-sm">
             <CardContent className="pt-6">
@@ -450,8 +376,10 @@ export function PGDASDProcessorIA() {
           </Card>
         )}
 
+        {/* Results */}
         {data && (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {/* Company Info */}
             <Card className="bg-gradient-to-br from-slate-900 to-slate-800 text-white border-0 shadow-xl">
               <CardHeader>
                 <div className="flex items-center gap-2">
@@ -475,6 +403,7 @@ export function PGDASDProcessorIA() {
               </CardContent>
             </Card>
 
+            {/* Main Metrics */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
               <Card className="bg-gradient-to-br from-emerald-500 to-teal-600 text-white border-0 shadow-lg hover:shadow-xl transition-shadow">
                 <CardHeader className="pb-2 p-4 sm:p-6">
@@ -517,6 +446,7 @@ export function PGDASDProcessorIA() {
               </Card>
             </div>
 
+            {/* Discriminativo de Receitas */}
             <Card className="shadow-lg">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
@@ -629,6 +559,7 @@ export function PGDASDProcessorIA() {
                   </div>
                 </div>
 
+                {/* Indicadores adicionais */}
                 <div className="mt-4 sm:mt-6 grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 pt-4 border-t border-slate-200">
                   <div className="bg-blue-50 rounded-lg p-3 sm:p-4">
                     <p className="text-xs text-blue-600 font-medium mb-1">Utilização do Limite</p>
@@ -658,88 +589,10 @@ export function PGDASDProcessorIA() {
               </CardContent>
             </Card>
 
-            {data.cenario === "misto" && data.atividades?.atividade1 && data.atividades?.atividade2 && (
-              <Card className="bg-gradient-to-br from-purple-500 to-indigo-600 text-white border-0 shadow-xl">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-                    <Package className="h-5 w-5" />
-                    Composição do DAS - Operação Mista
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div className="bg-white/10 rounded-lg p-4 backdrop-blur-sm">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Briefcase className="h-4 w-4" />
-                        <p className="text-sm opacity-90">Serviços</p>
-                      </div>
-                      <p className="text-2xl font-bold">{formatCurrency(data.atividades.atividade2?.Total || 0)}</p>
-                      <p className="text-xs opacity-75 mt-1">
-                        {(((data.atividades.atividade2?.Total || 0) / data.tributos.Total) * 100 || 0).toFixed(1)}% do
-                        total
-                      </p>
-                    </div>
-                    <div className="bg-white/10 rounded-lg p-4 backdrop-blur-sm">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Package className="h-4 w-4" />
-                        <p className="text-sm opacity-90">Mercadorias</p>
-                      </div>
-                      <p className="text-2xl font-bold">{formatCurrency(data.atividades.atividade1?.Total || 0)}</p>
-                      <p className="text-xs opacity-75 mt-1">
-                        {(((data.atividades.atividade1?.Total || 0) / data.tributos.Total) * 100 || 0).toFixed(1)}% do
-                        total
-                      </p>
-                    </div>
-                    <div className="bg-white/20 rounded-lg p-4 backdrop-blur-sm border-2 border-white/30">
-                      <p className="text-sm opacity-90 mb-2">Total DAS</p>
-                      <p className="text-3xl font-bold">{formatCurrency(data.tributos.Total)}</p>
-                      <p className="text-xs opacity-75 mt-1">Valor total a pagar</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
+            {/* Gráficos */}
             {data.graficos && (data.graficos.tributosBar || data.graficos.totalTributos) && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-                {data.cenario === "misto" && data.graficos.atividadesComparativo && (
-                  <Card className="shadow-lg md:col-span-2">
-                    <CardHeader>
-                      <CardTitle className="text-base sm:text-lg">Comparativo de Tributos por Atividade</CardTitle>
-                      <CardDescription className="text-xs sm:text-sm">
-                        Distribuição de tributos entre serviços e mercadorias
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <ResponsiveContainer width="100%" height={250} className="sm:h-[300px]">
-                        <BarChart
-                          data={data.graficos.atividadesComparativo.labels
-                            .filter((label: string) => label !== "Total")
-                            .map((label: string) => ({
-                              name: label,
-                              Serviços:
-                                data.graficos!.atividadesComparativo.atividade2[
-                                  label.replace("/", "_").replace(" ", "_")
-                                ] || 0,
-                              Mercadorias:
-                                data.graficos!.atividadesComparativo.atividade1[
-                                  label.replace("/", "_").replace(" ", "_")
-                                ] || 0,
-                            }))}
-                        >
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} tick={{ fontSize: 10 }} />
-                          <YAxis tick={{ fontSize: 10 }} />
-                          <Tooltip formatter={(value) => formatCurrency(Number(value))} />
-                          <Legend />
-                          <Bar dataKey="Serviços" stackId="a" fill="#8b5cf6" />
-                          <Bar dataKey="Mercadorias" stackId="a" fill="#3b82f6" />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </CardContent>
-                  </Card>
-                )}
-
+                {/* Gráfico de Barras - Tributos */}
                 {(data.graficos.tributosBar || data.graficos.totalTributos) && (
                   <Card className="shadow-lg">
                     <CardHeader>
@@ -749,12 +602,12 @@ export function PGDASDProcessorIA() {
                     <CardContent>
                       <ResponsiveContainer width="100%" height={250} className="sm:h-[300px]">
                         <BarChart
-                          data={(data.graficos.tributosBar || data.graficos.totalTributos)!.labels
-                            .map((label, idx) => ({
+                          data={(data.graficos.tributosBar || data.graficos.totalTributos)!.labels.map(
+                            (label, idx) => ({
                               name: label,
                               valor: (data.graficos!.tributosBar || data.graficos!.totalTributos)!.values[idx],
-                            }))
-                            .filter((item) => item.valor > 0)}
+                            }),
+                          )}
                         >
                           <CartesianGrid strokeDasharray="3 3" />
                           <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} tick={{ fontSize: 10 }} />
@@ -767,58 +620,35 @@ export function PGDASDProcessorIA() {
                   </Card>
                 )}
 
+                {/* Gráfico de Pizza - Distribuição DAS */}
                 {(data.graficos.dasPie || data.graficos.totalTributos) && (
                   <Card className="shadow-lg">
                     <CardHeader>
-                      <CardTitle className="text-base sm:text-lg">
-                        {data.cenario === "misto" ? "Distribuição do DAS" : "Composição Tributária"}
-                      </CardTitle>
-                      <CardDescription className="text-xs sm:text-sm">
-                        {data.cenario === "misto" ? "Percentual por atividade e tributo" : "Percentual por tributo"}
-                      </CardDescription>
+                      <CardTitle className="text-base sm:text-lg">Distribuição do DAS</CardTitle>
+                      <CardDescription className="text-xs sm:text-sm">Percentual por tributo</CardDescription>
                     </CardHeader>
                     <CardContent>
                       <ResponsiveContainer width="100%" height={250} className="sm:h-[300px]">
                         <PieChart>
-                          {data.cenario === "misto" && data.atividades?.atividade1 && data.atividades?.atividade2 ? (
-                            <>
-                              <Pie
-                                data={[
-                                  { name: "Serviços", value: data.atividades.atividade2.Total },
-                                  { name: "Mercadorias", value: data.atividades.atividade1.Total },
-                                ]}
-                                cx="50%"
-                                cy="50%"
-                                outerRadius={80}
-                                fill="#8884d8"
-                                dataKey="value"
-                                label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                              >
-                                <Cell fill="#8b5cf6" />
-                                <Cell fill="#3b82f6" />
-                              </Pie>
-                            </>
-                          ) : (
-                            <Pie
-                              data={(data.graficos.dasPie || data.graficos.totalTributos)!.labels
-                                .map((label, idx) => ({
-                                  name: label,
-                                  value: (data.graficos!.dasPie || data.graficos!.totalTributos)!.values[idx],
-                                }))
-                                .filter((item) => item.value > 0)}
-                              cx="50%"
-                              cy="50%"
-                              labelLine={false}
-                              label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                              outerRadius={80}
-                              fill="#8884d8"
-                              dataKey="value"
-                            >
-                              {(data.graficos.dasPie || data.graficos.totalTributos)!.labels.map((_, index) => (
-                                <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                              ))}
-                            </Pie>
-                          )}
+                          <Pie
+                            data={(data.graficos.dasPie || data.graficos.totalTributos)!.labels
+                              .map((label, idx) => ({
+                                name: label,
+                                value: (data.graficos!.dasPie || data.graficos!.totalTributos)!.values[idx],
+                              }))
+                              .filter((item) => item.value > 0)}
+                            cx="50%"
+                            cy="50%"
+                            labelLine={false}
+                            label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                            outerRadius={60}
+                            fill="#8884d8"
+                            dataKey="value"
+                          >
+                            {(data.graficos.dasPie || data.graficos.totalTributos)!.labels.map((_, index) => (
+                              <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                            ))}
+                          </Pie>
                           <Tooltip formatter={(value) => formatCurrency(Number(value))} />
                         </PieChart>
                       </ResponsiveContainer>
@@ -826,6 +656,7 @@ export function PGDASDProcessorIA() {
                   </Card>
                 )}
 
+                {/* Gráfico de Linha - Evolução de Receitas */}
                 {(data.graficos.receitaLine || data.graficos.receitaMensal) && (
                   <Card className="shadow-lg md:col-span-2">
                     <CardHeader>
@@ -856,6 +687,7 @@ export function PGDASDProcessorIA() {
               </div>
             )}
 
+            {/* Tributos Detalhados */}
             <Card className="shadow-lg">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
@@ -906,6 +738,7 @@ export function PGDASDProcessorIA() {
               </CardContent>
             </Card>
 
+            {/* Insights de IA */}
             {data.insights && (
               <div className="space-y-4">
                 <h2 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
@@ -913,6 +746,7 @@ export function PGDASDProcessorIA() {
                   Insights de IA
                 </h2>
 
+                {/* Comparativo Setorial */}
                 <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
                   <CardContent className="pt-4 sm:pt-6">
                     <div className="flex items-start gap-2 sm:gap-3">
@@ -925,7 +759,9 @@ export function PGDASDProcessorIA() {
                   </CardContent>
                 </Card>
 
+                {/* Grid compacto para os outros insights */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
+                  {/* Pontos de Atenção */}
                   {data.insights.pontosAtencao.length > 0 && (
                     <Card className="bg-gradient-to-br from-rose-50 to-red-50 border-rose-200">
                       <CardContent className="pt-4 sm:pt-6">
@@ -948,6 +784,7 @@ export function PGDASDProcessorIA() {
                     </Card>
                   )}
 
+                  {/* Oportunidades */}
                   {data.insights.oportunidades.length > 0 && (
                     <Card className="bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-200">
                       <CardContent className="pt-4 sm:pt-6">
@@ -970,6 +807,7 @@ export function PGDASDProcessorIA() {
                     </Card>
                   )}
 
+                  {/* Recomendações */}
                   {data.insights.recomendacoes.length > 0 && (
                     <Card className="bg-gradient-to-br from-amber-50 to-orange-50 border-amber-200">
                       <CardContent className="pt-4 sm:pt-6">
@@ -995,6 +833,7 @@ export function PGDASDProcessorIA() {
               </div>
             )}
 
+            {/* Botão para novo processamento */}
             <div className="flex justify-center pt-4">
               <Button
                 onClick={() => {
