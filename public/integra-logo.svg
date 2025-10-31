@@ -1,0 +1,23 @@
+<svg width="400" height="120" viewBox="0 0 400 120" xmlns="http://www.w3.org/2000/svg">
+  <!-- Puzzle piece icon -->
+  <g transform="translate(10, 20)">
+    <!-- Main puzzle piece body -->
+    <path d="M0 0 L60 0 L60 15 C65 15 70 20 70 25 C70 30 65 35 60 35 L60 50 L45 50 C45 55 40 60 35 60 C30 60 25 55 25 50 L0 50 Z" 
+          fill="#4a4a4a" stroke="none"/>
+    <!-- Inner puzzle piece detail -->
+    <path d="M15 15 L45 15 L45 35 L15 35 Z" fill="#6a6a6a"/>
+    <!-- Small connecting elements -->
+    <circle cx="52.5" cy="25" r="3" fill="#4a4a4a"/>
+    <circle cx="35" cy="42.5" r="3" fill="#4a4a4a"/>
+  </g>
+  
+  <!-- INTEGRA text -->
+  <g transform="translate(100, 30)">
+    <text x="0" y="35" font-family="Arial, sans-serif" font-size="42" font-weight="bold" fill="#4a4a4a">INTEGRA</text>
+  </g>
+  
+  <!-- SOLUÇÕES EMPRESARIAIS text -->
+  <g transform="translate(100, 70)">
+    <text x="0" y="20" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#6a6a6a" letter-spacing="2px">SOLUÇÕES EMPRESARIAIS</text>
+  </g>
+</svg>
