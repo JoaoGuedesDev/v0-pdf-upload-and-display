@@ -1,11 +1,11 @@
 "use client"
 
-import { DashboardSimplesNacional } from "@/components/dashboard-simples-nacional"
+import PGDASDProcessorIA from "@/components/pgdasd-processor-ia"
 
 export default function Home() {
   return (
     <main className="container mx-auto p-4">
-      <DashboardSimplesNacional />
+      <PGDASDProcessorIA />
     </main>
   )
 }

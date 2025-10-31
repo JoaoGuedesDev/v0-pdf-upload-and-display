@@ -46,7 +46,7 @@ export function DataDisplay({ data }: DataDisplayProps) {
     { name: "Outros", value: 10 },
   ]
 
-  const COLORS = ["oklch(0.42 0.19 264)", "oklch(0.68 0.21 25)", "oklch(0.55 0.15 184)", "oklch(0.75 0.18 140)"]
+  const COLORS = ["#6366F1", "#F59E0B", "#60A5FA", "#22C55E"]
 
   return (
     <div className="space-y-6">
@@ -111,17 +111,17 @@ export function DataDisplay({ data }: DataDisplayProps) {
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.92 0.01 264)" />
-                <XAxis dataKey="name" stroke="oklch(0.55 0.01 264)" />
-                <YAxis stroke="oklch(0.55 0.01 264)" />
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis dataKey="name" stroke="#64748b" />
+                <YAxis stroke="#64748b" />
                 <Tooltip
                   contentStyle={{
-                    backgroundColor: "oklch(1 0 0)",
-                    border: "1px solid oklch(0.92 0.01 264)",
+                    backgroundColor: "#ffffff",
+                    border: "1px solid #e5e7eb",
                     borderRadius: "0.5rem",
                   }}
                 />
-                <Bar dataKey="value" fill="oklch(0.42 0.19 264)" radius={[8, 8, 0, 0]} />
+                <Bar dataKey="value" fill="#6366F1" radius={[8, 8, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -150,8 +150,8 @@ export function DataDisplay({ data }: DataDisplayProps) {
                 </Pie>
                 <Tooltip
                   contentStyle={{
-                    backgroundColor: "oklch(1 0 0)",
-                    border: "1px solid oklch(0.92 0.01 264)",
+                    backgroundColor: "#ffffff",
+                    border: "1px solid #e5e7eb",
                     borderRadius: "0.5rem",
                   }}
                 />
@@ -167,22 +167,22 @@ export function DataDisplay({ data }: DataDisplayProps) {
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
               <LineChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.92 0.01 264)" />
-                <XAxis dataKey="name" stroke="oklch(0.55 0.01 264)" />
-                <YAxis stroke="oklch(0.55 0.01 264)" />
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis dataKey="name" stroke="#64748b" />
+                <YAxis stroke="#64748b" />
                 <Tooltip
                   contentStyle={{
-                    backgroundColor: "oklch(1 0 0)",
-                    border: "1px solid oklch(0.92 0.01 264)",
+                    backgroundColor: "#ffffff",
+                    border: "1px solid #e2e8f0",
                     borderRadius: "0.5rem",
                   }}
                 />
                 <Line
                   type="monotone"
                   dataKey="value"
-                  stroke="oklch(0.68 0.21 25)"
+                  stroke="#F59E0B"
                   strokeWidth={3}
-                  dot={{ fill: "oklch(0.68 0.21 25)", r: 6 }}
+                  dot={{ fill: "#F59E0B", r: 6 }}
                 />
               </LineChart>
             </ResponsiveContainer>

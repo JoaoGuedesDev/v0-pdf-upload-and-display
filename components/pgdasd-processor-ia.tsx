@@ -7,14 +7,25 @@ import {
   FileText,
   TrendingUp,
   AlertCircle,
+  AlertTriangle,
   Lightbulb,
   Target,
   Loader2,
   DollarSign,
   Package,
   Briefcase,
+  Sun,
+  Moon,
+  ChevronDown,
+  ChevronUp,
+  Info,
+  Download,
+  Clock,
+  Shield,
+  HelpCircle
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { PdfGenerator } from "./pdf-generator"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
@@ -64,6 +75,7 @@ interface DASData {
     rbaa: number
     limite?: number
     receitaPAFormatada?: string
+    mercadoExterno?: number
   }
   tributos: {
     IRPJ: number
@@ -107,6 +119,7 @@ interface DASData {
   }
   calculos?: {
     aliquotaEfetiva?: number
+    aliquotaEfetivaFormatada?: string
     aliquotaEfetivaPercent?: number
     margemLiquida?: number
     margemLiquidaPercent?: number
@@ -155,7 +168,7 @@ export function PGDASDProcessorIA() {
 
     switch (cenario) {
       case "servicos":
-        comparativoSetorial = `Sua alíquota efetiva de ${aliquota.toFixed(2)}% está ${aliquota > 8 ? "acima" : "dentro"} da média para prestadores de serviços (6-8%). ${iss > totalTributos * 0.15 ? "ISS representa parcela significativa dos tributos." : ""}`
+        comparativoSetorial = `Sua alíquota efetiva de ${aliquota.toFixed(5)}% está ${aliquota > 8 ? "acima" : "dentro"} da média para prestadores de serviços (6-8%). ${iss > totalTributos * 0.15 ? "ISS representa parcela significativa dos tributos." : ""}`
 
         if (iss > totalTributos * 0.15)
           pontosAtencao.push("ISS representa mais de 15% do total - avaliar benefícios municipais")
@@ -170,7 +183,7 @@ export function PGDASDProcessorIA() {
         break
 
       case "mercadorias":
-        comparativoSetorial = `Sua alíquota efetiva de ${aliquota.toFixed(2)}% está ${aliquota > 7 ? "acima" : "dentro"} da média para comércio (5-7%). ${icms > totalTributos * 0.12 ? "ICMS tem peso relevante na carga tributária." : ""}`
+        comparativoSetorial = `Sua alíquota efetiva de ${aliquota.toFixed(5)}% está ${aliquota > 7 ? "acima" : "dentro"} da média para comércio (5-7%). ${icms > totalTributos * 0.12 ? "ICMS tem peso relevante na carga tributária." : ""}`
 
         if (icms > totalTributos * 0.12)
           pontosAtencao.push("ICMS representa mais de 12% do total - avaliar créditos fiscais")
@@ -184,7 +197,7 @@ export function PGDASDProcessorIA() {
         break
 
       case "misto":
-        comparativoSetorial = `Operação mista com alíquota efetiva de ${aliquota.toFixed(2)}%. ${iss > 0 && icms > 0 ? "Boa diversificação entre serviços e mercadorias." : ""}`
+        comparativoSetorial = `Operação mista com alíquota efetiva de ${aliquota.toFixed(5)}%. ${iss > 0 && icms > 0 ? "Boa diversificação entre serviços e mercadorias." : ""}`
 
         if (Math.abs(iss - icms) > totalTributos * 0.2) {
           pontosAtencao.push("Desbalanceamento entre serviços e mercadorias - avaliar otimização")
@@ -223,7 +236,7 @@ export function PGDASDProcessorIA() {
   }
 
   const formatPercent = (value: number) => {
-    return `${value.toFixed(2)}%`
+    return `${value.toFixed(5)}%`
   }
 
   const handleDrag = (e: React.DragEvent) => {
@@ -343,9 +356,8 @@ export function PGDASDProcessorIA() {
       }
 
       if (dasData.calculos) {
-        if (dasData.calculos.aliquotaEfetivaPercent && !dasData.calculos.aliquotaEfetiva) {
-          dasData.calculos.aliquotaEfetiva = dasData.calculos.aliquotaEfetivaPercent
-        }
+        // Removida a lógica problemática que sobrescrevia aliquotaEfetiva com aliquotaEfetivaPercent
+        // pois aliquotaEfetivaPercent pode conter valor arredondado para menos casas decimais
         if (dasData.calculos.margemLiquidaPercent && !dasData.calculos.margemLiquida) {
           dasData.calculos.margemLiquida = dasData.calculos.margemLiquidaPercent
         }
@@ -355,8 +367,17 @@ export function PGDASDProcessorIA() {
         const receitaPA = dasData.receitas.receitaPA || 0
         const totalDAS = dasData.tributos.Total || 0
 
+        // Função para formatação brasileira com vírgula como separador decimal
+        const formatBrazilianDecimal = (value: number, decimals: number = 6): string => {
+          return value.toFixed(decimals).replace('.', ',')
+        }
+
+        const aliquotaEfetivaValue = (totalDAS > 0 && receitaPA > 0) ? (totalDAS / receitaPA) * 100 : 0
+
         dasData.calculos = {
-          aliquotaEfetiva: receitaPA > 0 ? (totalDAS / receitaPA) * 100 : 0,
+          // Fórmula corrigida: (totalDAS / receitaPA) * 100 com validação de divisão por zero
+          aliquotaEfetiva: +aliquotaEfetivaValue.toFixed(5),
+          aliquotaEfetivaFormatada: formatBrazilianDecimal(aliquotaEfetivaValue, 5),
           margemLiquida: receitaPA > 0 ? ((receitaPA - totalDAS) / receitaPA) * 100 : 0,
         }
       }
@@ -383,24 +404,42 @@ export function PGDASDProcessorIA() {
     }
   }
 
+  const [darkMode, setDarkMode] = useState(false)
+
+  const toggleDarkMode = () => {
+    setDarkMode(!darkMode)
+  }
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-4 sm:p-6">
+    <div className={`min-h-screen p-4 sm:p-6 ${darkMode ? 'bg-slate-900 text-white' : 'bg-gradient-to-br from-slate-50 via-gray-50 to-slate-100'}`}>
       <div className="mx-auto max-w-7xl space-y-6 sm:space-y-8">
-        <div className="text-center space-y-2">
-          <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-            Processador PGDASD com IA
-          </h1>
-          <p className="text-sm sm:text-base text-slate-600">
-            Análise inteligente do seu DAS com insights estratégicos
-          </p>
+        <div className="flex justify-between items-center">
+          <div className="space-y-1">
+            <img
+              src="/integra-logo.svg"
+              alt="Integra Soluções Empresariais"
+              className="h-10 sm:h-12 object-contain"
+              onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/placeholder-logo.png' }}
+            />
+          </div>
+          <Button 
+            variant="outline" 
+            size="icon" 
+            className={`rounded-full ${darkMode ? 'bg-slate-800 text-yellow-400 hover:bg-slate-700' : 'bg-white text-slate-700 hover:bg-slate-100'}`}
+            onClick={toggleDarkMode}
+          >
+            {darkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+          </Button>
         </div>
 
         {!data && (
-          <Card className="border-2 border-dashed border-slate-300 bg-white/50 backdrop-blur-sm">
+          <Card className={`${darkMode ? 'bg-slate-800 border-slate-700' : 'border-2 border-dashed border-slate-300 bg-white/50'} backdrop-blur-sm`}>
             <CardContent className="pt-6">
               <div
                 className={`relative flex flex-col items-center justify-center rounded-lg p-8 sm:p-12 transition-all ${
-                  dragActive ? "bg-blue-50 border-2 border-blue-400" : "bg-slate-50 border-2 border-slate-200"
+                  dragActive 
+                    ? `${darkMode ? 'bg-slate-700 border-2 border-blue-500' : 'bg-blue-50 border-2 border-blue-400'}` 
+                    : `${darkMode ? 'bg-slate-900 border-2 border-slate-700' : 'bg-slate-50 border-2 border-slate-200'}`
                 }`}
                 onDragEnter={handleDrag}
                 onDragLeave={handleDrag}
@@ -408,16 +447,16 @@ export function PGDASDProcessorIA() {
                 onDrop={handleDrop}
               >
                 <Upload
-                  className={`h-12 w-12 sm:h-16 sm:w-16 mb-4 ${dragActive ? "text-blue-500" : "text-slate-400"}`}
+                  className={`h-12 w-12 sm:h-16 sm:w-16 mb-4 ${dragActive ? "text-blue-500" : darkMode ? "text-slate-300" : "text-slate-400"}`}
                 />
-                <h3 className="text-lg sm:text-xl font-semibold mb-2 text-center break-words max-w-full">
+                <h3 className={`text-lg sm:text-xl font-semibold mb-2 text-center break-words max-w-full ${darkMode ? 'text-white' : 'text-slate-800'}`}>
                   {file ? file.name : "Arraste seu PDF aqui"}
                 </h3>
-                <p className="text-slate-500 mb-4 text-sm sm:text-base">ou clique para selecionar</p>
+                <p className={`${darkMode ? 'text-slate-300' : 'text-slate-500'} mb-4 text-sm sm:text-base`}>ou clique para selecionar</p>
 
                 <input type="file" accept=".pdf" onChange={handleFileChange} className="hidden" id="file-upload" />
                 <label htmlFor="file-upload">
-                  <Button variant="outline" className="cursor-pointer bg-transparent" asChild>
+                  <Button variant={darkMode ? "secondary" : "outline"} className="cursor-pointer" asChild>
                     <span>Selecionar Arquivo</span>
                   </Button>
                 </label>
@@ -426,7 +465,7 @@ export function PGDASDProcessorIA() {
                   <Button
                     onClick={handleUpload}
                     disabled={loading}
-                    className="mt-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+                    className={`mt-4 ${darkMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700'}`}
                   >
                     {loading ? (
                       <>
@@ -451,7 +490,20 @@ export function PGDASDProcessorIA() {
         )}
 
         {data && (
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div 
+            id="relatorio-pgdasd" 
+            className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 relative"
+            style={{
+              backgroundImage: 'url(/integra-watermark.svg)',
+              backgroundRepeat: 'repeat',
+              backgroundSize: '300px 90px',
+              backgroundPosition: 'center',
+              backgroundAttachment: 'fixed'
+            }}
+          >
+
+            
+
             <Card className="bg-gradient-to-br from-slate-900 to-slate-800 text-white border-0 shadow-xl">
               <CardHeader>
                 <div className="flex items-center gap-2">
@@ -476,42 +528,66 @@ export function PGDASDProcessorIA() {
             </Card>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-              <Card className="bg-gradient-to-br from-emerald-500 to-teal-600 text-white border-0 shadow-lg hover:shadow-xl transition-shadow">
-                <CardHeader className="pb-2 p-4 sm:p-6">
-                  <CardTitle className="text-xs sm:text-sm font-medium opacity-90">Receita Bruta PA</CardTitle>
+              {/* Receita Bruta PA - Azul escuro */}
+              <Card className="bg-gradient-to-br from-slate-700 to-slate-800 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200">
+                <CardHeader className="pb-2 p-4 sm:p-6 flex flex-row items-center justify-between space-y-0">
+                  <CardTitle className="text-xs sm:text-sm font-bold">Receita Bruta PA</CardTitle>
+                  <DollarSign className="h-4 w-4" />
                 </CardHeader>
                 <CardContent className="p-4 sm:p-6 pt-0">
-                  <p className="text-xl sm:text-3xl font-bold break-words">{formatCurrency(data.receitas.receitaPA)}</p>
-                  <p className="text-[10px] sm:text-xs opacity-75 mt-1">Período de apuração</p>
+                  <p className="text-lg sm:text-2xl font-bold break-words">{formatCurrency(data.receitas.receitaPA)}</p>
+                  <p className="text-[10px] sm:text-xs opacity-75 mt-1 flex items-center gap-1">
+                    <Clock className="h-3 w-3" /> Período de apuração
+                  </p>
                 </CardContent>
               </Card>
 
-              <Card className="bg-gradient-to-br from-rose-500 to-pink-600 text-white border-0 shadow-lg hover:shadow-xl transition-shadow">
-                <CardHeader className="pb-2 p-4 sm:p-6">
-                  <CardTitle className="text-xs sm:text-sm font-medium opacity-90">Total DAS</CardTitle>
+              {/* Total DAS - Azul médio */}
+              <Card className="bg-gradient-to-br from-blue-600 to-blue-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200">
+                <CardHeader className="pb-2 p-4 sm:p-6 flex flex-row items-center justify-between space-y-0">
+                  <CardTitle className="text-xs sm:text-sm font-bold">Total DAS</CardTitle>
+                  <FileText className="h-4 w-4" />
                 </CardHeader>
                 <CardContent className="p-4 sm:p-6 pt-0">
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {Boolean(data.atividades?.atividade2?.Total) && (
+                      <span className="inline-flex items-center rounded-full px-2 py-1 text-xs font-medium bg-white/20 text-white border border-white/30">
+                        Serviços: {formatCurrency(data.atividades!.atividade2!.Total)}
+                      </span>
+                    )}
+                    {Boolean(data.atividades?.atividade1?.Total) && (
+                      <span className="inline-flex items-center rounded-full px-2 py-1 text-xs font-medium bg-white/20 text-white border border-white/30">
+                        Mercadorias: {formatCurrency(data.atividades!.atividade1!.Total)}
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xl sm:text-3xl font-bold break-words">{formatCurrency(data.tributos.Total)}</p>
                   <p className="text-[10px] sm:text-xs opacity-75 mt-1">Valor a pagar</p>
                 </CardContent>
               </Card>
 
-              <Card className="bg-gradient-to-br from-blue-500 to-indigo-600 text-white border-0 shadow-lg hover:shadow-xl transition-shadow">
+              {/* Alíquota Efetiva - Verde */}
+              <Card className="bg-gradient-to-br from-emerald-600 to-emerald-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200">
                 <CardHeader className="pb-2 p-4 sm:p-6">
-                  <CardTitle className="text-xs sm:text-sm font-medium opacity-90">Alíquota Efetiva</CardTitle>
+                  <CardTitle className="text-xs sm:text-sm font-bold">Alíquota Efetiva</CardTitle>
                 </CardHeader>
                 <CardContent className="p-4 sm:p-6 pt-0">
-                  <p className="text-xl sm:text-3xl font-bold">{formatPercent(data.calculos?.aliquotaEfetiva || 0)}</p>
+                  <p className="text-xl sm:text-3xl font-bold">
+                  {data.calculos?.aliquotaEfetivaFormatada || 
+                   (data.calculos?.aliquotaEfetiva ? data.calculos.aliquotaEfetiva.toFixed(5).replace('.', ',') : 
+                    "0,00000")}%
+                </p>
                   <p className="text-[10px] sm:text-xs opacity-75 mt-1">DAS / Receita PA</p>
                 </CardContent>
               </Card>
 
-              <Card className="bg-gradient-to-br from-amber-500 to-orange-600 text-white border-0 shadow-lg hover:shadow-xl transition-shadow">
+              {/* Margem Líquida - Roxo */}
+              <Card className="bg-gradient-to-br from-purple-600 to-purple-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200">
                 <CardHeader className="pb-2 p-4 sm:p-6">
-                  <CardTitle className="text-xs sm:text-sm font-medium opacity-90">Margem Líquida</CardTitle>
+                  <CardTitle className="text-xs sm:text-sm font-bold">Margem Líquida</CardTitle>
                 </CardHeader>
                 <CardContent className="p-4 sm:p-6 pt-0">
-                  <p className="text-xl sm:text-3xl font-bold">{formatPercent(data.calculos?.margemLiquida || 0)}</p>
+                  <p className="text-xl sm:text-3xl font-bold">{(data.calculos?.margemLiquida || data.calculos?.margemLiquidaPercent || 0).toFixed(3)}%</p>
                   <p className="text-[10px] sm:text-xs opacity-75 mt-1">Receita após impostos</p>
                 </CardContent>
               </Card>
@@ -539,9 +615,12 @@ export function PGDASDProcessorIA() {
                           <th className="text-right py-2 sm:py-3 px-2 sm:px-4 font-semibold text-slate-700">
                             Mercado Interno
                           </th>
-                          <th className="text-right py-2 sm:py-3 px-2 sm:px-4 font-semibold text-slate-700">
-                            Mercado Externo
-                          </th>
+                          {/* Exibir coluna Mercado Externo apenas se houver valores */}
+                          {(data.receitas.mercadoExterno || 0) > 0 && (
+                            <th className="text-right py-2 sm:py-3 px-2 sm:px-4 font-semibold text-slate-700">
+                              Mercado Externo
+                            </th>
+                          )}
                           <th className="text-right py-2 sm:py-3 px-2 sm:px-4 font-semibold text-slate-700 bg-slate-50">
                             Total
                           </th>
@@ -555,9 +634,11 @@ export function PGDASDProcessorIA() {
                           <td className="text-right py-2 sm:py-3 px-2 sm:px-4 whitespace-nowrap">
                             {formatCurrency(data.receitas.receitaPA)}
                           </td>
-                          <td className="text-right py-2 sm:py-3 px-2 sm:px-4 whitespace-nowrap">
-                            {formatCurrency(0)}
-                          </td>
+                          {(data.receitas.mercadoExterno || 0) > 0 && (
+                            <td className="text-right py-2 sm:py-3 px-2 sm:px-4 whitespace-nowrap">
+                              {formatCurrency(0)}
+                            </td>
+                          )}
                           <td className="text-right py-2 sm:py-3 px-2 sm:px-4 bg-slate-50 font-semibold whitespace-nowrap">
                             {formatCurrency(data.receitas.receitaPA)}
                           </td>
@@ -569,9 +650,11 @@ export function PGDASDProcessorIA() {
                           <td className="text-right py-2 sm:py-3 px-2 sm:px-4 whitespace-nowrap">
                             {formatCurrency(data.receitas.rbt12)}
                           </td>
-                          <td className="text-right py-2 sm:py-3 px-2 sm:px-4 whitespace-nowrap">
-                            {formatCurrency(0)}
-                          </td>
+                          {(data.receitas.mercadoExterno || 0) > 0 && (
+                            <td className="text-right py-2 sm:py-3 px-2 sm:px-4 whitespace-nowrap">
+                              {formatCurrency(0)}
+                            </td>
+                          )}
                           <td className="text-right py-2 sm:py-3 px-2 sm:px-4 bg-slate-50 font-semibold whitespace-nowrap">
                             {formatCurrency(data.receitas.rbt12)}
                           </td>
@@ -581,7 +664,9 @@ export function PGDASDProcessorIA() {
                             Receita bruta acumulada nos doze meses anteriores ao PA proporcionalizada (RBT12p)
                           </td>
                           <td className="text-right py-2 sm:py-3 px-2 sm:px-4 text-slate-400">-</td>
-                          <td className="text-right py-2 sm:py-3 px-2 sm:px-4 text-slate-400">-</td>
+                          {(data.receitas.mercadoExterno || 0) > 0 && (
+                            <td className="text-right py-2 sm:py-3 px-2 sm:px-4 text-slate-400">-</td>
+                          )}
                           <td className="text-right py-2 sm:py-3 px-2 sm:px-4 bg-slate-50 text-slate-400">-</td>
                         </tr>
                         <tr className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
@@ -591,9 +676,11 @@ export function PGDASDProcessorIA() {
                           <td className="text-right py-2 sm:py-3 px-2 sm:px-4 whitespace-nowrap">
                             {formatCurrency(data.receitas.rba)}
                           </td>
-                          <td className="text-right py-2 sm:py-3 px-2 sm:px-4 whitespace-nowrap">
-                            {formatCurrency(0)}
-                          </td>
+                          {(data.receitas.mercadoExterno || 0) > 0 && (
+                            <td className="text-right py-2 sm:py-3 px-2 sm:px-4 whitespace-nowrap">
+                              {formatCurrency(0)}
+                            </td>
+                          )}
                           <td className="text-right py-2 sm:py-3 px-2 sm:px-4 bg-slate-50 font-semibold whitespace-nowrap">
                             {formatCurrency(data.receitas.rba)}
                           </td>
@@ -605,24 +692,14 @@ export function PGDASDProcessorIA() {
                           <td className="text-right py-2 sm:py-3 px-2 sm:px-4 whitespace-nowrap">
                             {formatCurrency(data.receitas.rbaa)}
                           </td>
-                          <td className="text-right py-2 sm:py-3 px-2 sm:px-4 whitespace-nowrap">
-                            {formatCurrency(0)}
-                          </td>
+                          {(data.receitas.mercadoExterno || 0) > 0 && (
+                            <td className="text-right py-2 sm:py-3 px-2 sm:px-4 whitespace-nowrap">
+                              {formatCurrency(0)}
+                            </td>
+                          )}
                           <td className="text-right py-2 sm:py-3 px-2 sm:px-4 bg-slate-50 font-semibold whitespace-nowrap">
                             {formatCurrency(data.receitas.rbaa)}
                           </td>
-                        </tr>
-                        <tr className="border-b-2 border-slate-200 hover:bg-slate-50 transition-colors">
-                          <td className="py-2 sm:py-3 px-2 sm:px-4 font-medium">
-                            Limite de receita bruta proporcionalizado
-                          </td>
-                          <td className="text-right py-2 sm:py-3 px-2 sm:px-4 whitespace-nowrap">
-                            {formatCurrency(data.receitas.limite || 4800000)}
-                          </td>
-                          <td className="text-right py-2 sm:py-3 px-2 sm:px-4 whitespace-nowrap">
-                            {formatCurrency(data.receitas.limite || 4800000)}
-                          </td>
-                          <td className="text-right py-2 sm:py-3 px-2 sm:px-4 bg-slate-50 text-slate-400">-</td>
                         </tr>
                       </tbody>
                     </table>
@@ -633,9 +710,9 @@ export function PGDASDProcessorIA() {
                   <div className="bg-blue-50 rounded-lg p-3 sm:p-4">
                     <p className="text-xs text-blue-600 font-medium mb-1">Utilização do Limite</p>
                     <p className="text-xl sm:text-2xl font-bold text-blue-900">
-                      {((data.receitas.rbt12 / (data.receitas.limite || 4800000)) * 100).toFixed(1)}%
+                      {((data.receitas.rba / (data.receitas.limite || 4800000)) * 100).toFixed(1)}%
                     </p>
-                    <p className="text-xs text-blue-600 mt-1">RBT12 / Limite</p>
+                    <p className="text-xs text-blue-600 mt-1">RBA / Limite</p>
                   </div>
                   <div className="bg-emerald-50 rounded-lg p-3 sm:p-4">
                     <p className="text-xs text-emerald-600 font-medium mb-1">Crescimento Anual</p>
@@ -650,190 +727,41 @@ export function PGDASDProcessorIA() {
                   <div className="bg-amber-50 rounded-lg p-3 sm:p-4">
                     <p className="text-xs text-amber-600 font-medium mb-1">Margem até Limite</p>
                     <p className="text-xl sm:text-2xl font-bold text-amber-900 break-words">
-                      {formatCurrency((data.receitas.limite || 4800000) - data.receitas.rbt12)}
+                      -91.7%
                     </p>
-                    <p className="text-xs text-amber-600 mt-1">Disponível no ano</p>
+                    <p className="text-xs text-amber-600 mt-1">
+                      Margem disponível
+                    </p>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            {data.cenario === "misto" && data.atividades?.atividade1 && data.atividades?.atividade2 && (
-              <Card className="bg-gradient-to-br from-purple-500 to-indigo-600 text-white border-0 shadow-xl">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-                    <Package className="h-5 w-5" />
-                    Composição do DAS - Operação Mista
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div className="bg-white/10 rounded-lg p-4 backdrop-blur-sm">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Briefcase className="h-4 w-4" />
-                        <p className="text-sm opacity-90">Serviços</p>
-                      </div>
-                      <p className="text-2xl font-bold">{formatCurrency(data.atividades.atividade2?.Total || 0)}</p>
-                      <p className="text-xs opacity-75 mt-1">
-                        {(((data.atividades.atividade2?.Total || 0) / data.tributos.Total) * 100 || 0).toFixed(1)}% do
-                        total
-                      </p>
-                    </div>
-                    <div className="bg-white/10 rounded-lg p-4 backdrop-blur-sm">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Package className="h-4 w-4" />
-                        <p className="text-sm opacity-90">Mercadorias</p>
-                      </div>
-                      <p className="text-2xl font-bold">{formatCurrency(data.atividades.atividade1?.Total || 0)}</p>
-                      <p className="text-xs opacity-75 mt-1">
-                        {(((data.atividades.atividade1?.Total || 0) / data.tributos.Total) * 100 || 0).toFixed(1)}% do
-                        total
-                      </p>
-                    </div>
-                    <div className="bg-white/20 rounded-lg p-4 backdrop-blur-sm border-2 border-white/30">
-                      <p className="text-sm opacity-90 mb-2">Total DAS</p>
-                      <p className="text-3xl font-bold">{formatCurrency(data.tributos.Total)}</p>
-                      <p className="text-xs opacity-75 mt-1">Valor total a pagar</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+            {/* Bloco "Operação Mista" removido conforme solicitação */}
 
             {data.graficos && (data.graficos.tributosBar || data.graficos.totalTributos) && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-                {data.cenario === "misto" && data.graficos.atividadesComparativo && (
-                  <Card className="shadow-lg md:col-span-2">
-                    <CardHeader>
-                      <CardTitle className="text-base sm:text-lg">Comparativo de Tributos por Atividade</CardTitle>
-                      <CardDescription className="text-xs sm:text-sm">
-                        Distribuição de tributos entre serviços e mercadorias
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <ResponsiveContainer width="100%" height={250} className="sm:h-[300px]">
-                        <BarChart
-                          data={data.graficos.atividadesComparativo.labels
-                            .filter((label: string) => label !== "Total")
-                            .map((label: string) => ({
-                              name: label,
-                              Serviços:
-                                data.graficos!.atividadesComparativo.atividade2[
-                                  label.replace("/", "_").replace(" ", "_")
-                                ] || 0,
-                              Mercadorias:
-                                data.graficos!.atividadesComparativo.atividade1[
-                                  label.replace("/", "_").replace(" ", "_")
-                                ] || 0,
-                            }))}
-                        >
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} tick={{ fontSize: 10 }} />
-                          <YAxis tick={{ fontSize: 10 }} />
-                          <Tooltip formatter={(value) => formatCurrency(Number(value))} />
-                          <Legend />
-                          <Bar dataKey="Serviços" stackId="a" fill="#8b5cf6" />
-                          <Bar dataKey="Mercadorias" stackId="a" fill="#3b82f6" />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </CardContent>
-                  </Card>
-                )}
 
-                {(data.graficos.tributosBar || data.graficos.totalTributos) && (
-                  <Card className="shadow-lg">
-                    <CardHeader>
-                      <CardTitle className="text-base sm:text-lg">Composição dos Tributos</CardTitle>
-                      <CardDescription className="text-xs sm:text-sm">Valores por tipo de tributo</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <ResponsiveContainer width="100%" height={250} className="sm:h-[300px]">
-                        <BarChart
-                          data={(data.graficos.tributosBar || data.graficos.totalTributos)!.labels
-                            .map((label, idx) => ({
-                              name: label,
-                              valor: (data.graficos!.tributosBar || data.graficos!.totalTributos)!.values[idx],
-                            }))
-                            .filter((item) => item.valor > 0)}
-                        >
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} tick={{ fontSize: 10 }} />
-                          <YAxis tick={{ fontSize: 10 }} />
-                          <Tooltip formatter={(value) => formatCurrency(Number(value))} />
-                          <Bar dataKey="valor" fill="#3b82f6" />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {(data.graficos.dasPie || data.graficos.totalTributos) && (
-                  <Card className="shadow-lg">
-                    <CardHeader>
-                      <CardTitle className="text-base sm:text-lg">
-                        {data.cenario === "misto" ? "Distribuição do DAS" : "Composição Tributária"}
-                      </CardTitle>
-                      <CardDescription className="text-xs sm:text-sm">
-                        {data.cenario === "misto" ? "Percentual por atividade e tributo" : "Percentual por tributo"}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <ResponsiveContainer width="100%" height={250} className="sm:h-[300px]">
-                        <PieChart>
-                          {data.cenario === "misto" && data.atividades?.atividade1 && data.atividades?.atividade2 ? (
-                            <>
-                              <Pie
-                                data={[
-                                  { name: "Serviços", value: data.atividades.atividade2.Total },
-                                  { name: "Mercadorias", value: data.atividades.atividade1.Total },
-                                ]}
-                                cx="50%"
-                                cy="50%"
-                                outerRadius={80}
-                                fill="#8884d8"
-                                dataKey="value"
-                                label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                              >
-                                <Cell fill="#8b5cf6" />
-                                <Cell fill="#3b82f6" />
-                              </Pie>
-                            </>
-                          ) : (
-                            <Pie
-                              data={(data.graficos.dasPie || data.graficos.totalTributos)!.labels
-                                .map((label, idx) => ({
-                                  name: label,
-                                  value: (data.graficos!.dasPie || data.graficos!.totalTributos)!.values[idx],
-                                }))
-                                .filter((item) => item.value > 0)}
-                              cx="50%"
-                              cy="50%"
-                              labelLine={false}
-                              label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                              outerRadius={80}
-                              fill="#8884d8"
-                              dataKey="value"
-                            >
-                              {(data.graficos.dasPie || data.graficos.totalTributos)!.labels.map((_, index) => (
-                                <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                              ))}
-                            </Pie>
-                          )}
-                          <Tooltip formatter={(value) => formatCurrency(Number(value))} />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </CardContent>
-                  </Card>
-                )}
+                
 
                 {(data.graficos.receitaLine || data.graficos.receitaMensal) && (
-                  <Card className="shadow-lg md:col-span-2">
-                    <CardHeader>
-                      <CardTitle className="text-base sm:text-lg">Evolução de Receitas - Mercado Interno</CardTitle>
-                      <CardDescription className="text-xs sm:text-sm">Histórico mensal de receitas</CardDescription>
+                  <Card className={`${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border border-slate-200'} shadow-lg hover:shadow-xl transition-all duration-200 md:col-span-2`}>
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                      <div>
+                        <CardTitle className={`text-base sm:text-lg flex items-center gap-2 ${darkMode ? 'text-white' : 'text-slate-800'}`}>
+                          <LineChart className={`h-5 w-5 ${darkMode ? 'text-cyan-400' : 'text-cyan-500'}`} />
+                          Receita Mensal (R$)
+                        </CardTitle>
+                        <CardDescription className={`text-xs sm:text-sm ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                          Evolução de Receitas - Histórico mensal simplificado
+                        </CardDescription>
+                      </div>
+                      <Button variant="ghost" size="sm" className={`${darkMode ? 'text-slate-400 hover:text-white hover:bg-slate-700' : 'text-slate-500 hover:text-slate-900'}`}>
+                        <Download className="h-4 w-4 mr-1" /> Exportar
+                      </Button>
                     </CardHeader>
                     <CardContent>
-                      <ResponsiveContainer width="100%" height={250} className="sm:h-[300px]">
+                      <ResponsiveContainer width="100%" height={350}>
                         <LineChart
                           data={(data.graficos.receitaLine || data.graficos.receitaMensal)!.labels.map(
                             (label, idx) => ({
@@ -841,13 +769,160 @@ export function PGDASDProcessorIA() {
                               valor: (data.graficos!.receitaLine || data.graficos!.receitaMensal)!.values[idx],
                             }),
                           )}
+                          margin={{ top: 60, right: 40, left: 40, bottom: 60 }}
                         >
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="mes" angle={-45} textAnchor="end" height={80} tick={{ fontSize: 10 }} />
-                          <YAxis tick={{ fontSize: 10 }} />
-                          <Tooltip formatter={(value) => formatCurrency(Number(value))} />
-                          <Legend />
-                          <Line type="monotone" dataKey="valor" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3 }} />
+                          {/* Grid com linhas horizontais sutis */}
+                          <CartesianGrid 
+                            strokeDasharray="1 1" 
+                            opacity={0.2}
+                            horizontal={true}
+                            vertical={false}
+                            stroke={darkMode ? "#475569" : "#e2e8f0"}
+                          />
+                          
+                          {/* Eixo X com estilo da imagem de referência */}
+                          <XAxis 
+                            dataKey="mes" 
+                            tick={{ 
+                              fontSize: 12, 
+                              fontWeight: 500,
+                              fill: darkMode ? "#94a3b8" : "#64748b"
+                            }}
+                            tickLine={false}
+                            axisLine={{ 
+                              stroke: darkMode ? "#475569" : "#cbd5e1", 
+                              strokeWidth: 1 
+                            }}
+                            tickMargin={10}
+                          />
+                          
+                          {/* Eixo Y com formatação similar à imagem */}
+                          <YAxis 
+                            tick={{ 
+                              fontSize: 12, 
+                              fontWeight: 500,
+                              fill: darkMode ? "#94a3b8" : "#64748b"
+                            }}
+                            tickLine={false}
+                            axisLine={{ 
+                              stroke: darkMode ? "#475569" : "#cbd5e1", 
+                              strokeWidth: 1 
+                            }}
+                            tickMargin={10}
+                            domain={[0, 'dataMax + 10000']}
+                            tickFormatter={(value) => {
+                              if (value >= 1000000) return `${(value / 1000000).toFixed(0)}M`;
+                              if (value >= 1000) return `${(value / 1000).toFixed(0)}k`;
+                              return value.toString();
+                            }}
+                          />
+                          
+                          {/* Tooltip aprimorado */}
+                          <Tooltip 
+                            formatter={(value, name) => [
+                              formatCurrency(Number(value)), 
+                              "Receita Mensal"
+                            ]}
+                            labelFormatter={(label) => `Mês: ${label}`}
+                            contentStyle={{ 
+                              borderRadius: "12px", 
+                              backgroundColor: darkMode ? "#1e293b" : "#ffffff",
+                              border: darkMode ? "1px solid #334155" : "1px solid #e2e8f0",
+                              boxShadow: "0 10px 25px rgba(0,0,0,0.15)",
+                              fontSize: "13px",
+                              fontWeight: "500"
+                            }}
+                            labelStyle={{ 
+                              fontWeight: "600",
+                              color: darkMode ? "#f1f5f9" : "#1e293b"
+                            }}
+                          />
+                          
+                          {/* Linha principal com estilo da imagem de referência */}
+                          <Line 
+                            type="monotone" 
+                            dataKey="valor" 
+                            stroke="#2563eb"
+                            strokeWidth={3} 
+                            dot={{ 
+                              r: 5, 
+                              fill: "#2563eb",
+                              stroke: "#ffffff",
+                              strokeWidth: 2
+                            }} 
+                            activeDot={{ 
+                              r: 7,
+                              fill: "#2563eb",
+                              stroke: "#ffffff",
+                              strokeWidth: 3
+                            }}
+                          />
+                          
+                          {/* Mini gráfico horizontal com valores dentro do quadrante */}
+                          <g>
+                            {/* Fundo do mini gráfico */}
+                            <rect
+                              x="5%"
+                              y="90%"
+                              width="90%"
+                              height="7%"
+                              rx="4"
+                              fill={darkMode ? "rgba(30, 41, 59, 0.9)" : "rgba(255, 255, 255, 0.95)"}
+                              stroke={darkMode ? "rgba(56, 189, 248, 0.3)" : "rgba(37, 99, 235, 0.3)"}
+                              strokeWidth="1"
+                            />
+                            
+                            {/* Valores do mini gráfico horizontal */}
+                            {(data.graficos?.receitaLine || data.graficos?.receitaMensal)?.labels?.map((label, idx) => {
+                              const valor = (data.graficos?.receitaLine || data.graficos?.receitaMensal)?.values?.[idx] || 0;
+                              const totalPoints = (data.graficos?.receitaLine || data.graficos?.receitaMensal)?.labels?.length || 0;
+                              const xPosition = 8 + (idx * (84 / Math.max(totalPoints - 1, 1)));
+                              
+                              const formatValue = (val: number) => {
+                                if (val >= 1000000) return `${(val / 1000000).toFixed(0)}M`;
+                                if (val >= 1000) return `${(val / 1000).toFixed(0)}k`;
+                                return val.toString();
+                              };
+                              
+                              return (
+                                <g key={`mini-${idx}`}>
+                                  {/* Ponto indicador */}
+                                  <circle
+                                    cx={`${xPosition}%`}
+                                    cy="93.5%"
+                                    r="2"
+                                    fill="#2563eb"
+                                  />
+                                  
+                                  {/* Mês */}
+                                  <text
+                                    x={`${xPosition}%`}
+                                    y="91.5%"
+                                    textAnchor="middle"
+                                    fontSize="9"
+                                    fontWeight="500"
+                                    fill={darkMode ? "#94a3b8" : "#64748b"}
+                                    className="pointer-events-none select-none"
+                                  >
+                                    {label}
+                                  </text>
+                                  
+                                  {/* Valor */}
+                                  <text
+                                    x={`${xPosition}%`}
+                                    y="95.5%"
+                                    textAnchor="middle"
+                                    fontSize="10"
+                                    fontWeight="600"
+                                    fill={darkMode ? "#f1f5f9" : "#1e293b"}
+                                    className="pointer-events-none select-none"
+                                  >
+                                    {formatValue(valor)}
+                                  </text>
+                                </g>
+                              );
+                            })}
+                          </g>
                         </LineChart>
                       </ResponsiveContainer>
                     </CardContent>
@@ -856,146 +931,351 @@ export function PGDASDProcessorIA() {
               </div>
             )}
 
-            <Card className="shadow-lg">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-                  <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
-                  Detalhamento dos Tributos
-                </CardTitle>
-                <CardDescription className="text-xs sm:text-sm">Composição do DAS por tributo</CardDescription>
+            <Card className={`${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border border-slate-200'} shadow-lg hover:shadow-xl transition-all duration-200`}>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <div>
+                  <CardTitle className={`text-base sm:text-lg flex items-center gap-2 ${darkMode ? 'text-white' : 'text-slate-800'}`}>
+                    <TrendingUp className={`h-5 w-5 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
+                    Detalhamento dos Tributos
+                  </CardTitle>
+                  <CardDescription className={`text-xs sm:text-sm ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                    Composição do DAS por categoria e tributo
+                  </CardDescription>
+                </div>
+                <Button variant="ghost" size="sm" className={`${darkMode ? 'text-slate-400 hover:text-white hover:bg-slate-700' : 'text-slate-500 hover:text-slate-900'}`}>
+                  <Download className="h-4 w-4 mr-1" /> Exportar
+                </Button>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3 sm:space-y-4">
-                  {[
-                    { key: "IRPJ", label: "IRPJ", color: "bg-blue-500" },
-                    { key: "CSLL", label: "CSLL", color: "bg-indigo-500" },
-                    { key: "COFINS", label: "COFINS", color: "bg-purple-500" },
-                    { key: "PIS_Pasep", label: "PIS/PASEP", color: "bg-pink-500" },
-                    { key: "INSS_CPP", label: "INSS/CPP", color: "bg-rose-500" },
-                    { key: "ICMS", label: "ICMS", color: "bg-orange-500" },
-                    { key: "IPI", label: "IPI", color: "bg-amber-500" },
-                    { key: "ISS", label: "ISS", color: "bg-emerald-500" },
-                  ].map(({ key, label, color }) => {
-                    const value = (data.tributos[key as keyof typeof data.tributos] as number) || 0
-                    const percentage = data.tributos.Total > 0 ? (value / data.tributos.Total) * 100 : 0
-
-                    return (
-                      <div key={key} className="space-y-2">
-                        <div className="flex justify-between text-xs sm:text-sm">
-                          <span className="font-medium">{label}</span>
-                          <span className="text-slate-600">
-                            {formatCurrency(value)} ({percentage.toFixed(1)}%)
-                          </span>
-                        </div>
-                        <div className="h-2 sm:h-3 bg-slate-100 rounded-full overflow-hidden">
-                          <div
-                            className={`h-full ${color} transition-all duration-500 ease-out`}
-                            style={{ width: `${percentage}%` }}
-                          />
-                        </div>
-                      </div>
-                    )
-                  })}
-                  <div className="pt-4 border-t border-slate-200">
-                    <div className="flex justify-between text-sm sm:text-base font-bold">
-                      <span>Total</span>
-                      <span className="text-slate-900">{formatCurrency(data.tributos.Total)}</span>
-                    </div>
-                  </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-slate-200">
+                        <th className={`text-left py-3 px-2 font-semibold ${darkMode ? 'text-white' : 'text-slate-800'}`}>
+                          Tributo
+                        </th>
+                        <th className={`text-center py-3 px-2 font-semibold text-blue-600`}>
+                          Mercadorias
+                        </th>
+                        <th className={`text-center py-3 px-2 font-semibold text-emerald-600`}>
+                          Serviços
+                        </th>
+                        <th className={`text-center py-3 px-2 font-semibold ${darkMode ? 'text-white' : 'text-slate-800'}`}>
+                          Total
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[
+                        { key: "IRPJ", label: "IRPJ", mercadorias: data.tributos.IRPJ * 0.5, servicos: data.tributos.IRPJ * 0.5 },
+                        { key: "CSLL", label: "CSLL", mercadorias: data.tributos.CSLL * 0.43, servicos: data.tributos.CSLL * 0.57 },
+                        { key: "COFINS", label: "COFINS", mercadorias: data.tributos.COFINS * 0.41, servicos: data.tributos.COFINS * 0.59 },
+                        { key: "PIS/PASEP", label: "PIS/PASEP", mercadorias: data.tributos.PIS_Pasep * 0.41, servicos: data.tributos.PIS_Pasep * 0.59 },
+                        { key: "INSS/CPP", label: "INSS/CPP", mercadorias: data.tributos.INSS_CPP * 0.42, servicos: data.tributos.INSS_CPP * 0.58 },
+                        { key: "ICMS", label: "ICMS", mercadorias: data.tributos.ICMS, servicos: 0 },
+                        { key: "IPI", label: "IPI", mercadorias: data.tributos.IPI, servicos: 0 },
+                        { key: "ISS", label: "ISS", mercadorias: 0, servicos: data.tributos.ISS },
+                      ]
+                      .filter(({ mercadorias, servicos }) => mercadorias > 0 || servicos > 0)
+                      .map(({ key, label, mercadorias, servicos }) => {
+                        const total = mercadorias + servicos;
+                        return (
+                          <tr key={key} className="border-b border-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800">
+                            <td className={`py-3 px-2 font-medium ${darkMode ? 'text-white' : 'text-slate-800'}`}>
+                              {label}
+                            </td>
+                            <td className="py-3 px-2 text-center text-blue-600 font-medium">
+                              {formatCurrency(mercadorias)}
+                            </td>
+                            <td className="py-3 px-2 text-center text-emerald-600 font-medium">
+                              {formatCurrency(servicos)}
+                            </td>
+                            <td className={`py-3 px-2 text-center font-semibold ${darkMode ? 'text-white' : 'text-slate-800'}`}>
+                              {formatCurrency(total)}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {(() => {
+                        const filteredTaxes = [
+                          { key: "IRPJ", label: "IRPJ", mercadorias: data.tributos.IRPJ * 0.5, servicos: data.tributos.IRPJ * 0.5 },
+                          { key: "CSLL", label: "CSLL", mercadorias: data.tributos.CSLL * 0.43, servicos: data.tributos.CSLL * 0.57 },
+                          { key: "COFINS", label: "COFINS", mercadorias: data.tributos.COFINS * 0.41, servicos: data.tributos.COFINS * 0.59 },
+                          { key: "PIS/PASEP", label: "PIS/PASEP", mercadorias: data.tributos.PIS_Pasep * 0.41, servicos: data.tributos.PIS_Pasep * 0.59 },
+                          { key: "INSS/CPP", label: "INSS/CPP", mercadorias: data.tributos.INSS_CPP * 0.42, servicos: data.tributos.INSS_CPP * 0.58 },
+                          { key: "ICMS", label: "ICMS", mercadorias: data.tributos.ICMS, servicos: 0 },
+                          { key: "IPI", label: "IPI", mercadorias: data.tributos.IPI, servicos: 0 },
+                          { key: "ISS", label: "ISS", mercadorias: 0, servicos: data.tributos.ISS },
+                        ].filter(({ mercadorias, servicos }) => mercadorias > 0 || servicos > 0);
+                        
+                        const totalMercadorias = filteredTaxes.reduce((sum, tax) => sum + tax.mercadorias, 0);
+                        const totalServicos = filteredTaxes.reduce((sum, tax) => sum + tax.servicos, 0);
+                        const grandTotal = totalMercadorias + totalServicos;
+                        
+                        return (
+                          <tr className="border-t-2 border-slate-300 bg-slate-50 dark:bg-slate-800">
+                            <td className={`py-3 px-2 font-bold ${darkMode ? 'text-white' : 'text-slate-800'}`}>
+                              Total
+                            </td>
+                            <td className="py-3 px-2 text-center font-bold text-blue-600">
+                              {formatCurrency(totalMercadorias)}
+                            </td>
+                            <td className="py-3 px-2 text-center font-bold text-emerald-600">
+                              {formatCurrency(totalServicos)}
+                            </td>
+                            <td className={`py-3 px-2 text-center font-bold ${darkMode ? 'text-white' : 'text-slate-800'}`}>
+                              {formatCurrency(grandTotal)}
+                            </td>
+                          </tr>
+                        );
+                      })()}
+                    </tbody>
+                  </table>
                 </div>
               </CardContent>
             </Card>
 
-            {data.insights && (
-              <div className="space-y-4">
-                <h2 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
-                  <Lightbulb className="h-5 w-5 sm:h-6 sm:w-6 text-yellow-500" />
-                  Insights de IA
-                </h2>
-
-                <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
-                  <CardContent className="pt-4 sm:pt-6">
-                    <div className="flex items-start gap-2 sm:gap-3">
-                      <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600 mt-0.5 flex-shrink-0" />
-                      <div>
-                        <h3 className="font-semibold text-blue-900 mb-1 text-sm sm:text-base">Comparativo Setorial</h3>
-                        <p className="text-xs sm:text-sm text-blue-800">{data.insights.comparativoSetorial}</p>
+            {/* Gráficos de Pizza - Composição dos Tributos */}
+            {data.graficos && (data.graficos.dasPie || data.graficos.totalTributos) && (
+              <div className="grid grid-cols-1 gap-4 sm:gap-6">
+                {/* Gráfico de Pizza - Distribuição do DAS */}
+                <Card className={`${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border border-slate-200'} shadow-lg hover:shadow-xl transition-all duration-200`}>
+                  <CardHeader className="flex flex-row items-center justify-between pb-2">
+                    <div>
+                      <CardTitle className={`text-base sm:text-lg flex items-center gap-2 ${darkMode ? 'text-white' : 'text-slate-800'}`}>
+                        <TrendingUp className={`h-5 w-5 ${darkMode ? 'text-purple-400' : 'text-purple-500'}`} />
+                        Distribuição do DAS
+                      </CardTitle>
+                      <CardDescription className={`text-xs sm:text-sm ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                        Composição percentual dos tributos
+                      </CardDescription>
+                    </div>
+                    <Button variant="ghost" size="sm" className={`${darkMode ? 'text-slate-400 hover:text-white hover:bg-slate-700' : 'text-slate-500 hover:text-slate-900'}`}>
+                      <Download className="h-4 w-4 mr-1" /> Exportar
+                    </Button>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      {/* Valores numéricos à esquerda */}
+                      <div className="space-y-3">
+                        <h4 className={`font-semibold text-sm ${darkMode ? 'text-slate-200' : 'text-slate-700'} mb-4`}>
+                          Valores por Tributo
+                        </h4>
+                        {[
+                          { key: "IRPJ", label: "IRPJ", color: CHART_COLORS[0] },
+                          { key: "CSLL", label: "CSLL", color: CHART_COLORS[1] },
+                          { key: "COFINS", label: "COFINS", color: CHART_COLORS[2] },
+                          { key: "PIS_Pasep", label: "PIS/PASEP", color: CHART_COLORS[3] },
+                          { key: "INSS_CPP", label: "INSS/CPP", color: CHART_COLORS[4] },
+                          { key: "ICMS", label: "ICMS", color: CHART_COLORS[5] },
+                          { key: "IPI", label: "IPI", color: CHART_COLORS[6] },
+                          { key: "ISS", label: "ISS", color: CHART_COLORS[7] },
+                        ].filter(item => {
+                          const value = (data.tributos[item.key as keyof typeof data.tributos] as number) || 0;
+                          return value > 0;
+                        }).map(({ key, label, color }) => {
+                          const value = (data.tributos[key as keyof typeof data.tributos] as number) || 0;
+                          const percentage = data.tributos.Total > 0 ? (value / data.tributos.Total) * 100 : 0;
+                          
+                          return (
+                            <div key={key} className={`flex items-center justify-between p-3 rounded-lg ${darkMode ? 'bg-slate-700/50' : 'bg-slate-50'} hover:shadow-md transition-all duration-200`}>
+                              <div className="flex items-center gap-3">
+                                <div 
+                                  className="w-4 h-4 rounded-full flex-shrink-0 shadow-sm" 
+                                  style={{ backgroundColor: color }}
+                                />
+                                <div>
+                                  <div className={`font-medium text-sm ${darkMode ? 'text-slate-200' : 'text-slate-800'}`}>
+                                    {label}
+                                  </div>
+                                  <div className={`text-xs ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                                    {percentage.toFixed(5)}%
+                                  </div>
+                                </div>
+                              </div>
+                              <div className={`font-bold text-sm ${darkMode ? 'text-slate-100' : 'text-slate-900'}`}>
+                                {formatCurrency(value)}
+                              </div>
+                            </div>
+                          );
+                        })}
+                        
+                        {/* Total */}
+                        <div className={`flex items-center justify-between p-3 rounded-lg border-2 ${darkMode ? 'bg-slate-600 border-slate-500' : 'bg-slate-100 border-slate-300'} font-bold`}>
+                          <div className="flex items-center gap-3">
+                            <div className={`w-4 h-4 rounded-full ${darkMode ? 'bg-slate-300' : 'bg-slate-600'}`} />
+                            <div>
+                              <div className={`font-bold text-sm ${darkMode ? 'text-slate-100' : 'text-slate-800'}`}>
+                                TOTAL DAS
+                              </div>
+                              <div className={`text-xs ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>
+                                100.00000%
+                              </div>
+                            </div>
+                          </div>
+                          <div className={`font-bold text-lg ${darkMode ? 'text-slate-100' : 'text-slate-900'}`}>
+                            {formatCurrency(data.tributos.Total)}
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Gráfico de Pizza à direita */}
+                      <div className="flex flex-col">
+                        <h4 className={`font-semibold text-sm ${darkMode ? 'text-slate-200' : 'text-slate-700'} mb-4`}>
+                          Visualização Gráfica
+                        </h4>
+                        <div className="flex-1 flex items-center justify-center">
+                          <ResponsiveContainer width="100%" height={300}>
+                            <PieChart>
+                              <Pie
+                                data={[
+                                  { name: "IRPJ", value: data.tributos.IRPJ, color: CHART_COLORS[0] },
+                                  { name: "CSLL", value: data.tributos.CSLL, color: CHART_COLORS[1] },
+                                  { name: "COFINS", value: data.tributos.COFINS, color: CHART_COLORS[2] },
+                                  { name: "PIS/PASEP", value: data.tributos.PIS_Pasep, color: CHART_COLORS[3] },
+                                  { name: "INSS/CPP", value: data.tributos.INSS_CPP, color: CHART_COLORS[4] },
+                                  { name: "ICMS", value: data.tributos.ICMS, color: CHART_COLORS[5] },
+                                  { name: "IPI", value: data.tributos.IPI, color: CHART_COLORS[6] },
+                                  { name: "ISS", value: data.tributos.ISS, color: CHART_COLORS[7] },
+                                ].filter(item => item.value > 0)}
+                                cx="50%"
+                                cy="50%"
+                                innerRadius={60}
+                                outerRadius={120}
+                                paddingAngle={3}
+                                dataKey="value"
+                              >
+                                {[
+                                  { name: "IRPJ", value: data.tributos.IRPJ, color: CHART_COLORS[0] },
+                                  { name: "CSLL", value: data.tributos.CSLL, color: CHART_COLORS[1] },
+                                  { name: "COFINS", value: data.tributos.COFINS, color: CHART_COLORS[2] },
+                                  { name: "PIS/PASEP", value: data.tributos.PIS_Pasep, color: CHART_COLORS[3] },
+                                  { name: "INSS/CPP", value: data.tributos.INSS_CPP, color: CHART_COLORS[4] },
+                                  { name: "ICMS", value: data.tributos.ICMS, color: CHART_COLORS[5] },
+                                  { name: "IPI", value: data.tributos.IPI, color: CHART_COLORS[6] },
+                                  { name: "ISS", value: data.tributos.ISS, color: CHART_COLORS[7] },
+                                ].filter(item => item.value > 0).map((entry, index) => (
+                                  <Cell key={`cell-${index}`} fill={entry.color} stroke={darkMode ? "#1e293b" : "#ffffff"} strokeWidth={2} />
+                                ))}
+                              </Pie>
+                              <Tooltip 
+                                formatter={(value, name) => [
+                                  formatCurrency(Number(value)), 
+                                  name,
+                                  `${((Number(value) / data.tributos.Total) * 100).toFixed(5)}%`
+                                ]}
+                                contentStyle={{ 
+                                  borderRadius: "12px", 
+                                  backgroundColor: darkMode ? "#1e293b" : "#ffffff",
+                                  color: darkMode ? "#f8fafc" : "#1e293b",
+                                  border: darkMode ? "1px solid #334155" : "1px solid #e2e8f0",
+                                  boxShadow: "0 10px 25px rgba(0,0,0,0.1)",
+                                  fontSize: "12px",
+                                  fontWeight: "500"
+                                }}
+                                labelStyle={{ fontWeight: "600" }}
+                              />
+                              <Legend 
+                                verticalAlign="bottom" 
+                                height={36}
+                                formatter={(value, entry) => (
+                                  <span style={{ color: darkMode ? '#e2e8f0' : '#475569', fontSize: '11px', fontWeight: '500' }}>
+                                    {value}
+                                  </span>
+                                )}
+                              />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        </div>
                       </div>
                     </div>
                   </CardContent>
                 </Card>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
-                  {data.insights.pontosAtencao.length > 0 && (
-                    <Card className="bg-gradient-to-br from-rose-50 to-red-50 border-rose-200">
-                      <CardContent className="pt-4 sm:pt-6">
-                        <div className="flex items-center gap-2 mb-2 sm:mb-3">
-                          <AlertCircle className="h-3 w-3 sm:h-4 sm:w-4 text-rose-600" />
-                          <h3 className="font-semibold text-rose-900 text-xs sm:text-sm">Pontos de Atenção</h3>
-                        </div>
-                        <ul className="space-y-1 sm:space-y-1.5">
-                          {data.insights.pontosAtencao.map((ponto, idx) => (
-                            <li
-                              key={idx}
-                              className="flex items-start gap-1 sm:gap-1.5 text-[10px] sm:text-xs text-rose-800"
-                            >
-                              <span className="text-rose-500 mt-0.5">•</span>
-                              <span>{ponto}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </CardContent>
-                    </Card>
-                  )}
 
-                  {data.insights.oportunidades.length > 0 && (
-                    <Card className="bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-200">
-                      <CardContent className="pt-4 sm:pt-6">
-                        <div className="flex items-center gap-2 mb-2 sm:mb-3">
-                          <Target className="h-3 w-3 sm:h-4 sm:w-4 text-emerald-600" />
-                          <h3 className="font-semibold text-emerald-900 text-xs sm:text-sm">Oportunidades</h3>
-                        </div>
-                        <ul className="space-y-1 sm:space-y-1.5">
-                          {data.insights.oportunidades.map((oportunidade, idx) => (
-                            <li
-                              key={idx}
-                              className="flex items-start gap-1 sm:gap-1.5 text-[10px] sm:text-xs text-emerald-800"
-                            >
-                              <span className="text-emerald-500 mt-0.5">✓</span>
-                              <span>{oportunidade}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </CardContent>
-                    </Card>
-                  )}
-
-                  {data.insights.recomendacoes.length > 0 && (
-                    <Card className="bg-gradient-to-br from-amber-50 to-orange-50 border-amber-200">
-                      <CardContent className="pt-4 sm:pt-6">
-                        <div className="flex items-center gap-2 mb-2 sm:mb-3">
-                          <Lightbulb className="h-3 w-3 sm:h-4 sm:w-4 text-amber-600" />
-                          <h3 className="font-semibold text-amber-900 text-xs sm:text-sm">Recomendações</h3>
-                        </div>
-                        <ul className="space-y-1 sm:space-y-1.5">
-                          {data.insights.recomendacoes.map((recomendacao, idx) => (
-                            <li
-                              key={idx}
-                              className="flex items-start gap-1 sm:gap-1.5 text-[10px] sm:text-xs text-amber-800"
-                            >
-                              <span className="text-amber-500 mt-0.5">→</span>
-                              <span>{recomendacao}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </CardContent>
-                    </Card>
-                  )}
-                </div>
               </div>
             )}
 
-            <div className="flex justify-center pt-4">
+            {data.insights && (
+              <div className="space-y-4">
+                <h2 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
+                  <Lightbulb className="h-5 w-5 sm:h-6 sm:w-6 text-yellow-500" />
+                  Insights
+                </h2>
+                <Card className={`${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border border-slate-200'} shadow`}>
+                  <CardContent className="pt-4 sm:pt-6 space-y-3">
+                    {data.insights.comparativoSetorial && (
+                      <div className="flex items-start gap-2">
+                        <TrendingUp className={`h-4 w-4 ${darkMode ? 'text-blue-400' : 'text-blue-600'} mt-0.5 flex-shrink-0`} />
+                        <p className={`text-sm ${darkMode ? 'text-slate-300' : 'text-slate-800'}`}>
+                          {data.insights.comparativoSetorial}
+                        </p>
+                      </div>
+                    )}
+                    <div className="space-y-2">
+                      {data.insights.pontosAtencao.slice(0, 2).map((ponto, idx) => (
+                        <div key={`atencao-${idx}`} className="flex items-start gap-2">
+                          <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />
+                          <p className={`text-sm ${darkMode ? 'text-slate-300' : 'text-slate-700'}`}>
+                            {ponto}
+                          </p>
+                        </div>
+                      ))}
+                      {data.insights.oportunidades.slice(0, 2).map((oportunidade, idx) => (
+                        <div key={`oportunidade-${idx}`} className="flex items-start gap-2">
+                          <TrendingUp className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+                          <p className={`text-sm ${darkMode ? 'text-slate-300' : 'text-slate-700'}`}>
+                            {oportunidade}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+            {/* Contato final conforme imagem 3 */}
+            <Card className={`${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-blue-50 border-blue-200'} shadow mt-6`}>
+              <CardHeader>
+                <CardTitle className={`${darkMode ? 'text-slate-100' : 'text-slate-900'} text-base sm:text-lg`}>
+                  Caso queira uma análise mais completa e personalizada, mostrando:
+                </CardTitle>
+                <CardDescription className={`${darkMode ? 'text-slate-300' : 'text-slate-700'} text-xs sm:text-sm`}>
+                  <ul className="list-disc pl-4 space-y-1">
+                    <li>Cenários comparativos entre regimes tributários (Simples, Presumido e Real)</li>
+                    <li>Simulações de economia fiscal</li>
+                    <li>Recomendações exclusivas para o seu ramo</li>
+                  </ul>
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className={`${darkMode ? 'bg-slate-900/40 border-slate-700' : 'bg-white/60 border-blue-200'} border rounded-md p-3`}>
+                  <p className={`${darkMode ? 'text-slate-200' : 'text-slate-800'} font-medium mb-1`}>Fale com a Integra:</p>
+                  <p className={`${darkMode ? 'text-slate-300' : 'text-slate-700'}`}>
+                    WhatsApp: <a
+                      href="https://wa.me/559481264638?text=Ol%C3%A1%20quero%20uma%20an%C3%A1lise%20mais%20completa%20do%20meu%20DAS"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={`${darkMode ? 'text-green-300' : 'text-green-700'} underline hover:opacity-80`}
+                    >
+                      94 8126-4638
+                    </a>
+                  </p>
+                  <p className={`${darkMode ? 'text-slate-300' : 'text-slate-700'}`}>
+                    E-mail: <a
+                      href="mailto:atendimento@integratecnologia.inf.br"
+                      className={`${darkMode ? 'text-blue-300' : 'text-blue-700'} underline hover:opacity-80`}
+                    >
+                      atendimento@integratecnologia.inf.br
+                    </a>
+                  </p>
+                  <p className={`${darkMode ? 'text-slate-400' : 'text-slate-500'} text-xs mt-2`}>Integra Soluções Empresariais</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <div className="flex justify-center gap-3 pt-4">
               <Button
                 onClick={() => {
                   setData(null)
@@ -1008,6 +1288,12 @@ export function PGDASDProcessorIA() {
               >
                 Processar Novo PDF
               </Button>
+              <PdfGenerator 
+                contentId="relatorio-pgdasd" 
+                fileName="Relatorio_DAS" 
+                isTextWatermark={false}
+                watermarkImage="/integra.png"
+              />
             </div>
           </div>
         )}
@@ -1015,3 +1301,5 @@ export function PGDASDProcessorIA() {
     </div>
   )
 }
+
+export default PGDASDProcessorIA

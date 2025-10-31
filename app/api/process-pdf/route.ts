@@ -73,6 +73,8 @@ function processDasData(textRaw: string) {
 
   // ===== 2) Totais de receita (2.1) =====
   let rpa = ""
+  
+  // Estratégia 1: Procurar "Receita Bruta do PA" seguido de valores
   const rpaMatch = text.match(
     /Receita Bruta do PA[^\n]*?((?:\d{1,3}(?:\.\d{3})*,\d{2})(?:.*?(\d{1,3}(?:\.\d{3})*,\d{2})){0,2})/i,
   )
@@ -80,7 +82,22 @@ function processDasData(textRaw: string) {
     const todos = rpaMatch[1].match(/\d{1,3}(?:\.\d{3})*,\d{2}/g) || []
     rpa = todos[todos.length - 1] || ""
   }
-  if (!rpa) rpa = (text.match(/Receita Bruta do PA.*?(\d{1,3}(?:\.\d{3})*,\d{2})/i) || ["", ""])[1]
+  
+  // Estratégia 2: Procurar padrão mais simples
+  if (!rpa) {
+    rpa = (text.match(/Receita Bruta do PA.*?(\d{1,3}(?:\.\d{3})*,\d{2})/i) || ["", ""])[1]
+  }
+  
+  // Estratégia 3: Procurar na seção 2.1
+  if (!rpa) {
+    const secao21 = text.match(/2\.1\)[\s\S]*?(\d{1,3}(?:\.\d{3})*,\d{2})/i)
+    if (secao21) rpa = secao21[1]
+  }
+  
+  // Estratégia 4: Procurar "Total da Receita Bruta"
+  if (!rpa) {
+    rpa = (text.match(/Total da Receita Bruta.*?(\d{1,3}(?:\.\d{3})*,\d{2})/i) || ["", ""])[1]
+  }
 
   const rbt12 = (text.match(/RBT12\)\s*([\d.]+,\d{2})/i) || ["", ""])[1]
   const rba = (text.match(/RBA\)\s*([\d.]+,\d{2})/i) || ["", ""])[1]
@@ -168,10 +185,25 @@ function processDasData(textRaw: string) {
       .reduce((sum, [, val]) => sum + val, 0)
   }
 
-  const totalDeclarado = (text.match(/Valor Total do D[eé]bito Declarado\s*\$\$R\$\$\$\s*\n?([\d.]+,\d{2})/i) || [
+  // ===== 3) Valor Total do Débito Declarado =====
+  let totalDeclarado = ""
+  
+  // Estratégia 1: Procurar "Valor Total do Débito Declarado"
+  totalDeclarado = (text.match(/Valor Total do D[eé]bito Declarado\s*\$\$R\$\$\$\s*\n?([\d.]+,\d{2})/i) || [
     "",
     "",
   ])[1]
+  
+  // Estratégia 2: Procurar "Total do Débito"
+  if (!totalDeclarado) {
+    totalDeclarado = (text.match(/Total do D[eé]bito.*?(\d{1,3}(?:\.\d{3})*,\d{2})/i) || ["", ""])[1]
+  }
+  
+  // Estratégia 3: Procurar na seção 2.8
+  if (!totalDeclarado) {
+    const secao28 = text.match(/2\.8\)[\s\S]*?(\d{1,3}(?:\.\d{3})*,\d{2})/i)
+    if (secao28) totalDeclarado = secao28[1]
+  }
   const receitaPA = brToFloat(rpa)
   const valorDAS = tributos.Total || brToFloat(totalDeclarado)
 
@@ -191,8 +223,15 @@ function processDasData(textRaw: string) {
   }))
 
   // ===== 5) Cálculos =====
-  const aliquotaEfetiva = receitaPA > 0 ? (valorDAS / receitaPA) * 100 : 0
+  
+  // Fórmula corrigida: (valorDAS / receitaPA) * 100 com validação de divisão por zero
+  const aliquotaEfetiva = (valorDAS > 0 && receitaPA > 0) ? (valorDAS / receitaPA) * 100 : 0
   const margemLiquida = receitaPA > 0 ? ((receitaPA - valorDAS) / receitaPA) * 100 : 0
+
+  // Função para formatação brasileira com vírgula como separador decimal
+  const formatBrazilianDecimal = (value: number, decimals: number = 6): string => {
+    return value.toFixed(decimals).replace('.', ',')
+  }
 
   // ===== 6) Saída estruturada =====
   return {
@@ -218,8 +257,9 @@ function processDasData(textRaw: string) {
       valorTotalDAS: valorDAS,
       valorTotalDASFormatado: moneyBR(valorDAS),
       calculos: {
-        aliquotaEfetiva: +aliquotaEfetiva.toFixed(2),
-        margemLiquida: +margemLiquida.toFixed(2),
+        aliquotaEfetiva: +aliquotaEfetiva.toFixed(5),
+        aliquotaEfetivaFormatada: formatBrazilianDecimal(aliquotaEfetiva, 5),
+        margemLiquida: +margemLiquida.toFixed(3),
       },
       historico: {
         mercadoInterno: pares,

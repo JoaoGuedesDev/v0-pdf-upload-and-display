@@ -1,0 +1,23 @@
+<svg width="200" height="60" viewBox="0 0 200 60" xmlns="http://www.w3.org/2000/svg">
+  <!-- Ícone da peça de quebra-cabeça para watermark -->
+  <g transform="translate(5, 10)" opacity="0.1">
+    <!-- Corpo principal da peça -->
+    <path d="M0 0 L30 0 L30 7.5 C32.5 7.5 35 10 35 12.5 C35 15 32.5 17.5 30 17.5 L30 25 L22.5 25 C22.5 27.5 20 30 17.5 30 C15 30 12.5 27.5 12.5 25 L0 25 Z" 
+          fill="#4a4a4a" stroke="none"/>
+    <!-- Detalhe interno da peça -->
+    <path d="M7.5 7.5 L22.5 7.5 L22.5 17.5 L7.5 17.5 Z" fill="#6a6a6a"/>
+    <!-- Elementos de conexão pequenos -->
+    <circle cx="26.25" cy="12.5" r="1.5" fill="#4a4a4a"/>
+    <circle cx="17.5" cy="21.25" r="1.5" fill="#4a4a4a"/>
+  </g>
+  
+  <!-- Texto INTEGRA para watermark -->
+  <g transform="translate(50, 15)" opacity="0.1">
+    <text x="0" y="17.5" font-family="Arial, sans-serif" font-size="21" font-weight="bold" fill="#4a4a4a">INTEGRA</text>
+  </g>
+  
+  <!-- Texto SOLUÇÕES EMPRESARIAIS para watermark -->
+  <g transform="translate(50, 35)" opacity="0.1">
+    <text x="0" y="10" font-family="Arial, sans-serif" font-size="8" font-weight="normal" fill="#6a6a6a" letter-spacing="1px">SOLUÇÕES EMPRESARIAIS</text>
+  </g>
+</svg>
