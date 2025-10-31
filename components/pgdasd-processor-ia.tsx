@@ -28,6 +28,7 @@ import { Button } from "@/components/ui/button"
 import { PdfGenerator } from "./pdf-generator"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { AlertCircle } from "lucide-react"
 import {
   BarChart,
   Bar,
@@ -43,21 +44,6 @@ import {
   ResponsiveContainer,
   Cell,
 } from "recharts"
-
-interface Atividade {
-  descricao: string
-  IRPJ: number
-  CSLL: number
-  COFINS: number
-  PIS_Pasep: number
-  INSS_CPP: number
-  ICMS: number
-  IPI: number
-  ISS: number
-  Total: number
-}
-
-type Cenario = "servicos" | "mercadorias" | "misto"
 
 interface DASData {
   identificacao: {
@@ -89,10 +75,14 @@ interface DASData {
     Total: number
   }
   atividades?: {
-    atividade1?: Atividade
-    atividade2?: Atividade
-    servicos?: Atividade
-    mercadorias?: Atividade
+    atividade1?: {
+      descricao: string
+      Total: number
+    }
+    atividade2?: {
+      descricao: string
+      Total: number
+    }
   }
   graficos?: {
     tributosBar?: {
@@ -130,10 +120,14 @@ interface DASData {
     oportunidades: string[]
     recomendacoes: string[]
   }
-  cenario?: Cenario
 }
 
-const CHART_COLORS = ["#3b82f6", "#6366f1", "#8b5cf6", "#ec4899", "#f43f5e", "#f97316", "#f59e0b", "#10b981"]
+const CHART_COLORS = ["#2563eb", "#7c3aed", "#db2777", "#dc2626", "#ea580c", "#ca8a04", "#16a34a", "#0891b2"]
+
+const ATIVIDADES_COLORS = {
+  servicos: "#10b981", // verde
+  mercadorias: "#3b82f6", // azul
+}
 
 export function PGDASDProcessorIA() {
   const [file, setFile] = useState<File | null>(null)
@@ -141,14 +135,150 @@ export function PGDASDProcessorIA() {
   const [error, setError] = useState<string | null>(null)
   const [data, setData] = useState<DASData | null>(null)
   const [dragActive, setDragActive] = useState(false)
+  const contentRef = useRef<HTMLDivElement>(null)
+  const [generatingPDF, setGeneratingPDF] = useState(false)
 
-  const detectarCenario = (atividade1?: Atividade, atividade2?: Atividade): Cenario => {
-    const temServicos = (atividade1?.ISS || 0) > 0 || (atividade2?.ISS || 0) > 0
-    const temMercadorias = (atividade1?.ICMS || 0) > 0 || (atividade2?.ICMS || 0) > 0
+  const generatePDF = async () => {
+    if (!contentRef.current || !data) return
 
-    if (temServicos && temMercadorias) return "misto"
-    if (temServicos) return "servicos"
-    return "mercadorias"
+    setGeneratingPDF(true)
+
+    try {
+      const html2canvas = (await import("html2canvas")).default
+      const jsPDF = (await import("jspdf")).default
+
+      const element = contentRef.current
+
+      const clone = element.cloneNode(true) as HTMLElement
+      clone.style.position = "absolute"
+      clone.style.left = "-9999px"
+      clone.style.top = "0"
+      document.body.appendChild(clone)
+
+      // Aguardar o navegador computar os estilos
+      await new Promise((resolve) => setTimeout(resolve, 100))
+
+      // Percorrer todos os elementos e aplicar estilos computados como inline
+      const applyComputedStyles = (el: HTMLElement) => {
+        const computed = window.getComputedStyle(el)
+
+        // Propriedades de cor que precisam ser convertidas
+        const colorProps = [
+          "color",
+          "backgroundColor",
+          "borderColor",
+          "borderTopColor",
+          "borderRightColor",
+          "borderBottomColor",
+          "borderLeftColor",
+        ]
+
+        colorProps.forEach((prop) => {
+          const value = computed.getPropertyValue(prop)
+          if (value && value !== "rgba(0, 0, 0, 0)" && value !== "transparent") {
+            el.style.setProperty(prop, value, "important")
+          }
+        })
+
+        // Processar filhos recursivamente
+        Array.from(el.children).forEach((child) => {
+          if (child instanceof HTMLElement) {
+            applyComputedStyles(child)
+          }
+        })
+      }
+
+      applyComputedStyles(clone)
+
+      // Gerar PDF a partir do clone
+      const canvas = await html2canvas(clone, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: "#ffffff",
+        width: clone.scrollWidth,
+        height: clone.scrollHeight,
+      })
+
+      // Remover clone
+      document.body.removeChild(clone)
+
+      const imgData = canvas.toDataURL("image/png")
+      const pdf = new jsPDF("p", "mm", "a4")
+      const pdfWidth = pdf.internal.pageSize.getWidth()
+      const pdfHeight = pdf.internal.pageSize.getHeight()
+
+      // Calcular dimensões para ocupar toda a página A4
+      const imgWidth = pdfWidth - 20 // margem de 10mm de cada lado
+      const imgHeight = (canvas.height * imgWidth) / canvas.width
+      const pageHeight = pdfHeight - 20 // margem de 10mm em cima e embaixo
+
+      let heightLeft = imgHeight
+      let position = 10
+
+      // Adicionar marca d'água
+      const logoUrl =
+        "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/integra%20oficial--Z07XEJjpSekUh1Wy1mRTb98rnuPQAq.png"
+
+      try {
+        const logoImg = new Image()
+        logoImg.crossOrigin = "anonymous"
+        logoImg.src = logoUrl
+
+        await new Promise((resolve, reject) => {
+          logoImg.onload = resolve
+          logoImg.onerror = reject
+        })
+
+        const logoWidth = 100
+        const logoHeight = 35
+        const logoX = (pdfWidth - logoWidth) / 2
+        const logoY = (pdfHeight - logoHeight) / 2
+
+        pdf.setGState(new pdf.GState({ opacity: 0.08 }))
+        pdf.addImage(logoImg, "PNG", logoX, logoY, logoWidth, logoHeight)
+        pdf.setGState(new pdf.GState({ opacity: 1 }))
+      } catch (logoError) {
+        console.warn("[v0] Não foi possível adicionar a marca d'água:", logoError)
+      }
+
+      // Adicionar imagem em múltiplas páginas se necessário
+      pdf.addImage(imgData, "PNG", 10, position, imgWidth, imgHeight)
+      heightLeft -= pageHeight
+
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight + 10
+        pdf.addPage()
+
+        // Adicionar marca d'água em cada página
+        try {
+          const logoImg = new Image()
+          logoImg.crossOrigin = "anonymous"
+          logoImg.src = logoUrl
+          await new Promise((resolve) => {
+            logoImg.onload = resolve
+          })
+          const logoWidth = 100
+          const logoHeight = 35
+          const logoX = (pdfWidth - logoWidth) / 2
+          const logoY = (pdfHeight - logoHeight) / 2
+          pdf.setGState(new pdf.GState({ opacity: 0.08 }))
+          pdf.addImage(logoImg, "PNG", logoX, logoY, logoWidth, logoHeight)
+          pdf.setGState(new pdf.GState({ opacity: 1 }))
+        } catch {}
+
+        pdf.addImage(imgData, "PNG", 10, position, imgWidth, imgHeight)
+        heightLeft -= pageHeight
+      }
+
+      const fileName = `DAS_${data.identificacao.cnpj.replace(/[^\d]/g, "")}_${new Date().toISOString().split("T")[0]}.pdf`
+      pdf.save(fileName)
+    } catch (error) {
+      console.error("[v0] Erro ao gerar PDF:", error)
+      setError("Erro ao gerar PDF. Tente novamente.")
+    } finally {
+      setGeneratingPDF(false)
+    }
   }
 
   const generateInsights = (dasData: DASData) => {
@@ -221,10 +351,22 @@ export function PGDASDProcessorIA() {
     if (margem < 15) recomendacoes.push("Avaliar estrutura de custos e precificação para melhorar margem")
 
     return {
-      comparativoSetorial,
-      pontosAtencao: pontosAtencao.filter(Boolean),
-      oportunidades: oportunidades.filter(Boolean),
-      recomendacoes: recomendacoes.filter(Boolean),
+      comparativoSetorial:
+        aliquota > 8
+          ? "Sua alíquota efetiva está acima da média setorial (6-8%). Há oportunidades de otimização."
+          : "Sua alíquota efetiva está dentro da média setorial. Boa gestão tributária!",
+      pontosAtencao: [],
+      oportunidades: [
+        rbt12 < 4800000 && "Receita anual permite permanência no Simples Nacional",
+        aliquota > 8 && "Possível redução de carga através de planejamento tributário",
+        iss > 0 && "Avaliar benefícios fiscais municipais para ISS",
+      ].filter(Boolean) as string[],
+      recomendacoes: [
+        "Manter controle rigoroso do faturamento para não ultrapassar o limite do Simples",
+        aliquota > 8 && "Consultar contador sobre possibilidade de mudança de anexo",
+        "Revisar distribuição de lucros vs. pró-labore para otimização tributária",
+        margem < 15 && "Avaliar estrutura de custos e precificação para melhorar margem",
+      ].filter(Boolean) as string[],
     }
   }
 
@@ -295,23 +437,36 @@ export function PGDASDProcessorIA() {
       })
 
       console.log("[v0] Status da resposta:", response.status)
+      console.log("[v0] Content-Type:", response.headers.get("content-type"))
 
       if (!response.ok) {
         throw new Error(`Erro ao processar: ${response.statusText}`)
       }
 
+      const contentType = response.headers.get("content-type")
       const responseText = await response.text()
+
+      console.log("[v0] Resposta recebida (primeiros 500 chars):", responseText.substring(0, 500))
 
       if (!responseText || responseText.trim() === "") {
         throw new Error("O webhook retornou uma resposta vazia")
+      }
+
+      if (!contentType?.includes("application/json")) {
+        console.log("[v0] Resposta completa:", responseText)
+        throw new Error(`O webhook retornou um tipo de conteúdo inesperado: ${contentType}`)
       }
 
       let result
       try {
         result = JSON.parse(responseText)
       } catch (parseError) {
+        console.error("[v0] Erro ao fazer parse do JSON:", parseError)
+        console.log("[v0] Texto que causou erro:", responseText)
         throw new Error("O webhook retornou dados em formato inválido")
       }
+
+      console.log("[v0] Estrutura completa da resposta:", JSON.stringify(result, null, 2))
 
       let rawData
       if (Array.isArray(result) && result.length > 0) {
@@ -343,17 +498,21 @@ export function PGDASDProcessorIA() {
         Total: tributos.Total || 0,
       }
 
-      const cenario = detectarCenario(rawData.atividades?.atividade1, rawData.atividades?.atividade2)
-
       const dasData: DASData = {
         identificacao: rawData.identificacao,
         receitas: rawData.receitas,
         tributos: tributosNormalizados,
-        atividades: rawData.atividades,
+        atividades: rawData.atividades
+          ? {
+              atividade1: rawData.atividades.atividade1,
+              atividade2: rawData.atividades.atividade2,
+            }
+          : undefined,
         graficos: rawData.graficos,
         calculos: rawData.calculos,
-        cenario,
       }
+
+      console.log("[v0] Dados normalizados:", dasData)
 
       if (dasData.calculos) {
         // Removida a lógica problemática que sobrescrevia aliquotaEfetiva com aliquotaEfetivaPercent
@@ -705,6 +864,7 @@ export function PGDASDProcessorIA() {
                     </table>
                   </div>
                 </div>
+              </div>
 
                 <div className="mt-4 sm:mt-6 grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 pt-4 border-t border-slate-200">
                   <div className="bg-blue-50 rounded-lg p-3 sm:p-4">
