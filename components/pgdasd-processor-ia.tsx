@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
+import { useState, useRef } from "react"
 import {
   Upload,
   FileText,
@@ -28,7 +28,6 @@ import { Button } from "@/components/ui/button"
 import { PdfGenerator } from "./pdf-generator"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { AlertCircle } from "lucide-react"
 import {
   BarChart,
   Bar,
@@ -864,7 +863,6 @@ export function PGDASDProcessorIA() {
                     </table>
                   </div>
                 </div>
-              </div>
 
                 <div className="mt-4 sm:mt-6 grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 pt-4 border-t border-slate-200">
                   <div className="bg-blue-50 rounded-lg p-3 sm:p-4">
