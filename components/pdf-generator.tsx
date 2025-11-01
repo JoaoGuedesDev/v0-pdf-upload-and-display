@@ -236,12 +236,10 @@ export function PdfGenerator({
       
       // Adiciona metadados ao PDF
       pdf.setProperties({
-        title: fileName || 'Relatório DAS',
+        title: 'Documento de Arrecadação do Simples Nacional',
         subject: 'Documento de Arrecadação do Simples Nacional',
         author: 'Sistema de Gestão',
-        creator: 'PDF Generator v2.0',
-        producer: 'jsPDF',
-        creationDate: new Date()
+        creator: 'PDF Generator v2.0'
       })
       
       // Dimensões do PDF A4 em mm

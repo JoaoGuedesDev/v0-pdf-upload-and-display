@@ -73,6 +73,7 @@ interface DASData {
     ISS: number
     Total: number
   }
+  cenario?: string
   atividades?: {
     atividade1?: {
       descricao: string
@@ -234,9 +235,9 @@ export function PGDASDProcessorIA() {
         const logoX = (pdfWidth - logoWidth) / 2
         const logoY = (pdfHeight - logoHeight) / 2
 
-        pdf.setGState(new pdf.GState({ opacity: 0.08 }))
+        pdf.setGState(new (pdf as any).GState({ opacity: 0.08 }))
         pdf.addImage(logoImg, "PNG", logoX, logoY, logoWidth, logoHeight)
-        pdf.setGState(new pdf.GState({ opacity: 1 }))
+        pdf.setGState(new (pdf as any).GState({ opacity: 1 }))
       } catch (logoError) {
         console.warn("[v0] Não foi possível adicionar a marca d'água:", logoError)
       }
@@ -261,9 +262,9 @@ export function PGDASDProcessorIA() {
           const logoHeight = 35
           const logoX = (pdfWidth - logoWidth) / 2
           const logoY = (pdfHeight - logoHeight) / 2
-          pdf.setGState(new pdf.GState({ opacity: 0.08 }))
+          pdf.setGState(new (pdf as any).GState({ opacity: 0.08 }))
           pdf.addImage(logoImg, "PNG", logoX, logoY, logoWidth, logoHeight)
-          pdf.setGState(new pdf.GState({ opacity: 1 }))
+          pdf.setGState(new (pdf as any).GState({ opacity: 1 }))
         } catch {}
 
         pdf.addImage(imgData, "PNG", 10, position, imgWidth, imgHeight)

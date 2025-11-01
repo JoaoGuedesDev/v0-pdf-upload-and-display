@@ -1,0 +1,46 @@
+{
+  "css.validate": false,
+  "less.validate": false,
+  "scss.validate": false,
+  "tailwindCSS.experimental.classRegex": [
+    ["cva\\(([^)]*)\\)", "[\"'`]([^\"'`]*).*?[\"'`]"],
+    ["cx\\(([^)]*)\\)", "(?:'|\"|`)([^']*)(?:'|\"|`)"]
+  ],
+  "tailwindCSS.includeLanguages": {
+    "typescript": "javascript",
+    "typescriptreact": "javascript"
+  },
+  "files.associations": {
+    "*.css": "tailwindcss"
+  },
+  "editor.quickSuggestions": {
+    "strings": true
+  },
+  "css.customData": [
+    {
+      "version": 1.1,
+      "atDirectives": [
+        {
+          "name": "@tailwind",
+          "description": "Use the @tailwind directive to insert Tailwind's base, components, utilities and screens styles into your CSS."
+        },
+        {
+          "name": "@apply",
+          "description": "Use @apply to inline any existing utility classes into your own custom CSS."
+        },
+        {
+          "name": "@layer",
+          "description": "Use the @layer directive to tell Tailwind which \"bucket\" a set of custom styles belong to."
+        },
+        {
+          "name": "@custom-variant",
+          "description": "Use @custom-variant to define custom variants in Tailwind CSS v4."
+        },
+        {
+          "name": "@theme",
+          "description": "Use @theme to define theme values in Tailwind CSS v4."
+        }
+      ]
+    }
+  ]
+}
