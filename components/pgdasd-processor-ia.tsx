@@ -1252,7 +1252,8 @@ export function PGDASDProcessorIA() {
                         const init = () => ({ IRPJ: 0, CSLL: 0, COFINS: 0, PIS_Pasep: 0, INSS_CPP: 0, ICMS: 0, IPI: 0, ISS: 0 })
                         const sumMercadoriasInterno = init()
                         const sumMercadoriasExterior = init()
-                        const sumServicos = init()
+                        const sumServicosInterno = init()
+                        const sumServicosExterior = init()
 
                         const atividadesDbgRaw = (data as any)?.debug?.atividades
                         const atividadesDbgList = Array.isArray(atividadesDbgRaw)
@@ -1268,8 +1269,10 @@ export function PGDASDProcessorIA() {
                               .reduce((a, b) => a + b, 0)
                             if (sum > 0) {
                               const isServico = nome.includes('servi')
-                              const isExterior = !isServico && (nome.includes('exterior') || nome.includes('extern') || nome.includes('export'))
-                              const target = isServico ? sumServicos : (isExterior ? sumMercadoriasExterior : sumMercadoriasInterno)
+                              const isExteriorFlag = (nome.includes('exterior') || nome.includes('extern') || nome.includes('export'))
+                              const target = isServico
+                                ? (isExteriorFlag ? sumServicosExterior : sumServicosInterno)
+                                : (isExteriorFlag ? sumMercadoriasExterior : sumMercadoriasInterno)
                               target.IRPJ += Number(trib.irpj || 0)
                               target.CSLL += Number(trib.csll || 0)
                               target.COFINS += Number(trib.cofins || 0)
@@ -1285,7 +1288,7 @@ export function PGDASDProcessorIA() {
                           const cenario = String((data as any)?.cenario || '').toLowerCase()
                           const assignToServicos = cenario.includes('serv')
                           const src = (data as any)?.tributos || {}
-                          const target = assignToServicos ? sumServicos : sumMercadoriasInterno
+                          const target = assignToServicos ? sumServicosInterno : sumMercadoriasInterno
                           target.IRPJ = Number(src.IRPJ || 0)
                           target.CSLL = Number(src.CSLL || 0)
                           target.COFINS = Number(src.COFINS || 0)
@@ -1298,19 +1301,23 @@ export function PGDASDProcessorIA() {
 
                         const colMercadoriasInternoVisible = tribKeys.some(k => (sumMercadoriasInterno as any)[k.key] > 0)
                         const colMercadoriasExteriorVisible = tribKeys.some(k => (sumMercadoriasExterior as any)[k.key] > 0)
-                        const colServicosVisible = tribKeys.some(k => (sumServicos as any)[k.key] > 0)
+                        const colServicosInternoVisible = tribKeys.some(k => (sumServicosInterno as any)[k.key] > 0)
+                        const colServicosExteriorVisible = tribKeys.some(k => (sumServicosExterior as any)[k.key] > 0)
 
                         return (
                           <tr className="border-b border-slate-200">
                             <th className={`text-left py-3 px-2 font-semibold ${darkMode ? 'text-white' : 'text-slate-800'}`}>Tributo</th>
                             {colMercadoriasInternoVisible && (
-                              <th className={`text-center py-3 px-2 font-semibold text-blue-600`}>Revenda (interno)</th>
+                              <th className={`text-center py-3 px-2 font-semibold text-blue-600`}>Mercadorias (interno)</th>
                             )}
                             {colMercadoriasExteriorVisible && (
-                              <th className={`text-center py-3 px-2 font-semibold text-indigo-600`}>Revenda p/ exterior</th>
+                              <th className={`text-center py-3 px-2 font-semibold text-indigo-600`}>Mercadorias (externo)</th>
                             )}
-                            {colServicosVisible && (
-                              <th className={`text-center py-3 px-2 font-semibold text-emerald-600`}>Serviços</th>
+                            {colServicosInternoVisible && (
+                              <th className={`text-center py-3 px-2 font-semibold text-emerald-600`}>Serviços (interno)</th>
+                            )}
+                            {colServicosExteriorVisible && (
+                              <th className={`text-center py-3 px-2 font-semibold text-teal-600`}>Serviços (externo)</th>
                             )}
                             <th className={`text-center py-3 px-2 font-semibold ${darkMode ? 'text-white' : 'text-slate-800'}`}>Total</th>
                           </tr>
@@ -1333,7 +1340,8 @@ export function PGDASDProcessorIA() {
                         const init = () => ({ IRPJ: 0, CSLL: 0, COFINS: 0, PIS_Pasep: 0, INSS_CPP: 0, ICMS: 0, IPI: 0, ISS: 0 })
                         const sumMercadoriasInterno = init()
                         const sumMercadoriasExterior = init()
-                        const sumServicos = init()
+                        const sumServicosInterno = init()
+                        const sumServicosExterior = init()
 
                         const parcelasTotaisDeclaradoRaw = (data as any)?.debug?.parcelas?.totais?.declarado
                         const totalDeclarado = parseNumber(parcelasTotaisDeclaradoRaw?.total ?? parcelasTotaisDeclaradoRaw?.Total ?? 0)
@@ -1359,9 +1367,11 @@ export function PGDASDProcessorIA() {
                           for (const atv of atividadesDbgList) {
                             const nome = String(atv?.name || atv?.nome || "").toLowerCase()
                             const trib: any = atv?.tributos || {}
-                            const isServico = nome.includes("servi") // cobre "serviço", "servicos"
-                            const isExterior = !isServico && (nome.includes("exterior") || nome.includes("extern") || nome.includes("export"))
-                            const target = isServico ? sumServicos : (isExterior ? sumMercadoriasExterior : sumMercadoriasInterno)
+                            const isServico = nome.includes("servi")
+                            const isExteriorFlag = (nome.includes("exterior") || nome.includes("extern") || nome.includes("export"))
+                            const target = isServico
+                              ? (isExteriorFlag ? sumServicosExterior : sumServicosInterno)
+                              : (isExteriorFlag ? sumMercadoriasExterior : sumMercadoriasInterno)
 
                             target.IRPJ += parseNumber(trib.irpj ?? trib.IRPJ ?? 0)
                             target.CSLL += parseNumber(trib.csll ?? trib.CSLL ?? 0)
@@ -1377,7 +1387,7 @@ export function PGDASDProcessorIA() {
                           const cenario = String(data.cenario || "").toLowerCase()
                           const assignToServicos = cenario.includes("serv")
                           const src = data.tributos
-                          const target = assignToServicos ? sumServicos : sumMercadoriasInterno
+                          const target = assignToServicos ? sumServicosInterno : sumMercadoriasInterno
                           target.IRPJ = src.IRPJ || 0
                           target.CSLL = src.CSLL || 0
                           target.COFINS = src.COFINS || 0
@@ -1391,28 +1401,44 @@ export function PGDASDProcessorIA() {
                         const rows = tribKeys.map(({ key, label }) => {
                           const mercadoriasInterno = (sumMercadoriasInterno as any)[key] || 0
                           const mercadoriasExterior = (sumMercadoriasExterior as any)[key] || 0
-                          const servicos = (sumServicos as any)[key] || 0
-                          const totalDbg = mercadoriasInterno + mercadoriasExterior + servicos
+                          const servicosInterno = (sumServicosInterno as any)[key] || 0
+                          const servicosExterior = (sumServicosExterior as any)[key] || 0
+                          const totalDbg = mercadoriasInterno + mercadoriasExterior + servicosInterno + servicosExterior
                           const totalNorm = (data.tributos as any)[key] || 0
                           const totalDecl = totDeclarado ? (totDeclarado as any)[key === 'PIS_Pasep' ? 'PIS_Pasep' : key] || 0 : 0
                           const total = totalDecl > 0 ? totalDecl : (totalDbg > 0 ? totalDbg : totalNorm)
-                          return { key, label, mercadoriasInterno, mercadoriasExterior, servicos, total }
-                        }).filter(r => r.total > 0 || r.mercadoriasInterno > 0 || r.mercadoriasExterior > 0 || r.servicos > 0)
+                          return { key, label, mercadoriasInterno, mercadoriasExterior, servicosInterno, servicosExterior, total }
+                        }).filter(r => r.total > 0 || r.mercadoriasInterno > 0 || r.mercadoriasExterior > 0 || r.servicosInterno > 0 || r.servicosExterior > 0)
                         const colMercadoriasInternoVisible = tribKeys.some(k => (sumMercadoriasInterno as any)[k.key] > 0)
                         const colMercadoriasExteriorVisible = tribKeys.some(k => (sumMercadoriasExterior as any)[k.key] > 0)
-                        const colServicosVisible = tribKeys.some(k => (sumServicos as any)[k.key] > 0)
+                        const colServicosInternoVisible = tribKeys.some(k => (sumServicosInterno as any)[k.key] > 0)
+                        const colServicosExteriorVisible = tribKeys.some(k => (sumServicosExterior as any)[k.key] > 0)
 
-                        return rows.map(({ key, label, mercadoriasInterno, mercadoriasExterior, servicos, total }) => (
+                        if (rows.length === 0) {
+                          const colSpan = 1 + (colMercadoriasInternoVisible ? 1 : 0) + (colMercadoriasExteriorVisible ? 1 : 0) + (colServicosInternoVisible ? 1 : 0) + (colServicosExteriorVisible ? 1 : 0) + 1
+                          return [
+                            (
+                              <tr key="none" className="border-b border-slate-100">
+                                <td colSpan={colSpan} className={`py-3 px-2 text-center ${darkMode ? 'text-slate-300' : 'text-slate-500'}`}>Nenhum tributo aplicável</td>
+                              </tr>
+                            )
+                          ]
+                        }
+
+                        return rows.map(({ key, label, mercadoriasInterno, mercadoriasExterior, servicosInterno, servicosExterior, total }) => (
                           <tr key={key} className="border-b border-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800">
                             <td className={`py-3 px-2 font-medium ${darkMode ? 'text-white' : 'text-slate-800'}`}>{label}</td>
                             {colMercadoriasInternoVisible && (
-                              <td className="py-3 px-2 text-center text-blue-600 font-medium">{formatCurrency(mercadoriasInterno)}</td>
+                              <td className="py-3 px-2 text-center text-blue-600 font-medium">{mercadoriasInterno > 0 ? formatCurrency(mercadoriasInterno) : ""}</td>
                             )}
                             {colMercadoriasExteriorVisible && (
-                              <td className="py-3 px-2 text-center text-indigo-600 font-medium">{formatCurrency(mercadoriasExterior)}</td>
+                              <td className="py-3 px-2 text-center text-indigo-600 font-medium">{mercadoriasExterior > 0 ? formatCurrency(mercadoriasExterior) : ""}</td>
                             )}
-                            {colServicosVisible && (
-                              <td className="py-3 px-2 text-center text-emerald-600 font-medium">{formatCurrency(servicos)}</td>
+                            {colServicosInternoVisible && (
+                              <td className="py-3 px-2 text-center text-emerald-600 font-medium">{servicosInterno > 0 ? formatCurrency(servicosInterno) : ""}</td>
+                            )}
+                            {colServicosExteriorVisible && (
+                              <td className="py-3 px-2 text-center text-teal-600 font-medium">{servicosExterior > 0 ? formatCurrency(servicosExterior) : ""}</td>
                             )}
                             <td className={`py-3 px-2 text-center font-semibold ${darkMode ? 'text-white' : 'text-slate-800'}`}>{formatCurrency(total)}</td>
                           </tr>
@@ -1425,7 +1451,8 @@ export function PGDASDProcessorIA() {
                         const init = () => ({ IRPJ: 0, CSLL: 0, COFINS: 0, PIS_Pasep: 0, INSS_CPP: 0, ICMS: 0, IPI: 0, ISS: 0 })
                         const sumMercadoriasInterno = init()
                         const sumMercadoriasExterior = init()
-                        const sumServicos = init()
+                        const sumServicosInterno = init()
+                        const sumServicosExterior = init()
 
                         const atividadesDbgRaw = (data as any)?.debug?.atividades
                         const atividadesDbgList = Array.isArray(atividadesDbgRaw)
@@ -1436,8 +1463,10 @@ export function PGDASDProcessorIA() {
                             const nome = String(atv?.name || atv?.nome || "").toLowerCase()
                             const trib: any = atv?.tributos || {}
                             const isServico = nome.includes("servi")
-                            const isExterior = !isServico && (nome.includes("exterior") || nome.includes("extern") || nome.includes("export"))
-                            const target = isServico ? sumServicos : (isExterior ? sumMercadoriasExterior : sumMercadoriasInterno)
+                            const isExteriorFlag = (nome.includes("exterior") || nome.includes("extern") || nome.includes("export"))
+                            const target = isServico
+                              ? (isExteriorFlag ? sumServicosExterior : sumServicosInterno)
+                              : (isExteriorFlag ? sumMercadoriasExterior : sumMercadoriasInterno)
                             target.IRPJ += parseNumber(trib.irpj ?? trib.IRPJ ?? 0)
                             target.CSLL += parseNumber(trib.csll ?? trib.CSLL ?? 0)
                             target.COFINS += parseNumber(trib.cofins ?? trib.COFINS ?? 0)
@@ -1451,7 +1480,7 @@ export function PGDASDProcessorIA() {
                           const cenario = String(data.cenario || "").toLowerCase()
                           const assignToServicos = cenario.includes("serv")
                           const src = data.tributos
-                          const target = assignToServicos ? sumServicos : sumMercadoriasInterno
+                          const target = assignToServicos ? sumServicosInterno : sumMercadoriasInterno
                           target.IRPJ = src.IRPJ || 0
                           target.CSLL = src.CSLL || 0
                           target.COFINS = src.COFINS || 0
@@ -1464,14 +1493,16 @@ export function PGDASDProcessorIA() {
 
                         const totalMercadoriasInterno = tribKeys.reduce((sum, k) => sum + (sumMercadoriasInterno as any)[k], 0)
                         const totalMercadoriasExterior = tribKeys.reduce((sum, k) => sum + (sumMercadoriasExterior as any)[k], 0)
-                        const totalServicos = tribKeys.reduce((sum, k) => sum + (sumServicos as any)[k], 0)
-                        const grandTotalDbg = totalMercadoriasInterno + totalMercadoriasExterior + totalServicos
+                        const totalServicosInterno = tribKeys.reduce((sum, k) => sum + (sumServicosInterno as any)[k], 0)
+                        const totalServicosExterior = tribKeys.reduce((sum, k) => sum + (sumServicosExterior as any)[k], 0)
+                        const grandTotalDbg = totalMercadoriasInterno + totalMercadoriasExterior + totalServicosInterno + totalServicosExterior
                         const parcelasTotaisDeclFooter = (data as any)?.debug?.parcelas?.totais?.declarado
                         const totalDeclaradoFooter = parseNumber(parcelasTotaisDeclFooter?.total ?? parcelasTotaisDeclFooter?.Total ?? 0)
                         const grandTotal = (totalDeclaradoFooter && totalDeclaradoFooter > 0) ? totalDeclaradoFooter : (grandTotalDbg > 0 ? grandTotalDbg : (data.tributos?.Total || 0))
                         const colMercadoriasInternoVisible = totalMercadoriasInterno > 0
                         const colMercadoriasExteriorVisible = totalMercadoriasExterior > 0
-                        const colServicosVisible = totalServicos > 0
+                        const colServicosInternoVisible = totalServicosInterno > 0
+                        const colServicosExteriorVisible = totalServicosExterior > 0
 
                         return (
                           <tr className="border-t-2 border-slate-300 bg-slate-50 dark:bg-slate-800">
@@ -1482,8 +1513,11 @@ export function PGDASDProcessorIA() {
                             {colMercadoriasExteriorVisible && (
                               <td className="py-3 px-2 text-center font-bold text-indigo-600">{formatCurrency(totalMercadoriasExterior)}</td>
                             )}
-                            {colServicosVisible && (
-                              <td className="py-3 px-2 text-center font-bold text-emerald-600">{formatCurrency(totalServicos)}</td>
+                            {colServicosInternoVisible && (
+                              <td className="py-3 px-2 text-center font-bold text-emerald-600">{formatCurrency(totalServicosInterno)}</td>
+                            )}
+                            {colServicosExteriorVisible && (
+                              <td className="py-3 px-2 text-center font-bold text-teal-600">{formatCurrency(totalServicosExterior)}</td>
                             )}
                             <td className={`py-3 px-2 text-center font-bold ${darkMode ? 'text-white' : 'text-slate-800'}`}>{formatCurrency(grandTotal)}</td>
                           </tr>
@@ -1655,6 +1689,93 @@ export function PGDASDProcessorIA() {
 
               </div>
             )}
+
+            {/* Comparativo por Atividade (Mercadorias vs Serviços) */}
+            {(() => {
+              const mercadorias = Number(data.atividades?.atividade1?.Total || 0)
+              const servicos = Number(data.atividades?.atividade2?.Total || 0)
+              const hasData = mercadorias > 0 || servicos > 0
+              if (!hasData) return null
+              const chartData = [
+                ...(mercadorias > 0 ? [{ name: 'Mercadorias', value: mercadorias, color: ATIVIDADES_COLORS?.mercadorias || '#3b82f6' }] : []),
+                ...(servicos > 0 ? [{ name: 'Serviços', value: servicos, color: ATIVIDADES_COLORS?.servicos || '#10b981' }] : []),
+              ]
+              const total = mercadorias + servicos
+              return (
+                <Card className={`${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border border-slate-200'} shadow-lg hover:shadow-xl transition-all duration-200`}>
+                  <CardHeader className="flex flex-row items-center justify-between pb-2">
+                    <div>
+                      <CardTitle className={`text-base sm:text-lg flex items-center gap-2 ${darkMode ? 'text-white' : 'text-slate-800'}`}>
+                        <BarChart className={`h-5 w-5 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
+                        Comparativo por Atividade (DAS)
+                      </CardTitle>
+                      <CardDescription className={`text-xs sm:text-sm ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                        Distribuição do DAS entre Mercadorias e Serviços
+                      </CardDescription>
+                    </div>
+                    <div className={`text-sm font-semibold ${darkMode ? 'text-slate-200' : 'text-slate-700'}`}>
+                      Total: {formatCurrency(total)}
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      {/* Tabela rápida à esquerda */}
+                      <div className="space-y-3">
+                        {[{ key: 'mercadorias', label: 'Mercadorias', value: mercadorias, color: ATIVIDADES_COLORS?.mercadorias || '#3b82f6' }, { key: 'servicos', label: 'Serviços', value: servicos, color: ATIVIDADES_COLORS?.servicos || '#10b981' }]
+                          .filter(item => item.value > 0)
+                          .map(({ key, label, value, color }) => {
+                            const pct = total > 0 ? (value / total) * 100 : 0
+                            return (
+                              <div key={key} className={`flex items-center justify-between p-3 rounded-lg ${darkMode ? 'bg-slate-700/50' : 'bg-slate-50'} hover:shadow-md transition-all duration-200`}>
+                                <div className="flex items-center gap-3">
+                                  <div className="w-4 h-4 rounded-full flex-shrink-0 shadow-sm" style={{ backgroundColor: color }} />
+                                  <div>
+                                    <div className={`font-medium text-sm ${darkMode ? 'text-slate-200' : 'text-slate-800'}`}>{label}</div>
+                                    <div className={`text-xs ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>{pct.toFixed(5)}%</div>
+                                  </div>
+                                </div>
+                                <div className={`font-bold text-sm ${darkMode ? 'text-slate-100' : 'text-slate-900'}`}>{formatCurrency(value)}</div>
+                              </div>
+                            )
+                          })}
+                        <div className={`flex items-center justify-between p-3 rounded-lg border-2 ${darkMode ? 'bg-slate-600 border-slate-500' : 'bg-slate-100 border-slate-300'} font-bold`}>
+                          <div className="flex items-center gap-3">
+                            <div className={`w-4 h-4 rounded-full ${darkMode ? 'bg-slate-300' : 'bg-slate-600'}`} />
+                            <div>
+                              <div className={`font-bold text-sm ${darkMode ? 'text-slate-100' : 'text-slate-800'}`}>TOTAL DAS (Atividades)</div>
+                              <div className={`text-xs ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>100.00000%</div>
+                            </div>
+                          </div>
+                          <div className={`font-bold text-lg ${darkMode ? 'text-slate-100' : 'text-slate-900'}`}>{formatCurrency(total)}</div>
+                        </div>
+                      </div>
+
+                      {/* Gráfico de barras à direita */}
+                      <div className="flex flex-col">
+                        <h4 className={`font-semibold text-sm ${darkMode ? 'text-slate-200' : 'text-slate-700'} mb-4`}>Visualização Gráfica</h4>
+                        <div className="flex-1 flex items-center justify-center">
+                          <ResponsiveContainer width="100%" height={300}>
+                            <BarChart data={chartData} margin={{ top: 20, right: 20, left: 20, bottom: 20 }}>
+                              <CartesianGrid strokeDasharray="1 1" opacity={0.2} vertical={false} stroke={darkMode ? '#475569' : '#e2e8f0'} />
+                              <XAxis dataKey="name" tick={{ fontSize: 12, fontWeight: 500, fill: darkMode ? '#94a3b8' : '#64748b' }} tickLine={false} axisLine={{ stroke: darkMode ? '#475569' : '#cbd5e1', strokeWidth: 1 }} />
+                              <YAxis tick={{ fontSize: 12, fontWeight: 500, fill: darkMode ? '#94a3b8' : '#64748b' }} tickLine={false} axisLine={{ stroke: darkMode ? '#475569' : '#cbd5e1', strokeWidth: 1 }} tickFormatter={(v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(v))} />
+                              <Tooltip formatter={(value, name) => [formatCurrency(Number(value)), name]} contentStyle={{ borderRadius: '12px', backgroundColor: darkMode ? '#1e293b' : '#ffffff', border: darkMode ? '1px solid #334155' : '1px solid #e2e8f0', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', fontSize: '12px', fontWeight: '500' }} labelStyle={{ fontWeight: '600' }} />
+                              <Legend />
+                              <Bar dataKey="value" name="DAS" barSize={40}>
+                                {chartData.map((entry, index) => (
+                                  <Cell key={`cell-${index}`} fill={entry.color} stroke={darkMode ? '#1e293b' : '#ffffff'} strokeWidth={2} />
+                                ))}
+                                <LabelList dataKey={(d: any) => formatCurrency(d.value)} position="top" fill={darkMode ? '#e2e8f0' : '#1f2937'} fontSize={11} />
+                              </Bar>
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })()}
 
             {data.insights && (
               <div className="space-y-4">
