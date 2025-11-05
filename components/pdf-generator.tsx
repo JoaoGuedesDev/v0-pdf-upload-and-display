@@ -30,108 +30,27 @@ export function PdfGenerator({
         throw new Error(`Elemento com ID '${contentId}' não encontrado`)
       }
 
-      // Função para interceptar e limpar estilos CSS problemáticos
+      // Estilo temporário apenas para melhorar legibilidade sem remover cores
       const interceptAndCleanStyles = (targetElement: HTMLElement) => {
-        // Cria uma folha de estilo temporária para sobrescrever estilos problemáticos
         const tempStyle = document.createElement('style')
         tempStyle.id = 'temp-pdf-style-override'
-        
-        // CSS para neutralizar funções de cor não suportadas
         tempStyle.textContent = `
           #${contentId} *, #${contentId}-clone * {
-            color: inherit !important;
-            background-color: transparent !important;
-            border-color: currentColor !important;
-          }
-          
-          #${contentId} .bg-gradient-to-br, #${contentId}-clone .bg-gradient-to-br,
-          #${contentId} .bg-gradient-to-r, #${contentId}-clone .bg-gradient-to-r,
-          #${contentId} [class*="gradient"], #${contentId}-clone [class*="gradient"] {
-            background: #f3f4f6 !important;
-            background-image: none !important;
+            -webkit-font-smoothing: antialiased !important;
+            -moz-osx-font-smoothing: grayscale !important;
+            text-rendering: optimizeLegibility !important;
           }
         `
-        
         document.head.appendChild(tempStyle)
         return tempStyle
       }
 
-      // Função para limpar estilos problemáticos de forma mais agressiva
-      const aggressiveStyleCleaning = (doc: Document, targetId: string) => {
-        const allElements = doc.querySelectorAll(`#${targetId} *`)
-        allElements.forEach(el => {
-          const htmlEl = el as HTMLElement
-          
-          // Remove todos os estilos inline que podem conter funções de cor problemáticas
-          if (htmlEl.style) {
-            const originalStyle = htmlEl.style.cssText
-            
-            // Lista de propriedades que podem conter funções de cor problemáticas
-            const colorProperties = [
-              'color', 'background-color', 'background', 'background-image',
-              'border-color', 'border-top-color', 'border-right-color', 
-              'border-bottom-color', 'border-left-color', 'outline-color',
-              'text-decoration-color', 'caret-color', 'column-rule-color'
-            ]
-            
-            colorProperties.forEach(prop => {
-              const kebabProp = prop.replace(/([A-Z])/g, '-$1').toLowerCase()
-              htmlEl.style.removeProperty(kebabProp)
-            })
-            
-            // Define cores seguras como fallback
-            htmlEl.style.color = 'inherit'
-            htmlEl.style.backgroundColor = 'transparent'
-            htmlEl.style.borderColor = 'currentColor'
-          }
-          
-          // Remove classes que podem conter gradientes
-          if (htmlEl.className && typeof htmlEl.className === 'string') {
-            htmlEl.className = htmlEl.className
-              .replace(/bg-gradient-[^\s]*/g, 'bg-gray-100')
-              .replace(/from-[^\s]*/g, '')
-              .replace(/to-[^\s]*/g, '')
-              .replace(/via-[^\s]*/g, '')
-          }
-        })
-      }
+      // Removido o "cleaning" agressivo para preservar cores e estilos
+      const aggressiveStyleCleaning = (_doc: Document, _targetId: string) => {}
 
-      // Função para limpeza preventiva de estilos computados em tempo real
-      const preventiveStyleCleaning = (targetElement: HTMLElement) => {
-        const observer = new MutationObserver((mutations) => {
-          mutations.forEach((mutation) => {
-            if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
-              const target = mutation.target as HTMLElement
-              if (target.style.cssText) {
-                // Lista de funções de cor problemáticas
-                const problematicFunctions = ['oklab(', 'lab(', 'oklch(', 'lch(', 'color-mix(', 'color(', 'hwb(']
-                
-                let needsCleaning = false
-                problematicFunctions.forEach(func => {
-                  if (target.style.cssText.includes(func)) {
-                    needsCleaning = true
-                  }
-                })
-                
-                if (needsCleaning) {
-                  // Remove propriedades problemáticas e define fallbacks seguros
-                  target.style.color = 'inherit'
-                  target.style.backgroundColor = 'transparent'
-                  target.style.borderColor = 'currentColor'
-                }
-              }
-            }
-          })
-        })
-        
-        // Observa mudanças nos estilos do elemento alvo e seus filhos
-        observer.observe(targetElement, {
-          attributes: true,
-          attributeFilter: ['style'],
-          subtree: true
-        })
-        
-        return observer
+      // Sem limpeza preventiva de estilos para manter fidelidade das cores
+      const preventiveStyleCleaning = (_targetElement: HTMLElement) => {
+        return { disconnect: () => {} } as MutationObserver
       }
 
       // Inicia monitoramento preventivo
@@ -147,7 +66,7 @@ export function PdfGenerator({
       let canvas: HTMLCanvasElement
       try {
         canvas = await html2canvas(element, {
-          scale: 3.125, // Aproxima 300dpi (96dpi * 3.125 ≈ 300dpi)
+          scale: Math.max(2, window.devicePixelRatio || 2),
           useCORS: true,
           allowTaint: true,
           backgroundColor: '#ffffff',
@@ -160,9 +79,6 @@ export function PdfGenerator({
             return element.tagName === 'SCRIPT' || element.tagName === 'STYLE'
           },
           onclone: (clonedDoc) => {
-            // Aplica limpeza agressiva no documento clonado
-            aggressiveStyleCleaning(clonedDoc, contentId)
-            
             // Otimiza estilos para melhor renderização
             const style = clonedDoc.createElement('style')
             style.textContent = `
@@ -197,7 +113,7 @@ export function PdfGenerator({
           clonedElement.offsetHeight
           
           canvas = await html2canvas(clonedElement, {
-            scale: 3.0, // Fallback próximo de 300dpi
+            scale: Math.max(2, window.devicePixelRatio || 2),
             useCORS: true,
             allowTaint: true,
             backgroundColor: '#ffffff',
@@ -246,7 +162,7 @@ export function PdfGenerator({
       const pdfWidth = pdf.internal.pageSize.getWidth()
       const pdfHeight = pdf.internal.pageSize.getHeight()
       
-      // Função para otimizar contraste e brilho da imagem
+      // Função para otimizar qualidade mantendo fidelidade de cores
       const optimizeImageQuality = (canvas: HTMLCanvasElement): string => {
         const tempCanvas = document.createElement('canvas')
         tempCanvas.width = canvas.width
@@ -258,14 +174,14 @@ export function PdfGenerator({
         // Desenha a imagem original
         ctx.drawImage(canvas, 0, 0)
         
-        // Aplica filtros para melhorar contraste e reduzir excesso de branco
+        // Ajuste suave para nitidez sem desbotar
         const imageData = ctx.getImageData(0, 0, tempCanvas.width, tempCanvas.height)
         const data = imageData.data
         
-        // Parâmetros de otimização
-        const contrast = 1.2 // Aumenta contraste
-        const brightness = -10 // Reduz brilho ligeiramente
-        const gamma = 0.9 // Ajuste de gamma para melhor definição
+        // Parâmetros mínimos para manter cor fiel
+        const contrast = 1.0
+        const brightness = 0
+        const gamma = 1.0
         
         for (let i = 0; i < data.length; i += 4) {
           // Aplica correção de contraste e brilho
@@ -290,7 +206,7 @@ export function PdfGenerator({
         }
         
         ctx.putImageData(imageData, 0, 0)
-        return tempCanvas.toDataURL("image/png", 0.95) // Alta qualidade
+        return tempCanvas.toDataURL("image/png", 1.0) // Qualidade máxima
       }
 
       // Converte o canvas para imagem otimizada
@@ -310,6 +226,38 @@ export function PdfGenerator({
       const imgX = (pdfWidth - finalWidth) / 2
       const imgY = 15 // Margem superior otimizada
       
+      // Helper para adicionar imagem com paginação quando necessário
+      const addImageWithPagination = () => {
+        const pageContentHeight = pdfHeight - 30
+        let heightLeft = finalHeight - pageContentHeight
+        let position = imgY
+        pdf.addImage(
+          imgData,
+          'PNG',
+          imgX,
+          position,
+          finalWidth,
+          finalHeight,
+          undefined,
+          'FAST'
+        )
+        while (heightLeft > 0) {
+          pdf.addPage()
+          position = imgY - heightLeft
+          pdf.addImage(
+            imgData,
+            'PNG',
+            imgX,
+            position,
+            finalWidth,
+            finalHeight,
+            undefined,
+            'FAST'
+          )
+          heightLeft -= pageContentHeight
+        }
+      }
+
       // Adiciona a marca d'água somente quando configurada
       if (isTextWatermark && watermarkImage) {
         // Marca d'água com texto sem transparência (cinza claro)
@@ -322,17 +270,8 @@ export function PdfGenerator({
           }
         }
 
-        // Conteúdo principal por cima da marca d'água
-        pdf.addImage(
-          imgData,
-          'PNG',
-          imgX,
-          imgY,
-          finalWidth,
-          finalHeight,
-          undefined,
-          'FAST'
-        )
+        // Conteúdo principal por cima da marca d'água (com paginação)
+        addImageWithPagination()
 
         pdf.save(`${fileName}.pdf`)
         setIsGenerating(false)
@@ -353,7 +292,7 @@ export function PdfGenerator({
 
             if (ctx) {
               ctx.clearRect(0, 0, tempCanvas.width, tempCanvas.height)
-              ctx.globalAlpha = 0.08 // Opacidade suave da marca d'água
+              ctx.globalAlpha = 0.03 // Opacidade ainda mais suave para máxima visibilidade
               ctx.drawImage(watermarkImg, 0, 0, tempCanvas.width, tempCanvas.height)
               const fadedData = tempCanvas.toDataURL('image/png')
 
@@ -370,32 +309,14 @@ export function PdfGenerator({
               )
             }
 
-            // Conteúdo principal por cima
-            pdf.addImage(
-              imgData,
-              'PNG',
-              imgX,
-              imgY,
-              finalWidth,
-              finalHeight,
-              undefined,
-              'FAST'
-            )
+            // Conteúdo principal por cima (com paginação)
+            addImageWithPagination()
 
             pdf.save(`${fileName}.pdf`)
             setIsGenerating(false)
           } catch (e) {
             // Fallback: gerar somente conteúdo
-            pdf.addImage(
-              imgData,
-              'PNG',
-              imgX,
-              imgY,
-              finalWidth,
-              finalHeight,
-              undefined,
-              'FAST'
-            )
+            addImageWithPagination()
             pdf.save(`${fileName}.pdf`)
             setIsGenerating(false)
           }
@@ -403,32 +324,14 @@ export function PdfGenerator({
 
         watermarkImg.onerror = () => {
           // Caso a marca d'água não carregue, gera apenas o conteúdo
-          pdf.addImage(
-            imgData,
-            'PNG',
-            imgX,
-            imgY,
-            finalWidth,
-            finalHeight,
-            undefined,
-            'FAST'
-          )
-
+          addImageWithPagination()
+      
           pdf.save(`${fileName}.pdf`)
           setIsGenerating(false)
         }
       } else {
         // Sem marca d'água: apenas adiciona o conteúdo capturado
-        pdf.addImage(
-          imgData,
-          'PNG',
-          imgX,
-          imgY,
-          finalWidth,
-          finalHeight,
-          undefined,
-          'FAST'
-        )
+        addImageWithPagination()
 
         pdf.save(`${fileName}.pdf`)
         setIsGenerating(false)

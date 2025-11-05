@@ -132,16 +132,90 @@ interface DASData {
     pontosAtencao: string[]
     oportunidades: string[]
     recomendacoes: string[]
+    economiaImpostos?: string[]
+    regimeTributario?: { adequado: boolean; sugestao?: string; justificativa?: string }
+    dasObservacoes?: string[]
+    receitaMensal?: string[]
   }
   debug?: any
 }
 
 const CHART_COLORS = ["#2563eb", "#7c3aed", "#db2777", "#dc2626", "#ea580c", "#ca8a04", "#16a34a", "#0891b2"]
 
-const ATIVIDADES_COLORS = {
-  servicos: "#10b981", // verde
-  mercadorias: "#3b82f6", // azul
-}
+  const ATIVIDADES_COLORS = {
+    servicos: "#10b981", // verde
+    mercadorias: "#3b82f6", // azul
+  }
+
+  // Helper: normaliza texto pt-BR (minúsculas, sem acentos, espaços únicos)
+  function normalizeTextPTBR(s: string): string {
+    return String(s || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/\s+/g, " ")
+      .trim()
+  }
+
+  // Helper: classifica atividade em { tipo, mercado }
+  function classifyAtividade(nome: string): { tipo: "servicos" | "mercadorias"; mercado: "interno" | "externo" } {
+    const t = normalizeTextPTBR(nome)
+
+    // Detecta serviços por palavra-raiz
+    const isServico = /servi/.test(t) || /prestacao de servico/.test(t)
+
+    // Sinais de negação do exterior (prioridade máxima)
+    const negExternoPatterns = [
+      /(exceto|nao)\s+(para\s+)?(o\s+)?exterior/,
+      /mercado\s+interno/,
+      /(sem|exceto)\s+exportacao/,
+      /(nao|não)\s+destinad[ao]s?\s+ao\s+exterior/,
+    ]
+    const hasNegExterno = negExternoPatterns.some((rx) => rx.test(t))
+
+    // Sinais afirmativos de exterior (após normalizeTextPTBR)
+    // Cobrem: "para o exterior", "exterior", "mercado externo", "exportacao/exportacoes"
+    const posExternoPatterns = [
+      /\bpara\s+o\s+exterior\b/,
+      /\bpara\s+exterior\b/,
+      /\bmercado\s+externo\b/,
+      /\bexterior\b/,
+      /\bexterno\b/,
+      /\bexporta(cao|coes)\b/,
+      /\bpara\s+exporta(cao|coes)\b/,
+      /\bdestinad[ao]s?\s+ao\s+exterior\b/,
+    ]
+    const hasPosExterno = posExternoPatterns.some((rx) => rx.test(t))
+
+    const isExterior = !hasNegExterno && hasPosExterno
+    const mercado: "interno" | "externo" = isExterior ? "externo" : "interno"
+    const tipo: "servicos" | "mercadorias" = isServico ? "servicos" : "mercadorias"
+    return { tipo, mercado }
+  }
+
+  // Sanitiza insights para remover frases proibidas
+  function sanitizeInsights(insights: DASData["insights"]): DASData["insights"] {
+    if (!insights) return insights
+    const banned = [
+      "desbalanceamento entre serviços e mercadorias",
+      "otimizar divisão entre serviços e mercadorias"
+    ]
+    const isBanned = (txt: string) => {
+      const n = normalizeTextPTBR(txt)
+      return banned.some(b => n.includes(b))
+    }
+    const filterArr = (arr?: string[]) => Array.isArray(arr) ? arr.filter(item => !isBanned(item)) : []
+    return {
+      comparativoSetorial: insights.comparativoSetorial,
+      pontosAtencao: filterArr(insights.pontosAtencao),
+      oportunidades: filterArr(insights.oportunidades),
+      recomendacoes: insights.recomendacoes || [],
+      economiaImpostos: insights.economiaImpostos || [],
+      regimeTributario: insights.regimeTributario,
+      dasObservacoes: insights.dasObservacoes || [],
+      receitaMensal: insights.receitaMensal || [],
+    }
+  }
 
 export function PGDASDProcessorIA() {
   const [file, setFile] = useState<File | null>(null)
@@ -152,6 +226,7 @@ export function PGDASDProcessorIA() {
   const contentRef = useRef<HTMLDivElement>(null)
   const [generatingPDF, setGeneratingPDF] = useState(false)
   const [processViaN8n, setProcessViaN8n] = useState(false)
+  const [showConsistencyDetails, setShowConsistencyDetails] = useState(false)
 
   const generatePDF = async () => {
     if (!contentRef.current || !data) return
@@ -309,9 +384,19 @@ export function PGDASDProcessorIA() {
     const oportunidades: string[] = []
     const recomendacoes: string[] = []
 
+    // Heurísticas adicionais por caso: tendências de receita e composição
+    const receitaLineVals = dasData.graficos?.receitaLine?.values || []
+    const meVals = dasData.graficos?.receitaLineExterno?.values || []
+    const lastReceita = receitaLineVals.length > 0 ? receitaLineVals[receitaLineVals.length - 1] : 0
+    const last3Avg = receitaLineVals.length >= 3
+      ? (receitaLineVals.slice(-3).reduce((a, b) => a + (Number.isFinite(b) ? b : 0), 0) / 3)
+      : (receitaLineVals.length > 0 ? (receitaLineVals.reduce((a, b) => a + (Number.isFinite(b) ? b : 0), 0) / receitaLineVals.length) : 0)
+    const variacaoUltimo = last3Avg > 0 ? ((lastReceita - last3Avg) / last3Avg) * 100 : 0
+    const meTotalPositivo = (meVals || []).some(v => (Number.isFinite(v) ? v : 0) > 0)
+
     switch (cenario) {
       case "servicos":
-        comparativoSetorial = `Sua alíquota efetiva de ${aliquota.toFixed(5)}% está ${aliquota > 8 ? "acima" : "dentro"} da média para prestadores de serviços (6-8%). ${iss > totalTributos * 0.15 ? "ISS representa parcela significativa dos tributos." : ""}`
+        comparativoSetorial = `Operação de serviços com alíquota efetiva de ${aliquota.toFixed(5)}% e margem líquida de ${margem.toFixed(1)}%. ${aliquota > 8 ? "Acima" : "Dentro"} da média do setor (6-8%). ${iss > totalTributos * 0.15 ? "ISS tem peso relevante na carga tributária." : ""}`
 
         if (iss > totalTributos * 0.15)
           pontosAtencao.push("ISS representa mais de 15% do total - avaliar benefícios municipais")
@@ -326,7 +411,7 @@ export function PGDASDProcessorIA() {
         break
 
       case "mercadorias":
-        comparativoSetorial = `Sua alíquota efetiva de ${aliquota.toFixed(5)}% está ${aliquota > 7 ? "acima" : "dentro"} da média para comércio (5-7%). ${icms > totalTributos * 0.12 ? "ICMS tem peso relevante na carga tributária." : ""}`
+        comparativoSetorial = `Operação de comércio com alíquota efetiva de ${aliquota.toFixed(5)}% e margem líquida de ${margem.toFixed(1)}%. ${aliquota > 7 ? "Acima" : "Dentro"} da média do setor (5-7%). ${icms > totalTributos * 0.12 ? "ICMS tem peso relevante na carga tributária." : ""}`
 
         if (icms > totalTributos * 0.12)
           pontosAtencao.push("ICMS representa mais de 12% do total - avaliar créditos fiscais")
@@ -340,13 +425,10 @@ export function PGDASDProcessorIA() {
         break
 
       case "misto":
-        comparativoSetorial = `Operação mista com alíquota efetiva de ${aliquota.toFixed(5)}%. ${iss > 0 && icms > 0 ? "Boa diversificação entre serviços e mercadorias." : ""}`
+        comparativoSetorial = `Operação mista com alíquota efetiva de ${aliquota.toFixed(5)}% e margem líquida de ${margem.toFixed(1)}%. ${iss > 0 && icms > 0 ? "Diversificação entre serviços e mercadorias detectada." : ""}`
 
-        if (Math.abs(iss - icms) > totalTributos * 0.2) {
-          pontosAtencao.push("Desbalanceamento entre serviços e mercadorias - avaliar otimização")
-        }
-
-        oportunidades.push("Otimizar divisão entre serviços e mercadorias para reduzir carga")
+        // Removido: alerta de desbalanceamento e sugestão de otimizar divisão.
+        // Mantém apenas oportunidades gerais aplicáveis ao cenário misto.
         oportunidades.push("Aproveitar benefícios fiscais de ambas as atividades")
 
         recomendacoes.push("Segregar corretamente receitas de serviços e mercadorias")
@@ -357,6 +439,21 @@ export function PGDASDProcessorIA() {
     if (aliquota > 10) pontosAtencao.push("Alíquota efetiva elevada - revisar enquadramento no Simples")
     if (margem < 10) pontosAtencao.push("Margem líquida abaixo de 10% - atenção à rentabilidade")
 
+    // Tendência do último mês vs média recente
+    if (variacaoUltimo <= -20) {
+      pontosAtencao.push("Queda acentuada de receita em relação à média recente (≥20%)")
+      recomendacoes.push("Investigar causas da queda e ajustar precificação/marketing")
+    } else if (variacaoUltimo >= 20) {
+      oportunidades.push("Crescimento recente de receita (≥20%) — explorar expansão controlada")
+      recomendacoes.push("Planejar capacidade/estoque para sustentar crescimento")
+    }
+
+    // Mercado externo presente
+    if (meTotalPositivo) {
+      oportunidades.push("Explorar benefícios de exportação e regimes especiais aplicáveis")
+      recomendacoes.push("Verificar obrigações e incentivos específicos para operações externas")
+    }
+
     oportunidades.push("Receita anual permite permanência no Simples Nacional")
     if (aliquota > 8) oportunidades.push("Possível redução de carga através de planejamento tributário")
 
@@ -364,22 +461,25 @@ export function PGDASDProcessorIA() {
     if (margem < 15) recomendacoes.push("Avaliar estrutura de custos e precificação para melhorar margem")
 
     return {
-      comparativoSetorial:
-        aliquota > 8
-          ? "Sua alíquota efetiva está acima da média setorial (6-8%). Há oportunidades de otimização."
-          : "Sua alíquota efetiva está dentro da média setorial. Boa gestão tributária!",
-      pontosAtencao: [],
+      // Usa o comparativo setorial detalhado por cenário (com números do caso)
+      comparativoSetorial,
+      // Usa os pontos de atenção calculados acima
+      pontosAtencao,
+      // Consolida oportunidades específicas do cenário com oportunidades gerais
       oportunidades: [
-        rbt12 < 4800000 && "Receita anual permite permanência no Simples Nacional",
-        aliquota > 8 && "Possível redução de carga através de planejamento tributário",
-        iss > 0 && "Avaliar benefícios fiscais municipais para ISS",
-      ].filter(Boolean) as string[],
+        ...oportunidades,
+        ...(rbt12 < 4800000 ? ["Receita anual permite permanência no Simples Nacional"] : []),
+        ...(aliquota > 8 ? ["Possível redução de carga através de planejamento tributário"] : []),
+        ...(iss > 0 ? ["Avaliar benefícios fiscais municipais para ISS"] : []),
+      ],
+      // Consolida recomendações específicas com recomendações gerais
       recomendacoes: [
+        ...recomendacoes,
         "Manter controle rigoroso do faturamento para não ultrapassar o limite do Simples",
-        aliquota > 8 && "Consultar contador sobre possibilidade de mudança de anexo",
+        ...(aliquota > 8 ? ["Consultar contador sobre possibilidade de mudança de anexo"] : []),
         "Revisar distribuição de lucros vs. pró-labore para otimização tributária",
-        margem < 15 && "Avaliar estrutura de custos e precificação para melhorar margem",
-      ].filter(Boolean) as string[],
+        ...(margem < 15 ? ["Avaliar estrutura de custos e precificação para melhorar margem"] : []),
+      ],
     }
   }
 
@@ -654,8 +754,30 @@ export function PGDASDProcessorIA() {
         }
       }
 
-      const insights = generateInsights(dasData)
-      setData({ ...dasData, insights })
+      // Tenta gerar insights via IA (fallback para heurística local)
+      try {
+        const iaResp = await fetch('/api/insights', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ dasData }),
+        })
+        if (iaResp.ok) {
+          const iaJson = await iaResp.json()
+          const insightsFromIa = iaJson?.insights
+          if (insightsFromIa && typeof insightsFromIa === 'object') {
+            setData({ ...dasData, insights: sanitizeInsights(insightsFromIa as any) })
+          } else {
+            const insights = generateInsights(dasData)
+            setData({ ...dasData, insights: sanitizeInsights(insights) })
+          }
+        } else {
+          const insights = generateInsights(dasData)
+          setData({ ...dasData, insights: sanitizeInsights(insights) })
+        }
+      } catch {
+        const insights = generateInsights(dasData)
+        setData({ ...dasData, insights: sanitizeInsights(insights) })
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao processar o arquivo")
     } finally {
@@ -736,17 +858,7 @@ export function PGDASDProcessorIA() {
                     )}
                   </Button>
                 )}
-                <div className={`mt-4 flex items-center justify-center gap-2 ${darkMode ? 'text-slate-200' : 'text-slate-700'}`}>
-                  <input
-                    id="toggle-n8n"
-                    type="checkbox"
-                    checked={processViaN8n}
-                    onChange={(e) => setProcessViaN8n(e.target.checked)}
-                  />
-                  <label htmlFor="toggle-n8n" className="text-sm">
-                    Processar via n8n (encaminha para webhook configurado)
-                  </label>
-                </div>
+                {/* Opção n8n removida a pedido */}
               </div>
 
               {error && (
@@ -819,18 +931,78 @@ export function PGDASDProcessorIA() {
                   <FileText className="h-4 w-4" />
                 </CardHeader>
                 <CardContent className="p-4 sm:p-6 pt-0">
-                  <div className="flex flex-wrap gap-2 mb-2">
-                    {Boolean(data.atividades?.atividade2?.Total) && (
-                      <span className="inline-flex items-center rounded-full px-2 py-1 text-xs font-medium bg-white/20 text-white border border-white/30">
-                        Serviços: {formatCurrency(data.atividades!.atividade2!.Total)}
-                      </span>
-                    )}
-                    {Boolean(data.atividades?.atividade1?.Total) && (
-                      <span className="inline-flex items-center rounded-full px-2 py-1 text-xs font-medium bg-white/20 text-white border border-white/30">
-                        Mercadorias: {formatCurrency(data.atividades!.atividade1!.Total)}
-                      </span>
-                    )}
-                  </div>
+                  {(() => {
+                    // Exibe origem do DAS com a MESMA regra de bucket usada na tabela detalhada
+                    const atividadesDbgRaw = (data as any)?.debug?.atividades
+                    const atividadesDbgList = Array.isArray(atividadesDbgRaw)
+                      ? atividadesDbgRaw
+                      : (atividadesDbgRaw && typeof atividadesDbgRaw === 'object' ? Object.values(atividadesDbgRaw) : [])
+
+                    const init = () => ({ IRPJ: 0, CSLL: 0, COFINS: 0, PIS_Pasep: 0, INSS_CPP: 0, ICMS: 0, IPI: 0, ISS: 0 })
+                    const sumMercadoriasInterno = init()
+                    const sumMercadoriasExterior = init()
+                    const sumServicosInterno = init()
+                    const sumServicosExterior = init()
+
+                    if (Array.isArray(atividadesDbgList) && atividadesDbgList.length > 0) {
+                      for (const atv of atividadesDbgList) {
+                        const nomeRaw = String(atv?.name || atv?.nome || "")
+                        const trib: any = atv?.tributos || {}
+                        const cls = classifyAtividade(nomeRaw)
+                        const issVal = parseNumber(trib.iss ?? trib.ISS ?? 0)
+                        const icmsVal = parseNumber(trib.icms ?? trib.ICMS ?? 0)
+                        const mercado = cls.mercado === 'externo' ? 'externo' : 'interno'
+                        const target = ((): typeof sumMercadoriasInterno => {
+                          if (issVal > 0 && icmsVal === 0) {
+                            return mercado === 'externo' ? sumServicosExterior : sumServicosInterno
+                          }
+                          if (icmsVal > 0 && issVal === 0) {
+                            return mercado === 'externo' ? sumMercadoriasExterior : sumMercadoriasInterno
+                          }
+                          return cls.tipo === 'servicos'
+                            ? (mercado === 'externo' ? sumServicosExterior : sumServicosInterno)
+                            : (mercado === 'externo' ? sumMercadoriasExterior : sumMercadoriasInterno)
+                        })()
+
+                        target.IRPJ += parseNumber(trib.irpj ?? trib.IRPJ ?? 0)
+                        target.CSLL += parseNumber(trib.csll ?? trib.CSLL ?? 0)
+                        target.COFINS += parseNumber(trib.cofins ?? trib.COFINS ?? 0)
+                        target.PIS_Pasep += parseNumber(trib.pis ?? trib.PIS ?? trib.pis_pasep ?? trib.PIS_PASEP ?? trib["PIS/PASEP"] ?? trib.PIS_Pasep ?? 0)
+                        target.INSS_CPP += parseNumber(trib.inss_cpp ?? trib.INSS_CPP ?? trib["INSS/CPP"] ?? 0)
+                        target.ICMS += parseNumber(trib.icms ?? trib.ICMS ?? 0)
+                        target.IPI += parseNumber(trib.ipi ?? trib.IPI ?? 0)
+                        target.ISS += parseNumber(trib.iss ?? trib.ISS ?? 0)
+                      }
+                    }
+
+                    // Totais por origem agregando interno + externo
+                    const sumBucket = (b: ReturnType<typeof init>) => b.IRPJ + b.CSLL + b.COFINS + b.PIS_Pasep + b.INSS_CPP + b.ICMS + b.IPI + b.ISS
+                    const mercadoriasDbg = sumBucket(sumMercadoriasInterno) + sumBucket(sumMercadoriasExterior)
+                    const servicosDbg = sumBucket(sumServicosInterno) + sumBucket(sumServicosExterior)
+
+                    const mercadoriasAt = Number(data.atividades?.atividade1?.Total || 0)
+                    const servicosAt = Number(data.atividades?.atividade2?.Total || 0)
+                    // Preferimos os buckets calculados do debug quando existem; senão caímos para atividadeX.Total
+                    const mercadoriasTotal = mercadoriasDbg > 0 ? mercadoriasDbg : mercadoriasAt
+                    const servicosTotal = servicosDbg > 0 ? servicosDbg : servicosAt
+
+                    const anyBadge = (mercadoriasTotal > 0 || servicosTotal > 0)
+                    if (!anyBadge) return null
+                    return (
+                      <div className="flex flex-wrap gap-2 mb-2">
+                        {servicosTotal > 0 && (
+                          <span className="inline-flex items-center rounded-full px-2 py-1 text-xs font-medium bg-white/20 text-white border border-white/30">
+                            Serviços: {formatCurrency(servicosTotal)}
+                          </span>
+                        )}
+                        {mercadoriasTotal > 0 && (
+                          <span className="inline-flex items-center rounded-full px-2 py-1 text-xs font-medium bg-white/20 text-white border border-white/30">
+                            Mercadorias: {formatCurrency(mercadoriasTotal)}
+                          </span>
+                        )}
+                      </div>
+                    )
+                  })()}
                   <p className="text-lg sm:text-2xl font-bold font-sans break-words">{formatCurrency(data.tributos.Total)}</p>
                   <p className="text-[10px] sm:text-xs opacity-75 mt-1">Valor a pagar</p>
                 </CardContent>
@@ -1023,7 +1195,7 @@ export function PGDASDProcessorIA() {
                   </div>
                 </div>
 
-                <div className="mt-4 sm:mt-6 grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 pt-4 border-t border-slate-200">
+                <div className="mt-4 sm:mt-6 grid grid-cols-1 sm:grid-cols-4 gap-3 sm:gap-4 pt-4 border-t border-slate-200">
                   <div className="bg-blue-50 rounded-lg p-3 sm:p-4">
                     <p className="text-xs text-blue-600 font-medium mb-1">Utilização do Limite</p>
                     <p className="text-xl sm:text-2xl font-bold text-blue-900">
@@ -1032,25 +1204,143 @@ export function PGDASDProcessorIA() {
                     <p className="text-xs text-blue-600 mt-1">RBA / Limite</p>
                   </div>
                   <div className="bg-emerald-50 rounded-lg p-3 sm:p-4">
-                    <p className="text-xs text-emerald-600 font-medium mb-1">Crescimento Anual</p>
+                    <p className="text-xs text-emerald-600 font-medium mb-1">Comparativo de Crescimento</p>
                     <p className="text-xl sm:text-2xl font-bold text-emerald-900">
-                      {data.receitas.rbaa > 0
-                        ? (((data.receitas.rba - data.receitas.rbaa) / data.receitas.rbaa) * 100).toFixed(1)
-                        : "0.0"}
+                      {(() => {
+                        const serieBase = (data.graficos?.receitaLine?.values
+                          || data.graficos?.receitaMensal?.values
+                          || []) as any[]
+                        const valores = Array.isArray(serieBase) ? serieBase.map((v: any) => Number(v) || 0) : []
+                        const n = valores.length
+                        let pct = 0
+                        if (n >= 6) {
+                          const first3 = valores.slice(0, 3).reduce((a, b) => a + b, 0)
+                          const last3 = valores.slice(n - 3).reduce((a, b) => a + b, 0)
+                          pct = first3 > 0 ? ((last3 - first3) / first3) * 100 : 0
+                        } else if (n >= 2) {
+                          const mid = Math.floor(n / 2)
+                          const first = valores.slice(0, mid).reduce((a, b) => a + b, 0)
+                          const last = valores.slice(mid).reduce((a, b) => a + b, 0)
+                          pct = first > 0 ? ((last - first) / first) * 100 : 0
+                        } else {
+                          pct = data.receitas.rbaa > 0
+                            ? ((data.receitas.rba - data.receitas.rbaa) / data.receitas.rbaa) * 100
+                            : 0
+                        }
+                        return pct.toFixed(1)
+                      })()}
                       %
                     </p>
-                    <p className="text-xs text-emerald-600 mt-1">RBA vs RBAA</p>
+                    <p className="text-xs text-emerald-600 mt-1">3 últimos vs 3 primeiros</p>
                   </div>
-                  <div className="bg-amber-50 rounded-lg p-3 sm:p-4">
-                    <p className="text-xs text-amber-600 font-medium mb-1">Margem até Limite</p>
-                    <p className="text-xl sm:text-2xl font-bold text-amber-900 break-words">
-                      -91.7%
+                  {/* Último mês vs média dos últimos 3 meses */}
+                  <div className="bg-indigo-50 rounded-lg p-3 sm:p-4">
+                    <p className="text-xs text-indigo-600 font-medium mb-1">Último mês vs média trimestral</p>
+                    <p className="text-xl sm:text-2xl font-bold text-indigo-900">
+                      {(() => {
+                        const serieBase = (data.graficos?.receitaLine?.values
+                          || data.graficos?.receitaMensal?.values
+                          || []) as any[]
+                        const valores = Array.isArray(serieBase) ? serieBase.map((v: any) => Number(v) || 0) : []
+                        const n = valores.length
+                        if (n === 0) return '0.0'
+                        const last = valores[n - 1]
+                        const last3 = valores.slice(Math.max(0, n - 3))
+                        const avg3 = last3.length > 0 ? last3.reduce((a, b) => a + b, 0) / last3.length : 0
+                        const pct = avg3 > 0 ? ((last - avg3) / avg3) * 100 : 0
+                        return pct.toFixed(1)
+                      })()}
+                      %
                     </p>
-                    <p className="text-xs text-amber-600 mt-1">
-                      Margem disponível
-                    </p>
+                    <p className="text-xs text-indigo-600 mt-1">Variação do último mês vs média 3 meses</p>
                   </div>
+                  {/* Consistência: coeficiente de variação últimos 6 meses */}
+                  <div
+                    className="bg-amber-50 rounded-lg p-3 sm:p-4 cursor-pointer hover:bg-amber-100 transition"
+                    role="button"
+                    onClick={() => setShowConsistencyDetails(v => !v)}
+                    aria-label="Abrir detalhamento de consistência"
+                  >
+                    <p className="text-xs text-amber-600 font-medium mb-1">Consistência</p>
+                    <p className="text-xl sm:text-2xl font-bold text-amber-900">
+                      {(() => {
+                        const serieBase = (data.graficos?.receitaLine?.values
+                          || data.graficos?.receitaMensal?.values
+                          || []) as any[]
+                        const valores = Array.isArray(serieBase) ? serieBase.map((v: any) => Number(v) || 0) : []
+                        const n = valores.length
+                        const last6 = valores.slice(Math.max(0, n - 6))
+                        if (last6.length < 2) return '0.0'
+                        const mean = last6.reduce((a, b) => a + b, 0) / last6.length
+                        const variance = last6.reduce((acc, v) => acc + Math.pow(v - mean, 2), 0) / last6.length
+                        const sd = Math.sqrt(variance)
+                        const cv = mean > 0 ? (sd / mean) * 100 : 0
+                        return cv.toFixed(1)
+                      })()}
+                      %
+                    </p>
+                    <p className="text-xs text-amber-600 mt-1">CV últimos 6 meses (↓ estável)</p>
+                  </div>
+                  
                 </div>
+
+                {showConsistencyDetails && (
+                  <div className={`${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'} border rounded-lg mt-3 sm:mt-4 p-3 sm:p-4`}> 
+                    {(() => {
+                      const base = (data.graficos?.receitaLine || data.graficos?.receitaMensal)
+                      const labels = base?.labels || []
+                      const values = base?.values || []
+                      const n = values.length
+                      const last6IdxStart = Math.max(0, n - 6)
+                      const rows = labels.slice(last6IdxStart).map((label, i) => {
+                        const v = Number(values[last6IdxStart + i] || 0)
+                        return { mes: label, valor: v }
+                      })
+                      const mean = rows.length > 0 ? rows.reduce((a, b) => a + b.valor, 0) / rows.length : 0
+                      const variance = rows.length > 0 ? rows.reduce((acc, r) => acc + Math.pow(r.valor - mean, 2), 0) / rows.length : 0
+                      const sd = Math.sqrt(variance)
+                      return (
+                        <div className="space-y-3">
+                          <div className={`text-sm ${darkMode ? 'text-slate-300' : 'text-slate-700'}`}>
+                            CV = desvio padrão / média × 100. Valores menores indicam maior estabilidade.
+                          </div>
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                              <thead>
+                                <tr>
+                                  <th className={`text-left py-2 ${darkMode ? 'text-slate-200' : 'text-slate-800'}`}>Mês</th>
+                                  <th className={`text-right py-2 ${darkMode ? 'text-slate-200' : 'text-slate-800'}`}>Valor</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {rows.map((r, idx) => (
+                                  <tr key={`cv-row-${idx}`} className={`${darkMode ? 'border-slate-700' : 'border-slate-200'} border-t`}>
+                                    <td className={`py-2 ${darkMode ? 'text-slate-300' : 'text-slate-700'}`}>{r.mes}</td>
+                                    <td className={`py-2 text-right font-medium ${darkMode ? 'text-slate-100' : 'text-slate-900'}`}>{formatCurrency(r.valor)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                            <div className={`${darkMode ? 'bg-slate-700' : 'bg-slate-100'} rounded-md p-2`}>
+                              <div className={`text-xs ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>Média</div>
+                              <div className={`text-sm font-bold ${darkMode ? 'text-slate-100' : 'text-slate-900'}`}>{formatCurrency(mean)}</div>
+                            </div>
+                            <div className={`${darkMode ? 'bg-slate-700' : 'bg-slate-100'} rounded-md p-2`}>
+                              <div className={`text-xs ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>Desvio-padrão</div>
+                              <div className={`text-sm font-bold ${darkMode ? 'text-slate-100' : 'text-slate-900'}`}>{formatCurrency(sd)}</div>
+                            </div>
+                            <div className={`${darkMode ? 'bg-slate-700' : 'bg-slate-100'} rounded-md p-2`}>
+                              <div className={`text-xs ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>CV (%)</div>
+                              <div className={`text-sm font-bold ${darkMode ? 'text-slate-100' : 'text-slate-900'}`}>{(() => { const cv = mean > 0 ? (sd/mean)*100 : 0; return cv.toFixed(1) })()}%</div>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })()}
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -1066,7 +1356,7 @@ export function PGDASDProcessorIA() {
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
                       <div>
                         <CardTitle className={`text-base sm:text-lg flex items-center gap-2 ${darkMode ? 'text-white' : 'text-slate-800'}`}>
-                          <LineChart className={`h-5 w-5 ${darkMode ? 'text-cyan-400' : 'text-cyan-500'}`} />
+                          <TrendingUp className={`h-5 w-5 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
                           Receita Mensal (R$)
                         </CardTitle>
                         <CardDescription className={`text-xs sm:text-sm ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
@@ -1095,21 +1385,105 @@ export function PGDASDProcessorIA() {
                           const meValuesAligned = miLabels.map((l: string) => (meMap.get(String(l))?.v ?? 0))
                           const miMax = Math.max(0, ...miValuesNumeric)
                           const meMax = Math.max(0, ...meValuesAligned)
-                          const commonMax = Math.max(miMax, meMax) * 1.10
-                          const leftDomain = [0, commonMax]
-                          const rightDomain = [0, commonMax]
+                          const miMin = Math.min(...miValuesNumeric, miMax)
+                          const meMin = Math.min(...meValuesAligned, meMax)
+                          const rawMin = Math.min(miMin, meMin)
+                          const rawMax = Math.max(miMax, meMax)
+                          const range = Math.max(1, rawMax - rawMin)
+                          const pad = Math.max(range * 0.35, rawMax * 0.08)
+                          const domainMin = Math.max(0, rawMin - pad)
+                          const domainMax = rawMax + pad
+                          const leftDomain = [domainMin, domainMax]
+                          const rightDomain = [domainMin, domainMax]
 
-                          // Mapeamento simples usando valores reais de MI/ME
+                          // Mapeamento usando valores arredondados a 2 casas para evitar rótulos "0,00"
+                          const round2 = (n: number) => Math.round(Number(n || 0) * 100) / 100
                           const chartData = miLabels.map((label: string, idx: number) => {
                             const mi = Number(miValues[idx] || 0)
                             const meItem = meMap.get(String(label))
                             const meV = meItem?.v || 0
-                            const miLabel = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(mi)
-                            const meLabel = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(meV)
-                            return { mes: label, mi, me: meV, miLabel, meLabel }
+                            const miR = round2(mi)
+                            const meR = round2(meV)
+                            const miFmt = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(miR)
+                            const meFmt = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(meR)
+                            // Exibir rótulos apenas quando valor arredondado > 0 (seta será desenhada via SVG)
+                            const miLabel = miR > 0 ? miFmt : ""
+                            const meLabel = meR > 0 ? meFmt : ""
+                            return { mes: label, mi: miR, me: meR, miLabel, meLabel }
                           })
+                          
+                          // Utilitários para evitar sobreposição de rótulos
+                          const placedBounds: { x1: number; x2: number; y1: number; y2: number }[] = []
+                          const estimateTextWidth = (s: string, fontSize: number) => s.length * (fontSize * 0.6)
+                          const overlaps = (a: { x1: number; x2: number; y1: number; y2: number }, b: { x1: number; x2: number; y1: number; y2: number }) => {
+                            return !(a.x2 < b.x1 || a.x1 > b.x2 || a.y2 < b.y1 || a.y1 > b.y2)
+                          }
+
+                          // Renderer customizado: seta saindo da bolinha até o texto do valor
+                          const makeArrowLabel = (strokeColor: string, textColor: string) => (props: any) => {
+                            const { x, y, value, index } = props
+                            const valueStr = String(value ?? "").trim()
+                            if (!valueStr || valueStr === "" || valueStr === "0,00" || valueStr === "R$ 0,00" || valueStr === "R$\u00a00,00") return null
+                            let spacing = 30
+                            const fontSize = 11
+                            let dx = index === 0 ? 12 : 0
+                            let startX = x + dx
+                            let labelY = y - spacing
+                            const textW = estimateTextWidth(valueStr, fontSize)
+                            let bbox = { x1: startX - textW / 2, x2: startX + textW / 2, y1: labelY - fontSize, y2: labelY }
+                            // Evitar proximidade com a linha vertical do eixo Y (lado esquerdo)
+                            // Usa um limite mínimo aproximado do interior da área do gráfico (margem esquerda + acolchoamento)
+                            const axisLeftPadding = 56 // ~ left margin (40) + folga visual
+                            if (bbox.x1 < axisLeftPadding) {
+                              const shift = axisLeftPadding - bbox.x1 + 8
+                              startX += shift
+                              bbox = { x1: startX - textW / 2, x2: startX + textW / 2, y1: labelY - fontSize, y2: labelY }
+                            }
+                            // Se a posição acima sair do topo, inverte para baixo mantendo setas dentro da área
+                            let arrowUp = true
+                            const topClamp = 16
+                            if (labelY < topClamp) {
+                              labelY = y + spacing
+                              arrowUp = false
+                              bbox = { x1: startX - textW / 2, x2: startX + textW / 2, y1: labelY - fontSize, y2: labelY }
+                            }
+                            let tries = 0
+                            // Elevar o rótulo em pequenos passos enquanto houver sobreposição
+                            while (placedBounds.some(b => overlaps(b, bbox)) && tries < 6) {
+                              spacing += 12
+                              labelY = arrowUp ? (y - spacing) : (y + spacing)
+                              bbox = { x1: startX - textW / 2, x2: startX + textW / 2, y1: labelY - fontSize, y2: labelY }
+                              tries++
+                            }
+                            // Caso ainda haja colisão, aplicar leve deslocamento horizontal alternado
+                            if (placedBounds.some(b => overlaps(b, bbox))) {
+                              const h = index % 2 === 0 ? -14 : 14
+                              startX += h
+                              bbox = { x1: startX - textW / 2, x2: startX + textW / 2, y1: labelY - fontSize, y2: labelY }
+                            }
+                            placedBounds.push(bbox)
+                            const endX = startX
+                            const endY = arrowUp ? (labelY + 6) : (labelY - 6)
+                            return (
+                              <g>
+                                {/* haste da seta saindo do ponto */}
+                                <line x1={startX} y1={y} x2={endX} y2={endY} stroke={strokeColor} strokeWidth={1.5} />
+                                {/* cabeça da seta apontando para o texto */}
+                                <polyline points={arrowUp ? `${endX-5},${endY+3} ${endX},${endY} ${endX+5},${endY+3}` : `${endX-5},${endY-3} ${endX},${endY} ${endX+5},${endY-3}`} fill="none" stroke={strokeColor} strokeWidth={1.5} />
+                                {/* texto do valor acima da ponta da seta */}
+                                <text x={startX} y={labelY} dy={arrowUp ? -2 : 10} textAnchor="middle" fontSize={fontSize} fill={textColor}>{String(valueStr)}</text>
+                              </g>
+                            )
+                          }
+                          // Dot condicional: não renderiza bolinha quando valor arredondado é zero
+                          const conditionalDot = (color: string) => (props: any) => {
+                            const v = Number(props?.value || 0)
+                            const vr = Math.round(v * 100) / 100
+                            if (vr === 0) return null
+                            return <circle cx={props.cx} cy={props.cy} r={3} stroke="#0891b2" strokeWidth={1} fill={color} />
+                          }
                           return (
-                            <LineChart data={chartData} margin={{ top: 60, right: 40, left: 40, bottom: 60 }}>
+                            <LineChart data={chartData} margin={{ top: 60, right: 60, left: 72, bottom: 60 }}>
                           {/* Grid com linhas horizontais sutis */}
                           <CartesianGrid 
                             strokeDasharray="1 1" 
@@ -1152,24 +1526,13 @@ export function PGDASDProcessorIA() {
                             domain={leftDomain}
                             tickFormatter={(value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value))}
                           />
-                          {/* Eixo Y direito (ME) - domínio comum */}
+                          {/* Eixo Y direito (ME) oculto para liberar espaço visual */}
                           <YAxis 
                             yAxisId="right"
                             orientation="right"
-                            tick={{ 
-                              fontSize: 12, 
-                              fontWeight: 500,
-                              fill: darkMode ? "#94a3b8" : "#64748b"
-                            }}
-                            tickLine={false}
-                            axisLine={{ 
-                              stroke: darkMode ? "#475569" : "#cbd5e1", 
-                              strokeWidth: 1 
-                            }}
-                            tickMargin={10}
+                            hide
                             domain={rightDomain}
                             allowDataOverflow={false}
-                            tickFormatter={(v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(v))}
                           />
                           
                           {/* Tooltip aprimorado */}
@@ -1195,11 +1558,11 @@ export function PGDASDProcessorIA() {
                             }}
                           />
                           <Legend />
-                          <Line yAxisId="left" type="monotone" dataKey="mi" stroke="#2563eb" strokeWidth={3} dot={{ r: 3, stroke: '#0891b2', strokeWidth: 1, fill: '#06b6d4' }} activeDot={{ r: 5 }} name="Mercado Interno (MI)">
-                            <LabelList dataKey="miLabel" position="top" fill={darkMode ? '#93c5fd' : '#1e40af'} fontSize={11} />
+                          <Line yAxisId="left" type="monotone" dataKey="mi" stroke="#2563eb" strokeWidth={3} dot={conditionalDot('#06b6d4')} activeDot={{ r: 5 }} name="Mercado Interno (MI)">
+                            <LabelList dataKey="miLabel" content={makeArrowLabel('#2563eb', darkMode ? '#93c5fd' : '#1e40af')} />
                           </Line>
-                          <Line yAxisId="right" type="monotone" dataKey="me" stroke="#06b6d4" strokeWidth={3.5} dot={{ r: 3, stroke: '#0891b2', strokeWidth: 1, fill: '#06b6d4' }} activeDot={{ r: 5 }} name="Mercado Externo (ME)">
-                            <LabelList dataKey="meLabel" position="top" fill={darkMode ? '#22d3ee' : '#0284c7'} fontSize={11} />
+                          <Line yAxisId="right" type="monotone" dataKey="me" stroke="#06b6d4" strokeWidth={3.5} dot={conditionalDot('#06b6d4')} activeDot={{ r: 5 }} name="Mercado Externo (ME)">
+                            <LabelList dataKey="meLabel" content={makeArrowLabel('#06b6d4', darkMode ? '#22d3ee' : '#0284c7')} />
                           </Line>
                           {/* Mantém os overlays customizados abaixo */}
                           </LineChart>
@@ -1262,17 +1625,27 @@ export function PGDASDProcessorIA() {
 
                         if (Array.isArray(atividadesDbgList) && atividadesDbgList.length > 0) {
                           for (const atv of atividadesDbgList) {
-                            const nome = String(atv?.name || atv?.nome || '').toLowerCase()
+                            const nomeRaw = String(atv?.name || atv?.nome || '')
                             const trib: any = atv?.tributos || {}
                             const sum = [trib.irpj, trib.csll, trib.cofins, trib.pis, trib.pis_pasep, trib.inss_cpp, trib.icms, trib.ipi, trib.iss]
                               .map((v) => Number(v || 0))
                               .reduce((a, b) => a + b, 0)
                             if (sum > 0) {
-                              const isServico = nome.includes('servi')
-                              const isExteriorFlag = (nome.includes('exterior') || nome.includes('extern') || nome.includes('export'))
-                              const target = isServico
-                                ? (isExteriorFlag ? sumServicosExterior : sumServicosInterno)
-                                : (isExteriorFlag ? sumMercadoriasExterior : sumMercadoriasInterno)
+                              const cls = classifyAtividade(nomeRaw)
+                              const issVal = Number(trib.iss ?? trib.ISS ?? 0)
+                              const icmsVal = Number(trib.icms ?? trib.ICMS ?? 0)
+                              const mercado = cls.mercado === 'externo' ? 'externo' : 'interno'
+                              const target = ((): typeof sumMercadoriasInterno => {
+                                if (issVal > 0 && icmsVal === 0) {
+                                  return mercado === 'externo' ? sumServicosExterior : sumServicosInterno
+                                }
+                                if (icmsVal > 0 && issVal === 0) {
+                                  return mercado === 'externo' ? sumMercadoriasExterior : sumMercadoriasInterno
+                                }
+                                return cls.tipo === 'servicos'
+                                  ? (mercado === 'externo' ? sumServicosExterior : sumServicosInterno)
+                                  : (mercado === 'externo' ? sumMercadoriasExterior : sumMercadoriasInterno)
+                              })()
                               target.IRPJ += Number(trib.irpj || 0)
                               target.CSLL += Number(trib.csll || 0)
                               target.COFINS += Number(trib.cofins || 0)
@@ -1365,13 +1738,23 @@ export function PGDASDProcessorIA() {
 
                         if (Array.isArray(atividadesDbgList) && atividadesDbgList.length > 0) {
                           for (const atv of atividadesDbgList) {
-                            const nome = String(atv?.name || atv?.nome || "").toLowerCase()
+                            const nomeRaw = String(atv?.name || atv?.nome || "")
                             const trib: any = atv?.tributos || {}
-                            const isServico = nome.includes("servi")
-                            const isExteriorFlag = (nome.includes("exterior") || nome.includes("extern") || nome.includes("export"))
-                            const target = isServico
-                              ? (isExteriorFlag ? sumServicosExterior : sumServicosInterno)
-                              : (isExteriorFlag ? sumMercadoriasExterior : sumMercadoriasInterno)
+                            const cls = classifyAtividade(nomeRaw)
+                            const issVal = parseNumber(trib.iss ?? trib.ISS ?? 0)
+                            const icmsVal = parseNumber(trib.icms ?? trib.ICMS ?? 0)
+                            const mercado = cls.mercado === 'externo' ? 'externo' : 'interno'
+                            const target = ((): typeof sumMercadoriasInterno => {
+                              if (issVal > 0 && icmsVal === 0) {
+                                return mercado === 'externo' ? sumServicosExterior : sumServicosInterno
+                              }
+                              if (icmsVal > 0 && issVal === 0) {
+                                return mercado === 'externo' ? sumMercadoriasExterior : sumMercadoriasInterno
+                              }
+                              return cls.tipo === 'servicos'
+                                ? (mercado === 'externo' ? sumServicosExterior : sumServicosInterno)
+                                : (mercado === 'externo' ? sumMercadoriasExterior : sumMercadoriasInterno)
+                            })()
 
                             target.IRPJ += parseNumber(trib.irpj ?? trib.IRPJ ?? 0)
                             target.CSLL += parseNumber(trib.csll ?? trib.CSLL ?? 0)
@@ -1460,13 +1843,23 @@ export function PGDASDProcessorIA() {
                           : (atividadesDbgRaw && typeof atividadesDbgRaw === 'object' ? Object.values(atividadesDbgRaw) : [])
                         if (Array.isArray(atividadesDbgList) && atividadesDbgList.length > 0) {
                           for (const atv of atividadesDbgList) {
-                            const nome = String(atv?.name || atv?.nome || "").toLowerCase()
+                            const nomeRaw = String(atv?.name || atv?.nome || "")
                             const trib: any = atv?.tributos || {}
-                            const isServico = nome.includes("servi")
-                            const isExteriorFlag = (nome.includes("exterior") || nome.includes("extern") || nome.includes("export"))
-                            const target = isServico
-                              ? (isExteriorFlag ? sumServicosExterior : sumServicosInterno)
-                              : (isExteriorFlag ? sumMercadoriasExterior : sumMercadoriasInterno)
+                            const cls = classifyAtividade(nomeRaw)
+                            const issVal = parseNumber(trib.iss ?? trib.ISS ?? 0)
+                            const icmsVal = parseNumber(trib.icms ?? trib.ICMS ?? 0)
+                            const mercado = cls.mercado === 'externo' ? 'externo' : 'interno'
+                            const target = ((): typeof sumMercadoriasInterno => {
+                              if (issVal > 0 && icmsVal === 0) {
+                                return mercado === 'externo' ? sumServicosExterior : sumServicosInterno
+                              }
+                              if (icmsVal > 0 && issVal === 0) {
+                                return mercado === 'externo' ? sumMercadoriasExterior : sumMercadoriasInterno
+                              }
+                              return cls.tipo === 'servicos'
+                                ? (mercado === 'externo' ? sumServicosExterior : sumServicosInterno)
+                                : (mercado === 'externo' ? sumMercadoriasExterior : sumMercadoriasInterno)
+                            })()
                             target.IRPJ += parseNumber(trib.irpj ?? trib.IRPJ ?? 0)
                             target.CSLL += parseNumber(trib.csll ?? trib.CSLL ?? 0)
                             target.COFINS += parseNumber(trib.cofins ?? trib.COFINS ?? 0)
@@ -1684,11 +2077,13 @@ export function PGDASDProcessorIA() {
                       </div>
                     </div>
                   </CardContent>
-                </Card>
+              </Card>
 
 
               </div>
             )}
+
+            
 
             {/* Comparativo por Atividade (Mercadorias vs Serviços) */}
             {(() => {
@@ -1808,6 +2203,34 @@ export function PGDASDProcessorIA() {
                           <p className={`text-sm ${darkMode ? 'text-slate-300' : 'text-slate-700'}`}>
                             {oportunidade}
                           </p>
+                        </div>
+                      ))}
+                      {(data.insights.economiaImpostos || []).slice(0, 3).map((eco, idx) => (
+                        <div key={`eco-${idx}`} className="flex items-start gap-2">
+                          <DollarSign className="h-4 w-4 text-emerald-500 mt-0.5 flex-shrink-0" />
+                          <p className={`${darkMode ? 'text-slate-300' : 'text-slate-700'} text-sm`}>{eco}</p>
+                        </div>
+                      ))}
+                      {data.insights.regimeTributario && (
+                        <div className="flex items-start gap-2">
+                          <Shield className="h-4 w-4 text-indigo-500 mt-0.5 flex-shrink-0" />
+                          <p className={`${darkMode ? 'text-slate-300' : 'text-slate-700'} text-sm`}>
+                            {data.insights.regimeTributario.adequado ? 'Regime atual adequado: ' : 'Sugestão de regime: '}
+                            {data.insights.regimeTributario.sugestao || (data.insights.regimeTributario.adequado ? 'Simples Nacional' : '')}
+                            {data.insights.regimeTributario.justificativa ? ` — ${data.insights.regimeTributario.justificativa}` : ''}
+                          </p>
+                        </div>
+                      )}
+                      {(data.insights.dasObservacoes || []).slice(0, 2).map((obs, idx) => (
+                        <div key={`das-${idx}`} className="flex items-start gap-2">
+                          <FileText className="h-4 w-4 text-sky-500 mt-0.5 flex-shrink-0" />
+                          <p className={`${darkMode ? 'text-slate-300' : 'text-slate-700'} text-sm`}>{obs}</p>
+                        </div>
+                      ))}
+                      {(data.insights.receitaMensal || []).slice(0, 2).map((rm, idx) => (
+                        <div key={`rm-${idx}`} className="flex items-start gap-2">
+                          <TrendingUp className="h-4 w-4 text-teal-500 mt-0.5 flex-shrink-0" />
+                          <p className={`${darkMode ? 'text-slate-300' : 'text-slate-700'} text-sm`}>{rm}</p>
                         </div>
                       ))}
                     </div>

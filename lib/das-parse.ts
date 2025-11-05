@@ -476,6 +476,93 @@ export function processDasData(textRaw: string) {
   const aliquotaEfetiva = (valorDAS > 0 && receitaPA > 0) ? (valorDAS / receitaPA) * 100 : 0
   const margemLiquida = receitaPA > 0 ? ((receitaPA - valorDAS) / receitaPA) * 100 : 0
 
+  // Extrai blocos de "Valor do Débito por Tributo para a Atividade" com valores por tributo
+  // Isso permite alimentar a UI com debug.atividades mesmo quando o insumo é somente o PDF em texto
+  const atividadesFromTexto = (() => {
+    const blocks: { nome: string; tributos: any; receita_bruta_informada?: number; parcelas?: any }[] = []
+
+    // Regex para localizar cada seção de atividade e capturar uma janela de texto subsequente
+    const atividadeRE = /Valor do D[eé]bito por Tributo para a Atividade \(R\$\):[\s\S]*?(?:\n|\r\n)/gi
+    const matches: number[] = []
+    let m: RegExpExecArray | null
+    while ((m = atividadeRE.exec(text)) !== null) {
+      matches.push(m.index)
+    }
+
+    const getSlice = (start: number, nextStart?: number) => {
+      const end = typeof nextStart === 'number' ? nextStart : text.length
+      // Amplia a janela para garantir captura completa dos valores mesmo em PDFs com espaçamento grande
+      return text.slice(start, Math.min(end, start + 3000))
+    }
+
+    for (let i = 0; i < matches.length; i++) {
+      const start = matches[i]
+      const nextStart = matches[i + 1]
+      const slice = getSlice(start, nextStart)
+
+      // Descrição da atividade (linha após o título)
+      const descMatch = slice.match(/\n\s*([A-ZÀ-Üa-zà-ü0-9 ,.'()\/-]+?)\s*\n/i)
+      const nome = descMatch ? descMatch[1].trim() : 'Atividade'
+      // Fallback: se a regex acima falhar por caracteres especiais, captura a linha inteira
+      const altDescMatch = slice.match(/\n\s*([^\r\n]+?)\s*\r?\n/)
+      const nomeSafe = altDescMatch ? altDescMatch[1].trim() : nome
+
+      // Receita Bruta Informada (se disponível)
+      const rbi = (slice.match(/Receita Bruta Informada:\s*R\$\s*((?:\d{1,3}(?:\.\d{3})*),\d{2})/i) || ["", ""])[1]
+      const receitaBrutaInformada = rbi ? brToFloat(rbi) : undefined
+
+      // Linha de cabeçalho dos tributos e linha de valores logo abaixo
+      // Captura a sequência de 9 valores (8 tributos + Total) respeitando a ordem padrão
+      const valoresMatch = slice.match(/IRPJ\s+CSLL\s+COFINS\s+PIS\/?PASEP\s+INSS\/CPP\s+ICMS\s+IPI\s+ISS\s+Total[\s\S]*?\n\s*((?:\d{1,3}(?:\.\d{3})*,\d{2})(?:\s+\|?\s*(?:\d{1,3}(?:\.\d{3})*,\d{2})){8})/i)
+      let tributosVals: number[] | null = null
+      if (valoresMatch && valoresMatch[1]) {
+        const nums = valoresMatch[1].match(/\d{1,3}(?:\.\d{3})*,\d{2}/g) || []
+        if (nums.length >= 9) {
+          tributosVals = nums.slice(0, 9).map(brToFloat)
+        }
+      } else {
+        // Fallback: captura a próxima linha que contenha ao menos 8 valores monetários
+        const fallbackNums = (slice.match(/\n\s*((?:\d{1,3}(?:\.\d{3})*,\d{2})(?:.*?(?:\d{1,3}(?:\.\d{3})*,\d{2})){7,})/i) || ["", ""])[1]
+        const nums = fallbackNums ? (fallbackNums.match(/\d{1,3}(?:\.\d{3})*,\d{2}/g) || []) : []
+        if (nums.length >= 9) tributosVals = nums.slice(0, 9).map(brToFloat)
+      }
+
+      if (tributosVals && tributosVals.length >= 9) {
+        const [irpj, csll, cofins, pis, inss, icms, ipi, iss, total] = tributosVals
+        const tributos = { irpj, csll, cofins, pis, inss_cpp: inss, icms, ipi, iss, total }
+        blocks.push({ nome: nomeSafe, tributos, receita_bruta_informada: receitaBrutaInformada })
+      }
+    }
+
+    // Fallback adicional: se nenhum bloco com indicação de exterior tiver valores,
+    // tenta localizar diretamente o trecho cujo nome contém "exterior" e extrai 9 números subsequentes
+    const hasExteriorWithValues = blocks.some(b => {
+      const t = String(b.nome || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+      const posExterior = /(para\s+o\s+exterior|para\s+exterior|mercado\s+externo|exterior|externo)/.test(t)
+      const total = Number(b?.tributos?.total || 0)
+      return posExterior && total > 0
+    })
+    if (!hasExteriorWithValues) {
+      const exteriorBlocks = [...text.matchAll(/Valor do D[eé]bito[^\n]*\n\s*([^\n]*exterior[^\n]*)[\s\S]{0,3000}/gi)]
+      for (const m of exteriorBlocks) {
+        const window = m[0] || ''
+        const nums = window.match(/\d{1,3}(?:\.\d{3})*,\d{2}/g) || []
+        if (nums.length >= 9) {
+          const [irpj, csll, cofins, pis, inss, icms, ipi, iss, total] = nums.slice(0, 9).map(brToFloat)
+          const nome = (m[1] || 'Atividade para o exterior').trim()
+          const tributos = { irpj, csll, cofins, pis, inss_cpp: inss, icms, ipi, iss, total }
+          // Evita duplicar se já houver um bloco igual
+          const exists = blocks.some(b => String(b.nome).trim() === nome)
+          if (!exists && (irpj + csll + cofins + pis + inss + icms + ipi + iss) > 0) {
+            blocks.push({ nome, tributos })
+          }
+        }
+      }
+    }
+
+    return blocks
+  })()
+
   return {
     success: true,
     dados: {
@@ -550,6 +637,12 @@ export function processDasData(textRaw: string) {
         miCount: pares.length,
         meCount: paresME.length,
       },
+      // Alimenta a UI com as atividades extraídas do texto quando disponível
+      atividades: atividadesFromTexto.map((a) => ({
+        nome: a.nome,
+        receita_bruta_informada: a.receita_bruta_informada,
+        tributos: a.tributos,
+      })),
     },
     metadata: { processadoEm: new Date().toISOString(), versao: "1.2", fonte: "PGDAS-D PDF" },
   }
