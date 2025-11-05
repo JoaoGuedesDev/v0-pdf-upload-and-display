@@ -180,7 +180,7 @@ export function PdfGenerator({
           }
         })
       } catch (firstError) {
-        console.warn('Primeira tentativa falhou, tentando com clone manual:', firstError)
+        // Silenciar logs de debug; manter fluxo de fallback
         
         // Segunda tentativa: clona manualmente e limpa completamente
         const clonedElement = element.cloneNode(true) as HTMLElement
@@ -434,7 +434,7 @@ export function PdfGenerator({
         setIsGenerating(false)
       }
     } catch (error) {
-      console.error("Erro ao gerar PDF:", error)
+      // Silenciar logs de debug; manter alerta ao usuário
       alert("Erro ao gerar PDF. Tente novamente.")
       setIsGenerating(false)
     }

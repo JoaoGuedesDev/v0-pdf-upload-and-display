@@ -266,7 +266,7 @@ export class ModernPDFGenerator {
   addHeader(title: string, subtitle?: string): void {
     // Validar parâmetros de entrada
     if (!title || typeof title !== 'string') {
-      console.warn('Invalid title for addHeader:', title);
+      // Silenciar logs de debug; validação mantém retorno antecipado
       return;
     }
     
@@ -274,7 +274,7 @@ export class ModernPDFGenerator {
     
     // Validar dimensões da página
     if (isNaN(pageWidth) || pageWidth <= 0) {
-      console.warn('Invalid page width:', pageWidth);
+      // Silenciar logs de debug; validação mantém retorno antecipado
       return;
     }
     

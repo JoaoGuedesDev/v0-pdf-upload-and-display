@@ -25,8 +25,7 @@ function buildAuthHeader(): Record<string, string> {
 export async function POST(request: NextRequest) {
   try {
     const via = request.nextUrl.searchParams.get("via") || ""
-    const useN8N = via.toLowerCase() === "n8n" && !!N8N_WEBHOOK_URL
-    console.log("[v0-n8n] useN8N:", useN8N, "url:", N8N_WEBHOOK_URL ? "set" : "missing")
+  const useN8N = via.toLowerCase() === "n8n" && !!N8N_WEBHOOK_URL
     const contentType = request.headers.get("content-type") || ""
 
     // Caso 1: multipart/form-data com arquivo PDF
@@ -41,7 +40,6 @@ export async function POST(request: NextRequest) {
       // Encaminhar diretamente ao n8n se habilitado
       if (useN8N) {
         try {
-          console.log("[v0-n8n] Encaminhando arquivo ao n8n (multipart)...")
           const forwardForm = new FormData()
           // Enviar com nome explícito para compatibilidade com parsers de multipart
           forwardForm.append("file", file, (file as File).name || "upload.pdf")
@@ -49,7 +47,6 @@ export async function POST(request: NextRequest) {
           const res = await fetch(N8N_WEBHOOK_URL, { method: "POST", body: forwardForm, headers })
           const ct = res.headers.get("content-type") || ""
           const bodyText = await res.text()
-          console.log("[v0-n8n] Resposta do n8n (status, ct):", res.status, ct)
           if (!res.ok) {
             console.error("[v0-n8n] Erro do n8n:", bodyText.slice(0, 300))
             return NextResponse.json({ error: "Falha ao processar no n8n", details: bodyText }, { status: res.status || 502 })
@@ -66,7 +63,6 @@ export async function POST(request: NextRequest) {
               const normalized = processDasData(JSON.stringify(json))
               return NextResponse.json(normalized)
             } catch (e) {
-              console.warn("[v0-n8n] JSON inválido do n8n, tentando parse local do texto...")
             }
           }
           // Fallback: tentar processar texto bruto como DAS
@@ -84,12 +80,10 @@ export async function POST(request: NextRequest) {
       // Extrair texto do PDF usando pdf-parse@1.1.1 (CJS, compatível com Node)
       let text: string
       try {
-        console.log("[v0-debug] Importando pdf-parse@1.1.1 via require...")
         const require = createRequire(import.meta.url)
         const pdfParse = require("pdf-parse/lib/pdf-parse.js")
         const result = await pdfParse(buffer)
         text = (result?.text || "") as string
-        console.log("[v0-debug] Texto extraído (600 chars):", text.slice(0, 600))
       } catch (e) {
         console.error("[v0-debug] Erro ao processar PDF com pdf-parse:", e)
         return NextResponse.json({ error: "Falha ao ler o arquivo PDF." }, { status: 500 })
@@ -100,7 +94,6 @@ export async function POST(request: NextRequest) {
       }
 
       const dasData = processDasData(text)
-      console.log("[v0] Dados do DAS processados com sucesso (multipart)")
       return NextResponse.json(dasData)
     }
 
@@ -114,12 +107,10 @@ export async function POST(request: NextRequest) {
 
     if (useN8N) {
       try {
-        console.log("[v0-n8n] Encaminhando texto ao n8n (JSON)...")
         const headers: Record<string, string> = { "content-type": "application/json", ...buildAuthHeader() }
         const res = await fetch(N8N_WEBHOOK_URL, { method: "POST", headers, body: JSON.stringify({ text }) })
         const ct = res.headers.get("content-type") || ""
         const bodyText = await res.text()
-        console.log("[v0-n8n] Resposta do n8n (status, ct):", res.status, ct)
         if (!res.ok) {
           console.error("[v0-n8n] Erro do n8n:", bodyText.slice(0, 300))
           return NextResponse.json({ error: "Falha ao processar no n8n", details: bodyText }, { status: res.status || 502 })
@@ -134,7 +125,6 @@ export async function POST(request: NextRequest) {
             const normalized = processDasData(JSON.stringify(json))
             return NextResponse.json(normalized)
           } catch (e) {
-            console.warn("[v0-n8n] JSON inválido do n8n, tentando parse local do texto...")
           }
         }
         const parsed = processDasData(bodyText)
@@ -144,10 +134,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Erro ao contatar n8n", details: e instanceof Error ? e.message : String(e) }, { status: 502 })
       }
     }
-
-    console.log("[v0] Processando texto extraído do PDF DAS (JSON)")
     const dasData = processDasData(text)
-    console.log("[v0] Dados do DAS processados com sucesso (JSON)")
     return NextResponse.json(dasData)
   } catch (error) {
     console.error("[v0] Erro ao processar:", error)

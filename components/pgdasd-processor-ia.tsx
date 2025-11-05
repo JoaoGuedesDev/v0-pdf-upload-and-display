@@ -254,7 +254,6 @@ export function PGDASDProcessorIA() {
         pdf.addImage(logoImg, "PNG", logoX, logoY, logoWidth, logoHeight)
         pdf.setGState(new (pdf as any).GState({ opacity: 1 }))
       } catch (logoError) {
-        console.warn("[v0] Não foi possível adicionar a marca d'água:", logoError)
       }
 
       // Adicionar imagem em múltiplas páginas se necessário
@@ -289,7 +288,6 @@ export function PGDASDProcessorIA() {
       const fileName = `DAS_${data.identificacao.cnpj.replace(/[^\d]/g, "")}_${new Date().toISOString().split("T")[0]}.pdf`
       pdf.save(fileName)
     } catch (error) {
-      console.error("[v0] Erro ao gerar PDF:", error)
       setError("Erro ao gerar PDF. Tente novamente.")
     } finally {
       setGeneratingPDF(false)
@@ -488,7 +486,6 @@ export function PGDASDProcessorIA() {
       formData.append("file", file)
 
       const url = processViaN8n ? "/api/process-pdf?via=n8n" : "/api/process-pdf"
-      console.log("[v0] Enviando arquivo:", file.name, "via:", processViaN8n ? "n8n" : "local")
 
       // Enviar para API que processa localmente ou encaminha ao n8n
       const response = await fetch(url, {
@@ -496,8 +493,7 @@ export function PGDASDProcessorIA() {
         body: formData,
       })
 
-      console.log("[v0] Status da resposta:", response.status)
-      console.log("[v0] Content-Type:", response.headers.get("content-type"))
+      
 
       if (!response.ok) {
         throw new Error(`Erro ao processar: ${response.statusText}`)
@@ -506,14 +502,13 @@ export function PGDASDProcessorIA() {
       const contentType = response.headers.get("content-type")
       const responseText = await response.text()
 
-      console.log("[v0] Resposta recebida (primeiros 500 chars):", responseText.substring(0, 500))
+      
 
       if (!responseText || responseText.trim() === "") {
         throw new Error("O webhook retornou uma resposta vazia")
       }
 
       if (!contentType?.includes("application/json")) {
-        console.log("[v0] Resposta completa:", responseText)
         throw new Error(`A API retornou um tipo de conteúdo inesperado: ${contentType}`)
       }
 
@@ -521,12 +516,10 @@ export function PGDASDProcessorIA() {
       try {
         result = JSON.parse(responseText)
       } catch (parseError) {
-        console.error("[v0] Erro ao fazer parse do JSON:", parseError)
-        console.log("[v0] Texto que causou erro:", responseText)
         throw new Error("A API retornou dados em formato inválido")
       }
 
-      console.log("[v0] Estrutura completa da resposta (local API):", JSON.stringify(result, null, 2))
+      
 
       // Normalizar formato: a API retorna { dados, graficos, debug, metadata }
       const container = (result && typeof result === 'object' && 'dados' in result)
@@ -546,7 +539,6 @@ export function PGDASDProcessorIA() {
       }
 
       if (!tributos) {
-        console.warn("[v0] Tributos não encontrados na resposta; aplicando zeros por padrão")
         tributos = { IRPJ: 0, CSLL: 0, COFINS: 0, PIS_Pasep: 0, INSS_CPP: 0, ICMS: 0, IPI: 0, ISS: 0, Total: 0 }
       }
 
@@ -578,7 +570,7 @@ export function PGDASDProcessorIA() {
         calculos: rawData.calculos,
       }
 
-      console.log("[v0] Dados normalizados:", dasData)
+      
 
       if (dasData.calculos) {
         // Removida a lógica problemática que sobrescrevia aliquotaEfetiva com aliquotaEfetivaPercent
@@ -665,7 +657,6 @@ export function PGDASDProcessorIA() {
       const insights = generateInsights(dasData)
       setData({ ...dasData, insights })
     } catch (err) {
-      console.error("[v0] Erro no processamento:", err)
       setError(err instanceof Error ? err.message : "Erro ao processar o arquivo")
     } finally {
       setLoading(false)

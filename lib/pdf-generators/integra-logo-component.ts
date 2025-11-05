@@ -42,7 +42,7 @@ export class IntegraLogoComponent {
     
     // Validar parâmetros de entrada
     if (isNaN(x) || isNaN(y) || isNaN(width) || isNaN(height) || width <= 0 || height <= 0) {
-      console.warn('Invalid parameters for addLogo:', { x, y, width, height });
+      // Silenciar logs de debug; validação mantém retorno antecipado
       return;
     }
     
@@ -55,7 +55,7 @@ export class IntegraLogoComponent {
     
     // Validar posições finais
     if (isNaN(finalX) || isNaN(finalY)) {
-      console.warn('Invalid final positions for logo:', { finalX, finalY });
+      // Silenciar logs de debug; validação mantém retorno antecipado
       return;
     }
     
@@ -97,7 +97,7 @@ export class IntegraLogoComponent {
   private drawPuzzleIcon(x: number, y: number, size: number, color: string): void {
     // Validar parâmetros de entrada
     if (!x || !y || !size || isNaN(x) || isNaN(y) || isNaN(size) || size <= 0) {
-      console.warn('Invalid parameters for drawPuzzleIcon:', { x, y, size });
+      // Silenciar logs de debug; validação mantém retorno antecipado
       return;
     }
     
@@ -156,7 +156,7 @@ export class IntegraLogoComponent {
   private drawIntegraText(x: number, y: number, color: string): void {
     // Validar parâmetros de entrada
     if (isNaN(x) || isNaN(y) || !color) {
-      console.warn('Invalid parameters for drawIntegraText:', { x, y, color });
+      // Silenciar logs de debug; validação mantém retorno antecipado
       return;
     }
     
@@ -183,7 +183,7 @@ export class IntegraLogoComponent {
   private drawSubtitleText(x: number, y: number, color: string): void {
     // Validar parâmetros de entrada
     if (isNaN(x) || isNaN(y) || !color) {
-      console.warn('Invalid parameters for drawSubtitleText:', { x, y, color });
+      // Silenciar logs de debug; validação mantém retorno antecipado
       return;
     }
     

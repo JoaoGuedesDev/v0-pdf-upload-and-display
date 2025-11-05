@@ -117,7 +117,7 @@ export function useModernPDF(): UsePDFReturn {
         isGenerating: false, 
         progress: 0 
       });
-      console.error('Erro na geração do PDF:', error);
+      // Silenciar logs de debug; erro já é refletido no estado
       return null;
     }
   }, [updateState]);
@@ -145,7 +145,7 @@ export function useModernPDF(): UsePDFReturn {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Erro no download do PDF';
       updateState({ error: errorMessage });
-      console.error('Erro no download do PDF:', error);
+      // Silenciar logs de debug; erro já é refletido no estado
     }
   }, [generatePDF, updateState]);
 
@@ -163,7 +163,7 @@ export function useModernPDF(): UsePDFReturn {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Erro na geração do preview';
       updateState({ error: errorMessage });
-      console.error('Erro no preview do PDF:', error);
+      // Silenciar logs de debug; erro já é refletido no estado
       return null;
     }
   }, [generatePDF, updateState]);

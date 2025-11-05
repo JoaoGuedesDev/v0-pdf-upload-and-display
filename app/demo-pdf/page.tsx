@@ -295,7 +295,6 @@ export default function DemoPDFPage() {
           <ModernPDFGenerator
             initialData={demoData[selectedDemo]}
             onGenerated={handleBlobGenerated}
-            onError={(error) => console.error('Erro na demonstração:', error)}
             className="border-0 shadow-none p-0"
           />
         </div>
