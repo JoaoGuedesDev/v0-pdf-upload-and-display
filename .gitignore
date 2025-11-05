@@ -25,3 +25,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# swc cache/plugins (gerado pelo build)
+.swc/
+
+# artefatos de teste gerados
+teste-whatsapp-link.pdf

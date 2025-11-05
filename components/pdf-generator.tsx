@@ -147,7 +147,7 @@ export function PdfGenerator({
       let canvas: HTMLCanvasElement
       try {
         canvas = await html2canvas(element, {
-          scale: 3, // Aumentado para aproximar 300dpi (3x = ~288dpi)
+          scale: 3.125, // Aproxima 300dpi (96dpi * 3.125 ≈ 300dpi)
           useCORS: true,
           allowTaint: true,
           backgroundColor: '#ffffff',
@@ -197,7 +197,7 @@ export function PdfGenerator({
           clonedElement.offsetHeight
           
           canvas = await html2canvas(clonedElement, {
-            scale: 2.5, // Escala ligeiramente menor para fallback
+            scale: 3.0, // Fallback próximo de 300dpi
             useCORS: true,
             allowTaint: true,
             backgroundColor: '#ffffff',
@@ -231,7 +231,7 @@ export function PdfGenerator({
         unit: "mm",
         format: "a4",
         compress: true, // Compressão para otimizar tamanho
-        precision: 2
+        precision: 8 // Maior precisão para posicionamento em 300dpi
       })
       
       // Adiciona metadados ao PDF

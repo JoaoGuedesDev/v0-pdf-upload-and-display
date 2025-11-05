@@ -27,7 +27,7 @@ export interface UsePDFActions {
 export interface UsePDFReturn extends UsePDFState, UsePDFActions {}
 
 /**
- * Hook principal para geração de PDF
+ * Hook principal para geração de PDF com configurações aprimoradas
  */
 export function useModernPDF(): UsePDFReturn {
   const [state, setState] = useState<UsePDFState>({
@@ -82,8 +82,21 @@ export function useModernPDF(): UsePDFReturn {
 
       updateState({ progress: 25 });
 
-      // Geração do PDF com jsPDF
-      const pdfArrayBuffer = ModernPDFGenerator.generateDocument(data, options);
+      // Configurações padrão aprimoradas para alta qualidade
+      const defaultOptions: GenerationOptions = {
+        quality: 'technical',
+        marginType: 'minimal',
+        includeWatermark: false, // Removido por padrão
+        includeHeaderLogo: true, // Logo da Integra por padrão
+        pdfACompliant: true, // PDF/A-1b por padrão
+        highResolution: true, // 300dpi por padrão
+        losslessCompression: true, // Compactação sem perdas por padrão
+        colorScheme: 'enhanced-vibrant', // Cores mais vibrantes por padrão
+        ...options
+      };
+
+      // Geração do PDF com jsPDF e configurações aprimoradas
+      const pdfArrayBuffer = ModernPDFGenerator.generateDocument(data, defaultOptions);
       
       updateState({ progress: 75 });
 
@@ -100,11 +113,10 @@ export function useModernPDF(): UsePDFReturn {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido na geração do PDF';
       updateState({ 
-        isGenerating: false, 
         error: errorMessage, 
+        isGenerating: false, 
         progress: 0 
       });
-      
       console.error('Erro na geração do PDF:', error);
       return null;
     }
@@ -117,29 +129,23 @@ export function useModernPDF(): UsePDFReturn {
   ): Promise<void> => {
     try {
       const blob = await generatePDF(data, options);
-      
       if (!blob) {
-        throw new Error('Falha na geração do PDF para download');
+        throw new Error('Falha na geração do PDF');
       }
 
-      // Criar URL temporária e fazer download
+      // Download do arquivo
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
       link.download = filename.endsWith('.pdf') ? filename : `${filename}.pdf`;
-      
-      // Adicionar ao DOM temporariamente para trigger do download
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      
-      // Limpar URL temporária
       URL.revokeObjectURL(url);
-      
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Erro no download do PDF';
       updateState({ error: errorMessage });
-      throw error;
+      console.error('Erro no download do PDF:', error);
     }
   }, [generatePDF, updateState]);
 
@@ -149,17 +155,13 @@ export function useModernPDF(): UsePDFReturn {
   ): Promise<string | null> => {
     try {
       const blob = await generatePDF(data, options);
-      
       if (!blob) {
         throw new Error('Falha na geração do PDF para preview');
       }
 
-      // Criar URL para preview
-      const url = URL.createObjectURL(blob);
-      return url;
-      
+      return URL.createObjectURL(blob);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Erro no preview do PDF';
+      const errorMessage = error instanceof Error ? error.message : 'Erro na geração do preview';
       updateState({ error: errorMessage });
       console.error('Erro no preview do PDF:', error);
       return null;

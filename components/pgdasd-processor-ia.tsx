@@ -42,6 +42,7 @@ import {
   Legend,
   ResponsiveContainer,
   Cell,
+  LabelList,
 } from "recharts"
 
 interface DASData {
@@ -60,7 +61,13 @@ interface DASData {
     rbaa: number
     limite?: number
     receitaPAFormatada?: string
-    mercadoExterno?: number
+    mercadoExterno?: {
+      rpa: number
+      rbt12: number
+      rba: number
+      rbaa: number
+      limite?: number
+    }
   }
   tributos: {
     IRPJ: number
@@ -105,6 +112,12 @@ interface DASData {
       labels: string[]
       values: number[]
     }
+    // Série opcional para Mercado Externo retornada pelo parser
+    receitaLineExterno?: {
+      labels: string[]
+      values: number[]
+      valuesFormatados?: string[]
+    }
     atividadesComparativo?: any
   }
   calculos?: {
@@ -120,6 +133,7 @@ interface DASData {
     oportunidades: string[]
     recomendacoes: string[]
   }
+  debug?: any
 }
 
 const CHART_COLORS = ["#2563eb", "#7c3aed", "#db2777", "#dc2626", "#ea580c", "#ca8a04", "#16a34a", "#0891b2"]
@@ -137,6 +151,7 @@ export function PGDASDProcessorIA() {
   const [dragActive, setDragActive] = useState(false)
   const contentRef = useRef<HTMLDivElement>(null)
   const [generatingPDF, setGeneratingPDF] = useState(false)
+  const [processViaN8n, setProcessViaN8n] = useState(false)
 
   const generatePDF = async () => {
     if (!contentRef.current || !data) return
@@ -192,7 +207,7 @@ export function PGDASDProcessorIA() {
 
       // Gerar PDF a partir do clone
       const canvas = await html2canvas(clone, {
-        scale: 2,
+        scale: 3.125,
         useCORS: true,
         logging: false,
         backgroundColor: "#ffffff",
@@ -378,7 +393,50 @@ export function PGDASDProcessorIA() {
   }
 
   const formatPercent = (value: number) => {
-    return `${value.toFixed(5)}%`
+    return `${value.toFixed(1)}%`
+  }
+
+  // Parsing robusto para strings com vírgula/ponto (ex: "4.203,16")
+  const parseNumber = (v: any): number => {
+    if (typeof v === "number") return v
+    if (typeof v === "string") {
+      const s = v.trim()
+      if (!s) return 0
+      if (s.includes(",")) {
+        const cleaned = s.replace(/\./g, "").replace(/,/g, ".")
+        const n = Number(cleaned)
+        return isFinite(n) ? n : 0
+      }
+      const n = Number(s)
+      return isFinite(n) ? n : 0
+    }
+    return Number(v) || 0
+  }
+
+  // Formatação compacta para valores em mini-gráficos (k/M)
+  const formatMiniValue = (val: number) => {
+    if (val >= 1000000) return `${(val / 1000000).toFixed(0)}M`
+    if (val >= 1000) return `${(val / 1000).toFixed(0)}k`
+    return Math.round(val).toString()
+  }
+  
+  // Tick formatter padronizado em BRL para YAxis (suprime ticks muito baixos no eixo log)
+  const formatYAxisTickBRL = (value: number, minDomain?: number) => {
+    // Oculta rótulos muito próximos do limite inferior (epsilon) do eixo log
+    const threshold = typeof minDomain === 'number' ? minDomain * 1.2 : 0
+    if (value <= threshold) return ""
+    return new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(Number(value))
+  }
+
+  // Mercado Externo: exatamente 4 casas quando houver valor positivo
+  const formatMiniValueExternal4d = (val: number, str?: string) => {
+    if (!isFinite(val) || val <= 0) return ""
+    return str && str.length > 0 ? str : val.toFixed(4)
   }
 
   const handleDrag = (e: React.DragEvent) => {
@@ -429,9 +487,11 @@ export function PGDASDProcessorIA() {
       const formData = new FormData()
       formData.append("file", file)
 
-      console.log("[v0] Enviando arquivo para webhook:", file.name)
+      const url = processViaN8n ? "/api/process-pdf?via=n8n" : "/api/process-pdf"
+      console.log("[v0] Enviando arquivo:", file.name, "via:", processViaN8n ? "n8n" : "local")
 
-      const response = await fetch("https://n8n.jjinnovai.me/webhook/processar-pgdasd", {
+      // Enviar para API que processa localmente ou encaminha ao n8n
+      const response = await fetch(url, {
         method: "POST",
         body: formData,
       })
@@ -454,7 +514,7 @@ export function PGDASDProcessorIA() {
 
       if (!contentType?.includes("application/json")) {
         console.log("[v0] Resposta completa:", responseText)
-        throw new Error(`O webhook retornou um tipo de conteúdo inesperado: ${contentType}`)
+        throw new Error(`A API retornou um tipo de conteúdo inesperado: ${contentType}`)
       }
 
       let result
@@ -463,27 +523,31 @@ export function PGDASDProcessorIA() {
       } catch (parseError) {
         console.error("[v0] Erro ao fazer parse do JSON:", parseError)
         console.log("[v0] Texto que causou erro:", responseText)
-        throw new Error("O webhook retornou dados em formato inválido")
+        throw new Error("A API retornou dados em formato inválido")
       }
 
-      console.log("[v0] Estrutura completa da resposta:", JSON.stringify(result, null, 2))
+      console.log("[v0] Estrutura completa da resposta (local API):", JSON.stringify(result, null, 2))
 
-      let rawData
-      if (Array.isArray(result) && result.length > 0) {
-        rawData = result[0]
-      } else {
-        rawData = result
-      }
+      // Normalizar formato: a API retorna { dados, graficos, debug, metadata }
+      const container = (result && typeof result === 'object' && 'dados' in result)
+        ? (result as any)
+        : { dados: result }
 
-      let tributos
-      if (rawData.atividades?.totalEstabelecimento) {
+      const rawData = (container as any).dados || {}
+
+      // Extrair tributos com tolerância a diferentes formatos
+      let tributos: any = undefined
+      if (rawData?.atividades?.totalEstabelecimento) {
         tributos = rawData.atividades.totalEstabelecimento
-      } else if (rawData.atividades?.somaAtividades) {
+      } else if (rawData?.atividades?.somaAtividades) {
         tributos = rawData.atividades.somaAtividades
-      } else if (rawData.tributos) {
+      } else if (rawData?.tributos) {
         tributos = rawData.tributos
-      } else {
-        throw new Error("Estrutura de dados inválida: tributos não encontrados")
+      }
+
+      if (!tributos) {
+        console.warn("[v0] Tributos não encontrados na resposta; aplicando zeros por padrão")
+        tributos = { IRPJ: 0, CSLL: 0, COFINS: 0, PIS_Pasep: 0, INSS_CPP: 0, ICMS: 0, IPI: 0, ISS: 0, Total: 0 }
       }
 
       const tributosNormalizados = {
@@ -499,8 +563,8 @@ export function PGDASDProcessorIA() {
       }
 
       const dasData: DASData = {
-        identificacao: rawData.identificacao,
-        receitas: rawData.receitas,
+        identificacao: rawData.identificacao || {},
+        receitas: rawData.receitas || {},
         tributos: tributosNormalizados,
         atividades: rawData.atividades
           ? {
@@ -508,7 +572,9 @@ export function PGDASDProcessorIA() {
               atividade2: rawData.atividades.atividade2,
             }
           : undefined,
-        graficos: rawData.graficos,
+        graficos: (container as any).graficos || rawData.graficos,
+        // Propaga dados de debug quando presentes na resposta da API
+        debug: (container as any).debug || rawData.debug,
         calculos: rawData.calculos,
       }
 
@@ -522,22 +588,30 @@ export function PGDASDProcessorIA() {
         }
       }
 
-      if (!dasData.calculos || !dasData.calculos.aliquotaEfetiva) {
+      // Sempre recalcula e padroniza a Alíquota Efetiva com 5 casas decimais (sem "%")
+      {
         const receitaPA = dasData.receitas.receitaPA || 0
         const totalDAS = dasData.tributos.Total || 0
 
-        // Função para formatação brasileira com vírgula como separador decimal
-        const formatBrazilianDecimal = (value: number, decimals: number = 6): string => {
-          return value.toFixed(decimals).replace('.', ',')
+        const truncateDecimals = (value: number, decimals: number = 5): number => {
+          if (!isFinite(value)) return 0
+          const factor = Math.pow(10, decimals)
+          return Math.trunc(value * factor) / factor
+        }
+
+        const formatBrazilianDecimalNoRound = (value: number, decimals: number = 5): string => {
+          const truncated = truncateDecimals(value, decimals)
+          return truncated.toFixed(decimals).replace('.', ',')
         }
 
         const aliquotaEfetivaValue = (totalDAS > 0 && receitaPA > 0) ? (totalDAS / receitaPA) * 100 : 0
 
-        dasData.calculos = {
-          // Fórmula corrigida: (totalDAS / receitaPA) * 100 com validação de divisão por zero
-          aliquotaEfetiva: +aliquotaEfetivaValue.toFixed(5),
-          aliquotaEfetivaFormatada: formatBrazilianDecimal(aliquotaEfetivaValue, 5),
-          margemLiquida: receitaPA > 0 ? ((receitaPA - totalDAS) / receitaPA) * 100 : 0,
+        if (!dasData.calculos) dasData.calculos = {}
+        dasData.calculos.aliquotaEfetiva = truncateDecimals(aliquotaEfetivaValue, 5)
+        dasData.calculos.aliquotaEfetivaFormatada = formatBrazilianDecimalNoRound(aliquotaEfetivaValue, 5)
+        // Mantém margem existente se houver; caso contrário calcula
+        if (dasData.calculos.margemLiquida === undefined || dasData.calculos.margemLiquida === null) {
+          dasData.calculos.margemLiquida = receitaPA > 0 ? ((receitaPA - totalDAS) / receitaPA) * 100 : 0
         }
       }
 
@@ -550,6 +624,41 @@ export function PGDASDProcessorIA() {
         }
         if (!dasData.graficos.dasPie && dasData.graficos.totalTributos) {
           dasData.graficos.dasPie = dasData.graficos.totalTributos
+        }
+
+        // Sanitização dos dados do gráfico de receita mensal para evitar quebras
+        if (dasData.graficos.receitaLine) {
+          const labels = Array.isArray(dasData.graficos.receitaLine.labels)
+            ? dasData.graficos.receitaLine.labels
+            : []
+          const valuesRaw = Array.isArray(dasData.graficos.receitaLine.values)
+            ? dasData.graficos.receitaLine.values
+            : []
+          const values = labels.map((_, idx) => {
+            const v: any = valuesRaw[idx]
+            const num = Number(v)
+            return Number.isFinite(num) ? num : 0
+          })
+          dasData.graficos.receitaLine = { labels, values }
+        }
+
+        // Fallback: se não houver série mensal, plota o mês do PA com RPA
+        if (!dasData.graficos.receitaLine || (dasData.graficos.receitaLine.values?.length || 0) === 0) {
+          const periodo = dasData.identificacao?.periodoApuracao || ''
+          const fimMatch = periodo.match(/(\d{2}\/\d{4})\s*$/)
+          const fim = fimMatch ? fimMatch[1] : 'PA'
+          const rpaTotal = dasData.receitas?.receitaPA || 0
+          const rpaME = dasData.receitas?.mercadoExterno?.rpa || 0
+          const rpaMI = Math.max(rpaTotal - rpaME, 0)
+          dasData.graficos.receitaLine = { labels: [fim], values: [rpaMI] }
+          // adiciona série externa se houver
+          if (rpaME > 0) {
+            dasData.graficos.receitaLineExterno = {
+              labels: [fim],
+              values: [Number(rpaME.toFixed(4))],
+              valuesFormatados: [rpaME.toFixed(4).replace('.', ',')]
+            }
+          }
         }
       }
 
@@ -636,6 +745,17 @@ export function PGDASDProcessorIA() {
                     )}
                   </Button>
                 )}
+                <div className={`mt-4 flex items-center justify-center gap-2 ${darkMode ? 'text-slate-200' : 'text-slate-700'}`}>
+                  <input
+                    id="toggle-n8n"
+                    type="checkbox"
+                    checked={processViaN8n}
+                    onChange={(e) => setProcessViaN8n(e.target.checked)}
+                  />
+                  <label htmlFor="toggle-n8n" className="text-sm">
+                    Processar via n8n (encaminha para webhook configurado)
+                  </label>
+                </div>
               </div>
 
               {error && (
@@ -720,7 +840,7 @@ export function PGDASDProcessorIA() {
                       </span>
                     )}
                   </div>
-                  <p className="text-xl sm:text-3xl font-bold break-words">{formatCurrency(data.tributos.Total)}</p>
+                  <p className="text-lg sm:text-2xl font-bold font-sans break-words">{formatCurrency(data.tributos.Total)}</p>
                   <p className="text-[10px] sm:text-xs opacity-75 mt-1">Valor a pagar</p>
                 </CardContent>
               </Card>
@@ -731,11 +851,15 @@ export function PGDASDProcessorIA() {
                   <CardTitle className="text-xs sm:text-sm font-bold">Alíquota Efetiva</CardTitle>
                 </CardHeader>
                 <CardContent className="p-4 sm:p-6 pt-0">
-                  <p className="text-xl sm:text-3xl font-bold">
-                  {data.calculos?.aliquotaEfetivaFormatada || 
-                   (data.calculos?.aliquotaEfetiva ? data.calculos.aliquotaEfetiva.toFixed(5).replace('.', ',') : 
-                    "0,00000")}%
-                </p>
+                  <p className="text-lg sm:text-2xl font-bold font-sans">
+                    {(() => {
+                      const formatted = data.calculos?.aliquotaEfetivaFormatada ??
+                        (data.calculos?.aliquotaEfetiva !== undefined
+                          ? (data.calculos.aliquotaEfetiva).toFixed(5).replace('.', ',')
+                          : "0,00000")
+                      return formatted.includes('%') ? formatted : `${formatted}%`
+                    })()}
+                  </p>
                   <p className="text-[10px] sm:text-xs opacity-75 mt-1">DAS / Receita PA</p>
                 </CardContent>
               </Card>
@@ -746,7 +870,7 @@ export function PGDASDProcessorIA() {
                   <CardTitle className="text-xs sm:text-sm font-bold">Margem Líquida</CardTitle>
                 </CardHeader>
                 <CardContent className="p-4 sm:p-6 pt-0">
-                  <p className="text-xl sm:text-3xl font-bold">{(data.calculos?.margemLiquida || data.calculos?.margemLiquidaPercent || 0).toFixed(3)}%</p>
+                  <p className="text-lg sm:text-2xl font-bold font-sans">{(data.calculos?.margemLiquida || data.calculos?.margemLiquidaPercent || 0).toFixed(3)}%</p>
                   <p className="text-[10px] sm:text-xs opacity-75 mt-1">Receita após impostos</p>
                 </CardContent>
               </Card>
@@ -763,6 +887,43 @@ export function PGDASDProcessorIA() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
+                {(() => {
+                  // Preferir valores do debug (secao21) quando presentes; fallback para dados já normalizados
+                  const pickRow = (totalRaw: number | undefined, meRaw: number | undefined, dbg?: { mi?: number; me?: number; total?: number }) => {
+                    const dTotal = Number(dbg?.total) || 0
+                    const dMi = Number(dbg?.mi) || 0
+                    const dMe = Number(dbg?.me) || 0
+                    const tCandidate = Number(totalRaw) || 0
+                    const t = dTotal > 0 ? dTotal : tCandidate
+                    let me = dMe > 0 ? dMe : (Number(meRaw) || 0)
+                    if (!isFinite(me) || me < 0 || me > t) me = 0
+                    const mi = dMi > 0 ? dMi : Math.max(t - me, 0)
+                    return { mi, me, total: t }
+                  }
+
+                  const rpa = pickRow(
+                    data.receitas.receitaPA,
+                    data.receitas.mercadoExterno?.rpa,
+                    data.debug?.secao21?.rpaRow
+                  )
+                  const rbt12 = pickRow(
+                    data.receitas.rbt12,
+                    data.receitas.mercadoExterno?.rbt12,
+                    data.debug?.secao21?.rbt12Row
+                  )
+                  const rba = pickRow(
+                    data.receitas.rba,
+                    data.receitas.mercadoExterno?.rba,
+                    data.debug?.secao21?.rbaRow
+                  )
+                  const rbaa = pickRow(
+                    data.receitas.rbaa,
+                    data.receitas.mercadoExterno?.rbaa,
+                    data.debug?.secao21?.rbaaRow
+                  )
+                  ;(data as any).__rows = { rpa, rbt12, rba, rbaa }
+                  return null
+                })()}
                 <div className="overflow-x-auto -mx-4 sm:mx-0">
                   <div className="inline-block min-w-full align-middle">
                     <table className="w-full text-xs sm:text-sm">
@@ -775,7 +936,10 @@ export function PGDASDProcessorIA() {
                             Mercado Interno
                           </th>
                           {/* Exibir coluna Mercado Externo apenas se houver valores */}
-                          {(data.receitas.mercadoExterno || 0) > 0 && (
+                          {(((data as any).__rows?.rpa.me || 0) > 0
+                            || ((data as any).__rows?.rbt12.me || 0) > 0
+                            || ((data as any).__rows?.rba.me || 0) > 0
+                            || ((data as any).__rows?.rbaa.me || 0) > 0) && (
                             <th className="text-right py-2 sm:py-3 px-2 sm:px-4 font-semibold text-slate-700">
                               Mercado Externo
                             </th>
@@ -791,15 +955,15 @@ export function PGDASDProcessorIA() {
                             Receita Bruta do PA (RPA) - Competência
                           </td>
                           <td className="text-right py-2 sm:py-3 px-2 sm:px-4 whitespace-nowrap">
-                            {formatCurrency(data.receitas.receitaPA)}
+                            {formatCurrency(((data as any).__rows?.rpa.mi) || 0)}
                           </td>
-                          {(data.receitas.mercadoExterno || 0) > 0 && (
+                          {(((data as any).__rows?.rpa.me || 0) > 0) && (
                             <td className="text-right py-2 sm:py-3 px-2 sm:px-4 whitespace-nowrap">
-                              {formatCurrency(0)}
+                              {formatCurrency(((data as any).__rows?.rpa.me) || 0)}
                             </td>
                           )}
                           <td className="text-right py-2 sm:py-3 px-2 sm:px-4 bg-slate-50 font-semibold whitespace-nowrap">
-                            {formatCurrency(data.receitas.receitaPA)}
+                            {formatCurrency(((data as any).__rows?.rpa.total) || 0)}
                           </td>
                         </tr>
                         <tr className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
@@ -807,15 +971,15 @@ export function PGDASDProcessorIA() {
                             Receita bruta acumulada nos doze meses anteriores ao PA (RBT12)
                           </td>
                           <td className="text-right py-2 sm:py-3 px-2 sm:px-4 whitespace-nowrap">
-                            {formatCurrency(data.receitas.rbt12)}
+                            {formatCurrency(((data as any).__rows?.rbt12.mi) || 0)}
                           </td>
-                          {(data.receitas.mercadoExterno || 0) > 0 && (
+                          {(((data as any).__rows?.rbt12.me || 0) > 0) && (
                             <td className="text-right py-2 sm:py-3 px-2 sm:px-4 whitespace-nowrap">
-                              {formatCurrency(0)}
+                              {formatCurrency(((data as any).__rows?.rbt12.me) || 0)}
                             </td>
                           )}
                           <td className="text-right py-2 sm:py-3 px-2 sm:px-4 bg-slate-50 font-semibold whitespace-nowrap">
-                            {formatCurrency(data.receitas.rbt12)}
+                            {formatCurrency(((data as any).__rows?.rbt12.total) || 0)}
                           </td>
                         </tr>
                         <tr className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
@@ -823,7 +987,10 @@ export function PGDASDProcessorIA() {
                             Receita bruta acumulada nos doze meses anteriores ao PA proporcionalizada (RBT12p)
                           </td>
                           <td className="text-right py-2 sm:py-3 px-2 sm:px-4 text-slate-400">-</td>
-                          {(data.receitas.mercadoExterno || 0) > 0 && (
+                          {(((data.receitas.mercadoExterno?.rpa || 0) > 0)
+                            || ((data.receitas.mercadoExterno?.rbt12 || 0) > 0)
+                            || ((data.receitas.mercadoExterno?.rba || 0) > 0)
+                            || ((data.receitas.mercadoExterno?.rbaa || 0) > 0)) && (
                             <td className="text-right py-2 sm:py-3 px-2 sm:px-4 text-slate-400">-</td>
                           )}
                           <td className="text-right py-2 sm:py-3 px-2 sm:px-4 bg-slate-50 text-slate-400">-</td>
@@ -833,15 +1000,15 @@ export function PGDASDProcessorIA() {
                             Receita bruta acumulada no ano-calendário corrente (RBA)
                           </td>
                           <td className="text-right py-2 sm:py-3 px-2 sm:px-4 whitespace-nowrap">
-                            {formatCurrency(data.receitas.rba)}
+                            {formatCurrency(((data as any).__rows?.rba.mi) || 0)}
                           </td>
-                          {(data.receitas.mercadoExterno || 0) > 0 && (
+                          {(((data as any).__rows?.rba.me || 0) > 0) && (
                             <td className="text-right py-2 sm:py-3 px-2 sm:px-4 whitespace-nowrap">
-                              {formatCurrency(0)}
+                              {formatCurrency(((data as any).__rows?.rba.me) || 0)}
                             </td>
                           )}
                           <td className="text-right py-2 sm:py-3 px-2 sm:px-4 bg-slate-50 font-semibold whitespace-nowrap">
-                            {formatCurrency(data.receitas.rba)}
+                            {formatCurrency(((data as any).__rows?.rba.total) || 0)}
                           </td>
                         </tr>
                         <tr className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
@@ -849,15 +1016,15 @@ export function PGDASDProcessorIA() {
                             Receita bruta acumulada no ano-calendário anterior (RBAA)
                           </td>
                           <td className="text-right py-2 sm:py-3 px-2 sm:px-4 whitespace-nowrap">
-                            {formatCurrency(data.receitas.rbaa)}
+                            {formatCurrency(((data as any).__rows?.rbaa.mi) || 0)}
                           </td>
-                          {(data.receitas.mercadoExterno || 0) > 0 && (
+                          {(((data as any).__rows?.rbaa.me || 0) > 0) && (
                             <td className="text-right py-2 sm:py-3 px-2 sm:px-4 whitespace-nowrap">
-                              {formatCurrency(0)}
+                              {formatCurrency(((data as any).__rows?.rbaa.me) || 0)}
                             </td>
                           )}
                           <td className="text-right py-2 sm:py-3 px-2 sm:px-4 bg-slate-50 font-semibold whitespace-nowrap">
-                            {formatCurrency(data.receitas.rbaa)}
+                            {formatCurrency(((data as any).__rows?.rbaa.total) || 0)}
                           </td>
                         </tr>
                       </tbody>
@@ -921,15 +1088,37 @@ export function PGDASDProcessorIA() {
                     </CardHeader>
                     <CardContent>
                       <ResponsiveContainer width="100%" height={350}>
-                        <LineChart
-                          data={(data.graficos.receitaLine || data.graficos.receitaMensal)!.labels.map(
-                            (label, idx) => ({
-                              mes: label,
-                              valor: (data.graficos!.receitaLine || data.graficos!.receitaMensal)!.values[idx],
-                            }),
-                          )}
-                          margin={{ top: 60, right: 40, left: 40, bottom: 60 }}
-                        >
+                        {(() => {
+                          const base = (data.graficos!.receitaLine || data.graficos!.receitaMensal)!
+                          const me = data.graficos!.receitaLineExterno
+                          const miLabels = base.labels || []
+                          const miValues = base.values || []
+                          const meMap = new Map<string, { v: number; s?: string }>()
+                          if (me && Array.isArray(me.labels)) {
+                            me.labels.forEach((l: string, i: number) => {
+                              meMap.set(String(l), { v: Number(me.values?.[i] || 0), s: me.valuesFormatados?.[i] })
+                            })
+                          }
+                          // Escala comum: calcular limites iguais para MI e ME
+                          const miValuesNumeric = miValues.map((v: any) => Number(v) || 0)
+                          const meValuesAligned = miLabels.map((l: string) => (meMap.get(String(l))?.v ?? 0))
+                          const miMax = Math.max(0, ...miValuesNumeric)
+                          const meMax = Math.max(0, ...meValuesAligned)
+                          const commonMax = Math.max(miMax, meMax) * 1.10
+                          const leftDomain = [0, commonMax]
+                          const rightDomain = [0, commonMax]
+
+                          // Mapeamento simples usando valores reais de MI/ME
+                          const chartData = miLabels.map((label: string, idx: number) => {
+                            const mi = Number(miValues[idx] || 0)
+                            const meItem = meMap.get(String(label))
+                            const meV = meItem?.v || 0
+                            const miLabel = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(mi)
+                            const meLabel = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(meV)
+                            return { mes: label, mi, me: meV, miLabel, meLabel }
+                          })
+                          return (
+                            <LineChart data={chartData} margin={{ top: 60, right: 40, left: 40, bottom: 60 }}>
                           {/* Grid com linhas horizontais sutis */}
                           <CartesianGrid 
                             strokeDasharray="1 1" 
@@ -955,8 +1144,9 @@ export function PGDASDProcessorIA() {
                             tickMargin={10}
                           />
                           
-                          {/* Eixo Y com formatação similar à imagem */}
+                          {/* Eixo Y esquerdo (MI) - domínio comum */}
                           <YAxis 
+                            yAxisId="left"
                             tick={{ 
                               fontSize: 12, 
                               fontWeight: 500,
@@ -968,20 +1158,37 @@ export function PGDASDProcessorIA() {
                               strokeWidth: 1 
                             }}
                             tickMargin={10}
-                            domain={[0, 'dataMax + 10000']}
-                            tickFormatter={(value) => {
-                              if (value >= 1000000) return `${(value / 1000000).toFixed(0)}M`;
-                              if (value >= 1000) return `${(value / 1000).toFixed(0)}k`;
-                              return value.toString();
+                            domain={leftDomain}
+                            tickFormatter={(value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value))}
+                          />
+                          {/* Eixo Y direito (ME) - domínio comum */}
+                          <YAxis 
+                            yAxisId="right"
+                            orientation="right"
+                            tick={{ 
+                              fontSize: 12, 
+                              fontWeight: 500,
+                              fill: darkMode ? "#94a3b8" : "#64748b"
                             }}
+                            tickLine={false}
+                            axisLine={{ 
+                              stroke: darkMode ? "#475569" : "#cbd5e1", 
+                              strokeWidth: 1 
+                            }}
+                            tickMargin={10}
+                            domain={rightDomain}
+                            allowDataOverflow={false}
+                            tickFormatter={(v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(v))}
                           />
                           
                           {/* Tooltip aprimorado */}
                           <Tooltip 
-                            formatter={(value, name) => [
-                              formatCurrency(Number(value)), 
-                              "Receita Mensal"
-                            ]}
+                            formatter={(value, name, item: any) => {
+                              const labelName = String(name)
+                              // Garantir que tooltip mostre o valor real (não o epsilon) para ME
+                              const vReal = labelName.includes('Externo') ? Number(item?.payload?.me ?? 0) : Number(item?.payload?.mi ?? 0)
+                              return [formatCurrency(vReal), labelName]
+                            }}
                             labelFormatter={(label) => `Mês: ${label}`}
                             contentStyle={{ 
                               borderRadius: "12px", 
@@ -996,99 +1203,26 @@ export function PGDASDProcessorIA() {
                               color: darkMode ? "#f1f5f9" : "#1e293b"
                             }}
                           />
+                          <Legend />
+                          <Line yAxisId="left" type="monotone" dataKey="mi" stroke="#2563eb" strokeWidth={3} dot={{ r: 3, stroke: '#0891b2', strokeWidth: 1, fill: '#06b6d4' }} activeDot={{ r: 5 }} name="Mercado Interno (MI)">
+                            <LabelList dataKey="miLabel" position="top" fill={darkMode ? '#93c5fd' : '#1e40af'} fontSize={11} />
+                          </Line>
+                          <Line yAxisId="right" type="monotone" dataKey="me" stroke="#06b6d4" strokeWidth={3.5} dot={{ r: 3, stroke: '#0891b2', strokeWidth: 1, fill: '#06b6d4' }} activeDot={{ r: 5 }} name="Mercado Externo (ME)">
+                            <LabelList dataKey="meLabel" position="top" fill={darkMode ? '#22d3ee' : '#0284c7'} fontSize={11} />
+                          </Line>
+                          {/* Mantém os overlays customizados abaixo */}
+                          </LineChart>
+                          )
+                        })()}
                           
-                          {/* Linha principal com estilo da imagem de referência */}
-                          <Line 
-                            type="monotone" 
-                            dataKey="valor" 
-                            stroke="#2563eb"
-                            strokeWidth={3} 
-                            dot={{ 
-                              r: 5, 
-                              fill: "#2563eb",
-                              stroke: "#ffffff",
-                              strokeWidth: 2
-                            }} 
-                            activeDot={{ 
-                              r: 7,
-                              fill: "#2563eb",
-                              stroke: "#ffffff",
-                              strokeWidth: 3
-                            }}
-                          />
-                          
-                          {/* Mini gráfico horizontal com valores dentro do quadrante */}
-                          <g>
-                            {/* Fundo do mini gráfico */}
-                            <rect
-                              x="5%"
-                              y="90%"
-                              width="90%"
-                              height="7%"
-                              rx="4"
-                              fill={darkMode ? "rgba(30, 41, 59, 0.9)" : "rgba(255, 255, 255, 0.95)"}
-                              stroke={darkMode ? "rgba(56, 189, 248, 0.3)" : "rgba(37, 99, 235, 0.3)"}
-                              strokeWidth="1"
-                            />
-                            
-                            {/* Valores do mini gráfico horizontal */}
-                            {(data.graficos?.receitaLine || data.graficos?.receitaMensal)?.labels?.map((label, idx) => {
-                              const valor = (data.graficos?.receitaLine || data.graficos?.receitaMensal)?.values?.[idx] || 0;
-                              const totalPoints = (data.graficos?.receitaLine || data.graficos?.receitaMensal)?.labels?.length || 0;
-                              const xPosition = 8 + (idx * (84 / Math.max(totalPoints - 1, 1)));
-                              
-                              const formatValue = (val: number) => {
-                                if (val >= 1000000) return `${(val / 1000000).toFixed(0)}M`;
-                                if (val >= 1000) return `${(val / 1000).toFixed(0)}k`;
-                                return val.toString();
-                              };
-                              
-                              return (
-                                <g key={`mini-${idx}`}>
-                                  {/* Ponto indicador */}
-                                  <circle
-                                    cx={`${xPosition}%`}
-                                    cy="93.5%"
-                                    r="2"
-                                    fill="#2563eb"
-                                  />
-                                  
-                                  {/* Mês */}
-                                  <text
-                                    x={`${xPosition}%`}
-                                    y="91.5%"
-                                    textAnchor="middle"
-                                    fontSize="9"
-                                    fontWeight="500"
-                                    fill={darkMode ? "#94a3b8" : "#64748b"}
-                                    className="pointer-events-none select-none"
-                                  >
-                                    {label}
-                                  </text>
-                                  
-                                  {/* Valor */}
-                                  <text
-                                    x={`${xPosition}%`}
-                                    y="95.5%"
-                                    textAnchor="middle"
-                                    fontSize="10"
-                                    fontWeight="600"
-                                    fill={darkMode ? "#f1f5f9" : "#1e293b"}
-                                    className="pointer-events-none select-none"
-                                  >
-                                    {formatValue(valor)}
-                                  </text>
-                                </g>
-                              );
-                            })}
-                          </g>
-                        </LineChart>
-                      </ResponsiveContainer>
+                        </ResponsiveContainer>
                     </CardContent>
                   </Card>
                 )}
               </div>
             )}
+
+            {/* Relatório de Debug (n8n / Parsing) removido */}
 
             <Card className={`${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border border-slate-200'} shadow-lg hover:shadow-xl transition-all duration-200`}>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -1109,84 +1243,260 @@ export function PGDASDProcessorIA() {
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead>
-                      <tr className="border-b border-slate-200">
-                        <th className={`text-left py-3 px-2 font-semibold ${darkMode ? 'text-white' : 'text-slate-800'}`}>
-                          Tributo
-                        </th>
-                        <th className={`text-center py-3 px-2 font-semibold text-blue-600`}>
-                          Mercadorias
-                        </th>
-                        <th className={`text-center py-3 px-2 font-semibold text-emerald-600`}>
-                          Serviços
-                        </th>
-                        <th className={`text-center py-3 px-2 font-semibold ${darkMode ? 'text-white' : 'text-slate-800'}`}>
-                          Total
-                        </th>
-                      </tr>
+                      {(() => {
+                        // Cabeçalho deve seguir a mesma regra das linhas:
+                        // - Não mostrar coluna se tudo for 0
+                        // - Mostrar a coluna inteira se qualquer imposto tiver valor
+                        const tribKeys = [
+                          { key: "IRPJ", label: "IRPJ" },
+                          { key: "CSLL", label: "CSLL" },
+                          { key: "COFINS", label: "COFINS" },
+                          { key: "PIS_Pasep", label: "PIS/PASEP" },
+                          { key: "INSS_CPP", label: "INSS/CPP" },
+                          { key: "ICMS", label: "ICMS" },
+                          { key: "IPI", label: "IPI" },
+                          { key: "ISS", label: "ISS" },
+                        ] as const
+
+                        const init = () => ({ IRPJ: 0, CSLL: 0, COFINS: 0, PIS_Pasep: 0, INSS_CPP: 0, ICMS: 0, IPI: 0, ISS: 0 })
+                        const sumMercadoriasInterno = init()
+                        const sumMercadoriasExterior = init()
+                        const sumServicos = init()
+
+                        const atividadesDbgRaw = (data as any)?.debug?.atividades
+                        const atividadesDbgList = Array.isArray(atividadesDbgRaw)
+                          ? atividadesDbgRaw
+                          : (atividadesDbgRaw && typeof atividadesDbgRaw === 'object' ? Object.values(atividadesDbgRaw) : [])
+
+                        if (Array.isArray(atividadesDbgList) && atividadesDbgList.length > 0) {
+                          for (const atv of atividadesDbgList) {
+                            const nome = String(atv?.name || atv?.nome || '').toLowerCase()
+                            const trib: any = atv?.tributos || {}
+                            const sum = [trib.irpj, trib.csll, trib.cofins, trib.pis, trib.pis_pasep, trib.inss_cpp, trib.icms, trib.ipi, trib.iss]
+                              .map((v) => Number(v || 0))
+                              .reduce((a, b) => a + b, 0)
+                            if (sum > 0) {
+                              const isServico = nome.includes('servi')
+                              const isExterior = !isServico && (nome.includes('exterior') || nome.includes('extern') || nome.includes('export'))
+                              const target = isServico ? sumServicos : (isExterior ? sumMercadoriasExterior : sumMercadoriasInterno)
+                              target.IRPJ += Number(trib.irpj || 0)
+                              target.CSLL += Number(trib.csll || 0)
+                              target.COFINS += Number(trib.cofins || 0)
+                              target.PIS_Pasep += Number(trib.pis ?? trib.pis_pasep ?? 0)
+                              target.INSS_CPP += Number(trib.inss_cpp || 0)
+                              target.ICMS += Number(trib.icms || 0)
+                              target.IPI += Number(trib.ipi || 0)
+                              target.ISS += Number(trib.iss || 0)
+                            }
+                          }
+                        } else {
+                          // Fallback: sem atividades, aloca tudo conforme cenário
+                          const cenario = String((data as any)?.cenario || '').toLowerCase()
+                          const assignToServicos = cenario.includes('serv')
+                          const src = (data as any)?.tributos || {}
+                          const target = assignToServicos ? sumServicos : sumMercadoriasInterno
+                          target.IRPJ = Number(src.IRPJ || 0)
+                          target.CSLL = Number(src.CSLL || 0)
+                          target.COFINS = Number(src.COFINS || 0)
+                          target.PIS_Pasep = Number(src.PIS_Pasep || 0)
+                          target.INSS_CPP = Number(src.INSS_CPP || 0)
+                          target.ICMS = Number(src.ICMS || 0)
+                          target.IPI = Number(src.IPI || 0)
+                          target.ISS = Number(src.ISS || 0)
+                        }
+
+                        const colMercadoriasInternoVisible = tribKeys.some(k => (sumMercadoriasInterno as any)[k.key] > 0)
+                        const colMercadoriasExteriorVisible = tribKeys.some(k => (sumMercadoriasExterior as any)[k.key] > 0)
+                        const colServicosVisible = tribKeys.some(k => (sumServicos as any)[k.key] > 0)
+
+                        return (
+                          <tr className="border-b border-slate-200">
+                            <th className={`text-left py-3 px-2 font-semibold ${darkMode ? 'text-white' : 'text-slate-800'}`}>Tributo</th>
+                            {colMercadoriasInternoVisible && (
+                              <th className={`text-center py-3 px-2 font-semibold text-blue-600`}>Revenda (interno)</th>
+                            )}
+                            {colMercadoriasExteriorVisible && (
+                              <th className={`text-center py-3 px-2 font-semibold text-indigo-600`}>Revenda p/ exterior</th>
+                            )}
+                            {colServicosVisible && (
+                              <th className={`text-center py-3 px-2 font-semibold text-emerald-600`}>Serviços</th>
+                            )}
+                            <th className={`text-center py-3 px-2 font-semibold ${darkMode ? 'text-white' : 'text-slate-800'}`}>Total</th>
+                          </tr>
+                        )
+                      })()}
                     </thead>
                     <tbody>
-                      {[
-                        { key: "IRPJ", label: "IRPJ", mercadorias: data.tributos.IRPJ * 0.5, servicos: data.tributos.IRPJ * 0.5 },
-                        { key: "CSLL", label: "CSLL", mercadorias: data.tributos.CSLL * 0.43, servicos: data.tributos.CSLL * 0.57 },
-                        { key: "COFINS", label: "COFINS", mercadorias: data.tributos.COFINS * 0.41, servicos: data.tributos.COFINS * 0.59 },
-                        { key: "PIS/PASEP", label: "PIS/PASEP", mercadorias: data.tributos.PIS_Pasep * 0.41, servicos: data.tributos.PIS_Pasep * 0.59 },
-                        { key: "INSS/CPP", label: "INSS/CPP", mercadorias: data.tributos.INSS_CPP * 0.42, servicos: data.tributos.INSS_CPP * 0.58 },
-                        { key: "ICMS", label: "ICMS", mercadorias: data.tributos.ICMS, servicos: 0 },
-                        { key: "IPI", label: "IPI", mercadorias: data.tributos.IPI, servicos: 0 },
-                        { key: "ISS", label: "ISS", mercadorias: 0, servicos: data.tributos.ISS },
-                      ]
-                      .filter(({ mercadorias, servicos }) => mercadorias > 0 || servicos > 0)
-                      .map(({ key, label, mercadorias, servicos }) => {
-                        const total = mercadorias + servicos;
-                        return (
-                          <tr key={key} className="border-b border-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800">
-                            <td className={`py-3 px-2 font-medium ${darkMode ? 'text-white' : 'text-slate-800'}`}>
-                              {label}
-                            </td>
-                            <td className="py-3 px-2 text-center text-blue-600 font-medium">
-                              {formatCurrency(mercadorias)}
-                            </td>
-                            <td className="py-3 px-2 text-center text-emerald-600 font-medium">
-                              {formatCurrency(servicos)}
-                            </td>
-                            <td className={`py-3 px-2 text-center font-semibold ${darkMode ? 'text-white' : 'text-slate-800'}`}>
-                              {formatCurrency(total)}
-                            </td>
-                          </tr>
-                        );
-                      })}
                       {(() => {
-                        const filteredTaxes = [
-                          { key: "IRPJ", label: "IRPJ", mercadorias: data.tributos.IRPJ * 0.5, servicos: data.tributos.IRPJ * 0.5 },
-                          { key: "CSLL", label: "CSLL", mercadorias: data.tributos.CSLL * 0.43, servicos: data.tributos.CSLL * 0.57 },
-                          { key: "COFINS", label: "COFINS", mercadorias: data.tributos.COFINS * 0.41, servicos: data.tributos.COFINS * 0.59 },
-                          { key: "PIS/PASEP", label: "PIS/PASEP", mercadorias: data.tributos.PIS_Pasep * 0.41, servicos: data.tributos.PIS_Pasep * 0.59 },
-                          { key: "INSS/CPP", label: "INSS/CPP", mercadorias: data.tributos.INSS_CPP * 0.42, servicos: data.tributos.INSS_CPP * 0.58 },
-                          { key: "ICMS", label: "ICMS", mercadorias: data.tributos.ICMS, servicos: 0 },
-                          { key: "IPI", label: "IPI", mercadorias: data.tributos.IPI, servicos: 0 },
-                          { key: "ISS", label: "ISS", mercadorias: 0, servicos: data.tributos.ISS },
-                        ].filter(({ mercadorias, servicos }) => mercadorias > 0 || servicos > 0);
-                        
-                        const totalMercadorias = filteredTaxes.reduce((sum, tax) => sum + tax.mercadorias, 0);
-                        const totalServicos = filteredTaxes.reduce((sum, tax) => sum + tax.servicos, 0);
-                        const grandTotal = totalMercadorias + totalServicos;
-                        
+                        const tribKeys = [
+                          { key: "IRPJ", label: "IRPJ" },
+                          { key: "CSLL", label: "CSLL" },
+                          { key: "COFINS", label: "COFINS" },
+                          { key: "PIS_Pasep", label: "PIS/PASEP" },
+                          { key: "INSS_CPP", label: "INSS/CPP" },
+                          { key: "ICMS", label: "ICMS" },
+                          { key: "IPI", label: "IPI" },
+                          { key: "ISS", label: "ISS" },
+                        ] as const
+
+                        const init = () => ({ IRPJ: 0, CSLL: 0, COFINS: 0, PIS_Pasep: 0, INSS_CPP: 0, ICMS: 0, IPI: 0, ISS: 0 })
+                        const sumMercadoriasInterno = init()
+                        const sumMercadoriasExterior = init()
+                        const sumServicos = init()
+
+                        const parcelasTotaisDeclaradoRaw = (data as any)?.debug?.parcelas?.totais?.declarado
+                        const totalDeclarado = parseNumber(parcelasTotaisDeclaradoRaw?.total ?? parcelasTotaisDeclaradoRaw?.Total ?? 0)
+                        // Totais declarados das parcelas (fallback para coluna Total)
+                        const totDeclarado = parcelasTotaisDeclaradoRaw ? {
+                          IRPJ: parseNumber(parcelasTotaisDeclaradoRaw.irpj ?? parcelasTotaisDeclaradoRaw.IRPJ ?? 0),
+                          CSLL: parseNumber(parcelasTotaisDeclaradoRaw.csll ?? parcelasTotaisDeclaradoRaw.CSLL ?? 0),
+                          COFINS: parseNumber(parcelasTotaisDeclaradoRaw.cofins ?? parcelasTotaisDeclaradoRaw.COFINS ?? 0),
+                          PIS_Pasep: parseNumber(parcelasTotaisDeclaradoRaw.pis ?? parcelasTotaisDeclaradoRaw.PIS ?? parcelasTotaisDeclaradoRaw.pis_pasep ?? parcelasTotaisDeclaradoRaw.PIS_PASEP ?? parcelasTotaisDeclaradoRaw['PIS/PASEP'] ?? 0),
+                          INSS_CPP: parseNumber(parcelasTotaisDeclaradoRaw.inss_cpp ?? parcelasTotaisDeclaradoRaw.INSS_CPP ?? parcelasTotaisDeclaradoRaw['INSS/CPP'] ?? 0),
+                          ICMS: parseNumber(parcelasTotaisDeclaradoRaw.icms ?? parcelasTotaisDeclaradoRaw.ICMS ?? 0),
+                          IPI: parseNumber(parcelasTotaisDeclaradoRaw.ipi ?? parcelasTotaisDeclaradoRaw.IPI ?? 0),
+                          ISS: parseNumber(parcelasTotaisDeclaradoRaw.iss ?? parcelasTotaisDeclaradoRaw.ISS ?? 0),
+                          Total: parseNumber(parcelasTotaisDeclaradoRaw.total ?? parcelasTotaisDeclaradoRaw.Total ?? 0)
+                        } : undefined
+
+                        const atividadesDbgRaw = (data as any)?.debug?.atividades
+                        const atividadesDbgList = Array.isArray(atividadesDbgRaw)
+                          ? atividadesDbgRaw
+                          : (atividadesDbgRaw && typeof atividadesDbgRaw === 'object' ? Object.values(atividadesDbgRaw) : [])
+
+                        if (Array.isArray(atividadesDbgList) && atividadesDbgList.length > 0) {
+                          for (const atv of atividadesDbgList) {
+                            const nome = String(atv?.name || atv?.nome || "").toLowerCase()
+                            const trib: any = atv?.tributos || {}
+                            const isServico = nome.includes("servi") // cobre "serviço", "servicos"
+                            const isExterior = !isServico && (nome.includes("exterior") || nome.includes("extern") || nome.includes("export"))
+                            const target = isServico ? sumServicos : (isExterior ? sumMercadoriasExterior : sumMercadoriasInterno)
+
+                            target.IRPJ += parseNumber(trib.irpj ?? trib.IRPJ ?? 0)
+                            target.CSLL += parseNumber(trib.csll ?? trib.CSLL ?? 0)
+                            target.COFINS += parseNumber(trib.cofins ?? trib.COFINS ?? 0)
+                            target.PIS_Pasep += parseNumber(trib.pis ?? trib.PIS ?? trib.pis_pasep ?? trib.PIS_PASEP ?? trib["PIS/PASEP"] ?? trib.PIS_Pasep ?? 0)
+                            target.INSS_CPP += parseNumber(trib.inss_cpp ?? trib.INSS_CPP ?? trib["INSS/CPP"] ?? 0)
+                            target.ICMS += parseNumber(trib.icms ?? trib.ICMS ?? 0)
+                            target.IPI += parseNumber(trib.ipi ?? trib.IPI ?? 0)
+                            target.ISS += parseNumber(trib.iss ?? trib.ISS ?? 0)
+                          }
+                        } else {
+                          // Fallback: se não houver atividades, usa cenário para alocar tudo em uma coluna
+                          const cenario = String(data.cenario || "").toLowerCase()
+                          const assignToServicos = cenario.includes("serv")
+                          const src = data.tributos
+                          const target = assignToServicos ? sumServicos : sumMercadoriasInterno
+                          target.IRPJ = src.IRPJ || 0
+                          target.CSLL = src.CSLL || 0
+                          target.COFINS = src.COFINS || 0
+                          target.PIS_Pasep = src.PIS_Pasep || 0
+                          target.INSS_CPP = src.INSS_CPP || 0
+                          target.ICMS = src.ICMS || 0
+                          target.IPI = src.IPI || 0
+                          target.ISS = src.ISS || 0
+                        }
+
+                        const rows = tribKeys.map(({ key, label }) => {
+                          const mercadoriasInterno = (sumMercadoriasInterno as any)[key] || 0
+                          const mercadoriasExterior = (sumMercadoriasExterior as any)[key] || 0
+                          const servicos = (sumServicos as any)[key] || 0
+                          const totalDbg = mercadoriasInterno + mercadoriasExterior + servicos
+                          const totalNorm = (data.tributos as any)[key] || 0
+                          const totalDecl = totDeclarado ? (totDeclarado as any)[key === 'PIS_Pasep' ? 'PIS_Pasep' : key] || 0 : 0
+                          const total = totalDecl > 0 ? totalDecl : (totalDbg > 0 ? totalDbg : totalNorm)
+                          return { key, label, mercadoriasInterno, mercadoriasExterior, servicos, total }
+                        }).filter(r => r.total > 0 || r.mercadoriasInterno > 0 || r.mercadoriasExterior > 0 || r.servicos > 0)
+                        const colMercadoriasInternoVisible = tribKeys.some(k => (sumMercadoriasInterno as any)[k.key] > 0)
+                        const colMercadoriasExteriorVisible = tribKeys.some(k => (sumMercadoriasExterior as any)[k.key] > 0)
+                        const colServicosVisible = tribKeys.some(k => (sumServicos as any)[k.key] > 0)
+
+                        return rows.map(({ key, label, mercadoriasInterno, mercadoriasExterior, servicos, total }) => (
+                          <tr key={key} className="border-b border-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800">
+                            <td className={`py-3 px-2 font-medium ${darkMode ? 'text-white' : 'text-slate-800'}`}>{label}</td>
+                            {colMercadoriasInternoVisible && (
+                              <td className="py-3 px-2 text-center text-blue-600 font-medium">{formatCurrency(mercadoriasInterno)}</td>
+                            )}
+                            {colMercadoriasExteriorVisible && (
+                              <td className="py-3 px-2 text-center text-indigo-600 font-medium">{formatCurrency(mercadoriasExterior)}</td>
+                            )}
+                            {colServicosVisible && (
+                              <td className="py-3 px-2 text-center text-emerald-600 font-medium">{formatCurrency(servicos)}</td>
+                            )}
+                            <td className={`py-3 px-2 text-center font-semibold ${darkMode ? 'text-white' : 'text-slate-800'}`}>{formatCurrency(total)}</td>
+                          </tr>
+                        ))
+                      })()}
+                      {(() => {
+                        // Recalcula totais a partir das linhas já construídas (usando debug quando possível)
+                        const tribKeys = ["IRPJ","CSLL","COFINS","PIS_Pasep","INSS_CPP","ICMS","IPI","ISS"] as const
+
+                        const init = () => ({ IRPJ: 0, CSLL: 0, COFINS: 0, PIS_Pasep: 0, INSS_CPP: 0, ICMS: 0, IPI: 0, ISS: 0 })
+                        const sumMercadoriasInterno = init()
+                        const sumMercadoriasExterior = init()
+                        const sumServicos = init()
+
+                        const atividadesDbgRaw = (data as any)?.debug?.atividades
+                        const atividadesDbgList = Array.isArray(atividadesDbgRaw)
+                          ? atividadesDbgRaw
+                          : (atividadesDbgRaw && typeof atividadesDbgRaw === 'object' ? Object.values(atividadesDbgRaw) : [])
+                        if (Array.isArray(atividadesDbgList) && atividadesDbgList.length > 0) {
+                          for (const atv of atividadesDbgList) {
+                            const nome = String(atv?.name || atv?.nome || "").toLowerCase()
+                            const trib: any = atv?.tributos || {}
+                            const isServico = nome.includes("servi")
+                            const isExterior = !isServico && (nome.includes("exterior") || nome.includes("extern") || nome.includes("export"))
+                            const target = isServico ? sumServicos : (isExterior ? sumMercadoriasExterior : sumMercadoriasInterno)
+                            target.IRPJ += parseNumber(trib.irpj ?? trib.IRPJ ?? 0)
+                            target.CSLL += parseNumber(trib.csll ?? trib.CSLL ?? 0)
+                            target.COFINS += parseNumber(trib.cofins ?? trib.COFINS ?? 0)
+                            target.PIS_Pasep += parseNumber(trib.pis ?? trib.PIS ?? trib.pis_pasep ?? trib.PIS_PASEP ?? trib["PIS/PASEP"] ?? trib.PIS_Pasep ?? 0)
+                            target.INSS_CPP += parseNumber(trib.inss_cpp ?? trib.INSS_CPP ?? trib["INSS/CPP"] ?? 0)
+                            target.ICMS += parseNumber(trib.icms ?? trib.ICMS ?? 0)
+                            target.IPI += parseNumber(trib.ipi ?? trib.IPI ?? 0)
+                            target.ISS += parseNumber(trib.iss ?? trib.ISS ?? 0)
+                          }
+                        } else {
+                          const cenario = String(data.cenario || "").toLowerCase()
+                          const assignToServicos = cenario.includes("serv")
+                          const src = data.tributos
+                          const target = assignToServicos ? sumServicos : sumMercadoriasInterno
+                          target.IRPJ = src.IRPJ || 0
+                          target.CSLL = src.CSLL || 0
+                          target.COFINS = src.COFINS || 0
+                          target.PIS_Pasep = src.PIS_Pasep || 0
+                          target.INSS_CPP = src.INSS_CPP || 0
+                          target.ICMS = src.ICMS || 0
+                          target.IPI = src.IPI || 0
+                          target.ISS = src.ISS || 0
+                        }
+
+                        const totalMercadoriasInterno = tribKeys.reduce((sum, k) => sum + (sumMercadoriasInterno as any)[k], 0)
+                        const totalMercadoriasExterior = tribKeys.reduce((sum, k) => sum + (sumMercadoriasExterior as any)[k], 0)
+                        const totalServicos = tribKeys.reduce((sum, k) => sum + (sumServicos as any)[k], 0)
+                        const grandTotalDbg = totalMercadoriasInterno + totalMercadoriasExterior + totalServicos
+                        const parcelasTotaisDeclFooter = (data as any)?.debug?.parcelas?.totais?.declarado
+                        const totalDeclaradoFooter = parseNumber(parcelasTotaisDeclFooter?.total ?? parcelasTotaisDeclFooter?.Total ?? 0)
+                        const grandTotal = (totalDeclaradoFooter && totalDeclaradoFooter > 0) ? totalDeclaradoFooter : (grandTotalDbg > 0 ? grandTotalDbg : (data.tributos?.Total || 0))
+                        const colMercadoriasInternoVisible = totalMercadoriasInterno > 0
+                        const colMercadoriasExteriorVisible = totalMercadoriasExterior > 0
+                        const colServicosVisible = totalServicos > 0
+
                         return (
                           <tr className="border-t-2 border-slate-300 bg-slate-50 dark:bg-slate-800">
-                            <td className={`py-3 px-2 font-bold ${darkMode ? 'text-white' : 'text-slate-800'}`}>
-                              Total
-                            </td>
-                            <td className="py-3 px-2 text-center font-bold text-blue-600">
-                              {formatCurrency(totalMercadorias)}
-                            </td>
-                            <td className="py-3 px-2 text-center font-bold text-emerald-600">
-                              {formatCurrency(totalServicos)}
-                            </td>
-                            <td className={`py-3 px-2 text-center font-bold ${darkMode ? 'text-white' : 'text-slate-800'}`}>
-                              {formatCurrency(grandTotal)}
-                            </td>
+                            <td className={`py-3 px-2 font-bold ${darkMode ? 'text-white' : 'text-slate-800'}`}>Total</td>
+                            {colMercadoriasInternoVisible && (
+                              <td className="py-3 px-2 text-center font-bold text-blue-600">{formatCurrency(totalMercadoriasInterno)}</td>
+                            )}
+                            {colMercadoriasExteriorVisible && (
+                              <td className="py-3 px-2 text-center font-bold text-indigo-600">{formatCurrency(totalMercadoriasExterior)}</td>
+                            )}
+                            {colServicosVisible && (
+                              <td className="py-3 px-2 text-center font-bold text-emerald-600">{formatCurrency(totalServicos)}</td>
+                            )}
+                            <td className={`py-3 px-2 text-center font-bold ${darkMode ? 'text-white' : 'text-slate-800'}`}>{formatCurrency(grandTotal)}</td>
                           </tr>
-                        );
+                        )
                       })()}
                     </tbody>
                   </table>
