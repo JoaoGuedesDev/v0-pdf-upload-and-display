@@ -1479,8 +1479,8 @@ export function PGDASDProcessorIA() {
                           const conditionalDot = (color: string) => (props: any) => {
                             const v = Number(props?.value || 0)
                             const vr = Math.round(v * 100) / 100
-                            if (vr === 0) return null
-                            return <circle cx={props.cx} cy={props.cy} r={3} stroke="#0891b2" strokeWidth={1} fill={color} />
+                            const r = vr === 0 ? 0 : 3
+                            return <circle cx={props.cx} cy={props.cy} r={r} stroke="#0891b2" strokeWidth={1} fill={color} />
                           }
                           return (
                             <LineChart data={chartData} margin={{ top: 60, right: 60, left: 72, bottom: 60 }}>

@@ -25,7 +25,7 @@ export function PdfGenerator({
     setIsGenerating(true)
     
     try {
-      const element = document.getElementById(contentId)
+      let element: HTMLElement | null = document.getElementById(contentId)
       if (!element) {
         throw new Error(`Elemento com ID '${contentId}' não encontrado`)
       }
@@ -65,8 +65,17 @@ export function PdfGenerator({
       // Primeira tentativa com limpeza preventiva
       let canvas: HTMLCanvasElement
       try {
+        // Limitar dinamicamente a escala para não exceder o eixo máximo do canvas
+        const maxAxis = 32767 // limite seguro multi-navegador
+        const dpr = Math.max(1, window.devicePixelRatio || 1)
+        // Garantir que largura e altura multiplicadas pela escala não excedam o limite
+        const maxDimension = Math.max(element.scrollHeight, element.scrollWidth)
+        let dynamicScale = Math.min(dpr, maxAxis / maxDimension)
+        // Proteção mínima para não reduzir demais, mas sem ultrapassar limite
+        dynamicScale = Math.min(dpr, Math.max(0.2, dynamicScale))
+
         canvas = await html2canvas(element, {
-          scale: Math.max(2, window.devicePixelRatio || 2),
+          scale: dynamicScale,
           useCORS: true,
           allowTaint: true,
           backgroundColor: '#ffffff',
@@ -112,8 +121,15 @@ export function PdfGenerator({
           // Força reflow no clone
           clonedElement.offsetHeight
           
+          // Reusa a mesma lógica de escala dinâmica
+          const maxAxis = 32767
+          const dpr = Math.max(1, window.devicePixelRatio || 1)
+          const maxDimension = Math.max(clonedElement.scrollHeight, clonedElement.scrollWidth)
+          let dynamicScale = Math.min(dpr, maxAxis / maxDimension)
+          dynamicScale = Math.min(dpr, Math.max(0.2, dynamicScale))
+
           canvas = await html2canvas(clonedElement, {
-            scale: Math.max(2, window.devicePixelRatio || 2),
+            scale: dynamicScale,
             useCORS: true,
             allowTaint: true,
             backgroundColor: '#ffffff',
@@ -209,52 +225,99 @@ export function PdfGenerator({
         return tempCanvas.toDataURL("image/png", 1.0) // Qualidade máxima
       }
 
-      // Converte o canvas para imagem otimizada
+      // Converte o canvas para imagem otimizada (protege caso canvas não tenha sido gerado)
+      if (!canvas) {
+        setIsGenerating(false)
+        return
+      }
       const imgData = optimizeImageQuality(canvas)
       
-      // Calcula as dimensões para manter a proporção e otimizar layout
+      // Dimensões do canvas capturado
       const imgWidth = canvas.width
       const imgHeight = canvas.height
-      
-      // Otimiza o uso do espaço da página
+
+      // Espaço útil de página
       const maxWidth = pdfWidth - 20 // Margens de 10mm de cada lado
       const maxHeight = pdfHeight - 30 // Margens superior e inferior
-      const ratio = Math.min(maxWidth / imgWidth, maxHeight / imgHeight)
-      
+
+      // Regra: para conteúdo paginado, usar razão baseada na largura
+      const widthRatio = maxWidth / imgWidth
+      const heightRatio = maxHeight / imgHeight
+      // Razão geral (apenas se for necessário renderizar uma imagem única)
+      const ratio = Math.min(widthRatio, heightRatio)
+
       const finalWidth = imgWidth * ratio
       const finalHeight = imgHeight * ratio
       const imgX = (pdfWidth - finalWidth) / 2
       const imgY = 15 // Margem superior otimizada
       
-      // Helper para adicionar imagem com paginação quando necessário
-      const addImageWithPagination = () => {
-        const pageContentHeight = pdfHeight - 30
-        let heightLeft = finalHeight - pageContentHeight
-        let position = imgY
-        pdf.addImage(
-          imgData,
-          'PNG',
-          imgX,
-          position,
-          finalWidth,
-          finalHeight,
-          undefined,
-          'FAST'
-        )
-        while (heightLeft > 0) {
-          pdf.addPage()
-          position = imgY - heightLeft
-          pdf.addImage(
-            imgData,
-            'PNG',
-            imgX,
-            position,
-            finalWidth,
-            finalHeight,
-            undefined,
-            'FAST'
-          )
-          heightLeft -= pageContentHeight
+      // Helper: adiciona conteúdo paginado fatiando o canvas em blocos verticais
+      const addPaginatedContent = (watermark?: { type: 'text' | 'image'; imageData?: string }) => {
+        const pageContentHeight = pdfHeight - 30 // espaço útil por página em mm
+        // Para paginação, usar somente a razão baseada na largura para ocupar bem a página
+        const ratioForSlices = widthRatio
+        const finalWidthForSlices = imgWidth * ratioForSlices
+        const imgXForSlices = (pdfWidth - finalWidthForSlices) / 2
+        const slicePx = Math.floor(pageContentHeight / ratioForSlices) // altura da fatia em px original
+        let sourceY = 0
+
+        const drawTextWatermark = () => {
+          pdf.setFontSize(30)
+          pdf.setTextColor(180, 180, 180)
+          for (let y = 30; y < pdfHeight; y += 50) {
+            for (let x = 20; x < pdfWidth; x += 100) {
+              pdf.text(watermark?.imageData || '', x, y, { angle: 45 })
+            }
+          }
+        }
+
+        const drawImageWatermark = (img: string) => {
+          pdf.addImage(img, 'PNG', 10, 10, pdfWidth - 20, pdfHeight - 20, undefined, 'FAST')
+        }
+
+        while (sourceY < canvas.height) {
+          // Desenha marca d'água na página atual, se existir
+          if (watermark?.type === 'text') {
+            drawTextWatermark()
+          } else if (watermark?.type === 'image' && watermark.imageData) {
+            drawImageWatermark(watermark.imageData)
+          }
+
+          const thisSlicePx = Math.min(slicePx, canvas.height - sourceY)
+          const tempCanvas = document.createElement('canvas')
+          tempCanvas.width = canvas.width
+          tempCanvas.height = thisSlicePx
+          const tctx = tempCanvas.getContext('2d')
+          if (tctx) {
+            tctx.drawImage(
+              canvas,
+              0,
+              sourceY,
+              canvas.width,
+              thisSlicePx,
+              0,
+              0,
+              tempCanvas.width,
+              tempCanvas.height
+            )
+            const sliceData = tempCanvas.toDataURL('image/png', 1.0)
+            const sliceHeightMm = thisSlicePx * ratioForSlices
+            pdf.addImage(
+              sliceData,
+              'PNG',
+              imgXForSlices,
+              imgY,
+              finalWidthForSlices,
+              sliceHeightMm,
+              undefined,
+              'FAST'
+            )
+          }
+
+          sourceY += thisSlicePx
+          if (sourceY < canvas.height) {
+            pdf.addPage()
+          }
         }
       }
 
@@ -271,7 +334,7 @@ export function PdfGenerator({
         }
 
         // Conteúdo principal por cima da marca d'água (com paginação)
-        addImageWithPagination()
+        addPaginatedContent({ type: 'text', imageData: watermarkImage })
 
         pdf.save(`${fileName}.pdf`)
         setIsGenerating(false)
@@ -290,33 +353,40 @@ export function PdfGenerator({
             tempCanvas.height = Math.round((pdfHeight / pdfWidth) * tempCanvas.width)
             const ctx = tempCanvas.getContext('2d')
 
+            let fadedData: string | undefined
             if (ctx) {
               ctx.clearRect(0, 0, tempCanvas.width, tempCanvas.height)
               ctx.globalAlpha = 0.03 // Opacidade ainda mais suave para máxima visibilidade
               ctx.drawImage(watermarkImg, 0, 0, tempCanvas.width, tempCanvas.height)
-              const fadedData = tempCanvas.toDataURL('image/png')
+              fadedData = tempCanvas.toDataURL('image/png')
 
               // Primeiro a imagem de marca d'água como fundo
-              pdf.addImage(
-                fadedData,
-                'PNG',
-                10,
-                10,
-                pdfWidth - 20,
-                pdfHeight - 20,
-                undefined,
-                'FAST'
-              )
+              if (fadedData) {
+                pdf.addImage(
+                  fadedData,
+                  'PNG',
+                  10,
+                  10,
+                  pdfWidth - 20,
+                  pdfHeight - 20,
+                  undefined,
+                  'FAST'
+                )
+              }
             }
 
             // Conteúdo principal por cima (com paginação)
-            addImageWithPagination()
+            if (fadedData) {
+              addPaginatedContent({ type: 'image', imageData: fadedData })
+            } else {
+              addPaginatedContent()
+            }
 
             pdf.save(`${fileName}.pdf`)
             setIsGenerating(false)
           } catch (e) {
-            // Fallback: gerar somente conteúdo
-            addImageWithPagination()
+            // Fallback: gerar conteúdo sem marca d'água
+            addPaginatedContent()
             pdf.save(`${fileName}.pdf`)
             setIsGenerating(false)
           }
@@ -324,22 +394,78 @@ export function PdfGenerator({
 
         watermarkImg.onerror = () => {
           // Caso a marca d'água não carregue, gera apenas o conteúdo
-          addImageWithPagination()
+          addPaginatedContent()
       
           pdf.save(`${fileName}.pdf`)
           setIsGenerating(false)
         }
       } else {
-        // Sem marca d'água: apenas adiciona o conteúdo capturado
-        addImageWithPagination()
+        // Sem marca d'água: conteúdo paginado
+        addPaginatedContent()
 
         pdf.save(`${fileName}.pdf`)
         setIsGenerating(false)
       }
     } catch (error) {
-      // Silenciar logs de debug; manter alerta ao usuário
-      alert("Erro ao gerar PDF. Tente novamente.")
-      setIsGenerating(false)
+      // Tratar falha de captura com fallbacks adicionais
+      try {
+        const element = document.getElementById(contentId)
+        if (!element) throw new Error('Elemento alvo não encontrado no fallback')
+        // Fallback 2: tentar com foreignObjectRendering
+        const canvas = await html2canvas(element, {
+          scale: 0.8,
+          useCORS: true,
+          allowTaint: false,
+          backgroundColor: '#ffffff',
+          logging: false,
+          foreignObjectRendering: true,
+          width: element.scrollWidth,
+          height: element.scrollHeight,
+          scrollX: 0,
+          scrollY: 0,
+          ignoreElements: (el) => el.tagName === 'SCRIPT' || el.tagName === 'STYLE'
+        })
+
+        // Se conseguir capturar, prosseguir com paginação mínima
+        const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true })
+        const pdfWidth = pdf.internal.pageSize.getWidth()
+        const pdfHeight = pdf.internal.pageSize.getHeight()
+
+        const imgWidth = canvas.width
+        const imgHeight = canvas.height
+        const maxWidth = pdfWidth - 20
+        const maxHeight = pdfHeight - 30
+        const ratio = Math.min(maxWidth / imgWidth, maxHeight / imgHeight)
+        const finalWidth = imgWidth * ratio
+        const imgX = (pdfWidth - finalWidth) / 2
+        const imgY = 15
+
+        // Paginação simples
+        const pageContentHeight = pdfHeight - 30
+        const slicePx = Math.floor(pageContentHeight / ratio)
+        let y = 0
+        while (y < canvas.height) {
+          const thisSlicePx = Math.min(slicePx, canvas.height - y)
+          const t = document.createElement('canvas')
+          t.width = canvas.width
+          t.height = thisSlicePx
+          const tc = t.getContext('2d')
+          if (tc) {
+            tc.drawImage(canvas, 0, y, canvas.width, thisSlicePx, 0, 0, t.width, t.height)
+            const data = t.toDataURL('image/png', 1.0)
+            const sliceHeightMm = thisSlicePx * ratio
+            pdf.addImage(data, 'PNG', imgX, imgY, finalWidth, sliceHeightMm, undefined, 'FAST')
+          }
+          y += thisSlicePx
+          if (y < canvas.height) pdf.addPage()
+        }
+        pdf.save(`${fileName}.pdf`)
+      } catch (fallbackError) {
+        // Evitar alerta invasivo; logar erro para diagnóstico
+        console.error('Falha ao gerar PDF', fallbackError)
+      } finally {
+        setIsGenerating(false)
+      }
     }
   }
 
