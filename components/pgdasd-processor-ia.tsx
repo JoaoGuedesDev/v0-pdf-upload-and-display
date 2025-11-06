@@ -38,6 +38,7 @@ import {
 } from "recharts"
 import { toPng } from "html-to-image"
 import { jsPDF } from "jspdf"
+import { toast } from "@/components/ui/use-toast"
 
 interface DASData {
   identificacao: {
@@ -329,9 +330,15 @@ export function PGDASDProcessorIA() {
       URL.revokeObjectURL(url)
 
       console.log("[v0] PDF gerado com sucesso")
+      toast({ title: "PDF gerado (servidor)", description: "Download iniciado com sucesso." })
     } catch (e: any) {
       console.error("[v0] Erro ao baixar PDF:", e)
       setError(e?.message || "Erro ao baixar PDF do servidor")
+      toast({
+        title: "Erro ao gerar PDF (servidor)",
+        description: e?.message || "Falha ao gerar PDF no servidor",
+        variant: "destructive",
+      })
     } finally {
       setDownloadingServerPdf(false)
     }
@@ -431,9 +438,15 @@ export function PGDASDProcessorIA() {
       link.click()
       document.body.removeChild(link)
       URL.revokeObjectURL(url)
+      toast({ title: "PDF gerado (print)", description: "Download iniciado com sucesso." })
     } catch (err: any) {
       console.error("Erro ao gerar PDF (print):", err)
       setError(err?.message || "Erro ao gerar PDF do print. Tente novamente.")
+      toast({
+        title: "Erro ao gerar PDF (print)",
+        description: err?.message || "Falha ao gerar PDF do print",
+        variant: "destructive",
+      })
     } finally {
       // Restaura visibilidade dos controles
       if (controlsEls.length) {
@@ -523,9 +536,15 @@ export function PGDASDProcessorIA() {
       }
 
       pdf.save("dashboard-relatorio.pdf")
+      toast({ title: "PDF gerado (fallback)", description: "Download iniciado no cliente." })
     } catch (err) {
       console.error("Erro ao gerar PDF no cliente", err)
       setError("Erro ao gerar PDF no cliente. Tente novamente.")
+      toast({
+        title: "Erro ao gerar PDF (cliente)",
+        description: (err as Error)?.message || "Falha ao gerar PDF no cliente",
+        variant: "destructive",
+      })
     } finally {
       if (pieEl) pieEl.style.display = prevPieDisplay || ""
       if (insightsEl) insightsEl.style.display = prevInsightsDisplay || ""
@@ -725,8 +744,10 @@ export function PGDASDProcessorIA() {
       if (droppedFile.type === "application/pdf") {
         setFile(droppedFile)
         setError(null)
+        toast({ title: "PDF carregado", description: droppedFile.name })
       } else {
         setError("Por favor, envie apenas arquivos PDF")
+        toast({ title: "Formato inválido", description: "Envie apenas arquivos PDF.", variant: "destructive" })
       }
     }
   }
@@ -737,8 +758,10 @@ export function PGDASDProcessorIA() {
       if (selectedFile.type === "application/pdf") {
         setFile(selectedFile)
         setError(null)
+        toast({ title: "PDF carregado", description: selectedFile.name })
       } else {
         setError("Por favor, envie apenas arquivos PDF")
+        toast({ title: "Formato inválido", description: "Envie apenas arquivos PDF.", variant: "destructive" })
       }
     }
   }
