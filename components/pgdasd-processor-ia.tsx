@@ -209,7 +209,7 @@ function sanitizeInsights(insights: DASData["insights"]): DASData["insights"] {
   }
 }
 
-export function PGDASDProcessorIA() {
+export function PGDASDProcessorIA({ initialData }: { initialData?: DASData }) {
   const [file, setFile] = useState<File | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -225,6 +225,73 @@ export function PGDASDProcessorIA() {
   const [clientPixelRatio, setClientPixelRatio] = useState<number>(3)
 
   // Fluxo de PDF via servidor removido
+
+  // Hidratação quando dados iniciais são fornecidos via página compartilhada
+  useEffect(() => {
+    if (!initialData) return
+    // Evita sobrescrever se já houver dados do fluxo de upload
+    if (data) return
+    // Recalcula campos de cálculo se não vierem no payload
+    const receitaPA = Number(initialData?.receitas?.receitaPA || 0)
+    const totalDAS = Number(initialData?.tributos?.Total || 0)
+
+    const truncateDecimals = (value: number, decimals = 5): number => {
+      if (!isFinite(value)) return 0
+      const factor = Math.pow(10, decimals)
+      return Math.trunc(value * factor) / factor
+    }
+
+    const formatBrazilianDecimalNoRound = (value: number, decimals = 5): string => {
+      const truncated = truncateDecimals(value, decimals)
+      return truncated.toFixed(decimals).replace('.', ',')
+    }
+
+    const aliquotaEfetivaValue = totalDAS > 0 && receitaPA > 0 ? (totalDAS / receitaPA) * 100 : 0
+    const hydrated: DASData = {
+      ...initialData,
+      calculos: {
+        ...(initialData.calculos || {}),
+        aliquotaEfetiva:
+          initialData.calculos?.aliquotaEfetiva !== undefined
+            ? initialData.calculos.aliquotaEfetiva
+            : truncateDecimals(aliquotaEfetivaValue, 5),
+        aliquotaEfetivaFormatada:
+          initialData.calculos?.aliquotaEfetivaFormatada !== undefined
+            ? initialData.calculos.aliquotaEfetivaFormatada
+            : formatBrazilianDecimalNoRound(aliquotaEfetivaValue, 5),
+        margemLiquida:
+          initialData.calculos?.margemLiquida !== undefined && initialData.calculos?.margemLiquida !== null
+            ? initialData.calculos.margemLiquida
+            : receitaPA > 0 ? ((receitaPA - totalDAS) / receitaPA) * 100 : 0,
+      },
+    }
+
+    ;(async () => {
+      try {
+        const iaResp = await fetch("/api/insights", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ dasData: hydrated }),
+        })
+        if (iaResp.ok) {
+          const iaJson = await iaResp.json()
+          const insightsFromIa = iaJson?.insights
+          if (insightsFromIa && typeof insightsFromIa === "object") {
+            setData({ ...hydrated, insights: sanitizeInsights(insightsFromIa as any) })
+          } else {
+            const insights = generateInsights(hydrated)
+            setData({ ...hydrated, insights: sanitizeInsights(insights) })
+          }
+        } else {
+          const insights = generateInsights(hydrated)
+          setData({ ...hydrated, insights: sanitizeInsights(insights) })
+        }
+      } catch {
+        const insights = generateInsights(hydrated)
+        setData({ ...hydrated, insights: sanitizeInsights(insights) })
+      }
+    })()
+  }, [initialData])
 
   const generateImage = async () => {
     if (!contentRef.current || !data) return
@@ -570,13 +637,19 @@ export function PGDASDProcessorIA() {
       const formData = new FormData()
       formData.append("file", file)
 
-      const url = processViaN8n ? "/api/process-pdf?via=n8n" : "/api/process-pdf"
+      const url = processViaN8n ? "/api/process-pdf?via=n8n" : "/api/upload"
 
       // Enviar para API que processa localmente ou encaminha ao n8n
       const response = await fetch(url, {
         method: "POST",
         body: formData,
       })
+
+      // Se a API responder com 303, o fetch segue o redirect mas não navega; navegamos manualmente
+      if (response.redirected && typeof window !== "undefined") {
+        window.location.href = response.url
+        return
+      }
 
       if (!response.ok) {
         throw new Error(`Erro ao processar: ${response.statusText}`)
@@ -602,6 +675,13 @@ export function PGDASDProcessorIA() {
 
       // Normalizar formato: a API retorna { dados, graficos, debug, metadata }
       const container = result && typeof result === "object" && "dados" in result ? (result as any) : { dados: result }
+
+      // Se a API retornou um link de dashboard compartilhável, redireciona imediatamente
+      const dashboardUrl: string | undefined = (result as any)?.dashboardUrl || (result as any)?.shareUrl
+      if (typeof window !== "undefined" && dashboardUrl && typeof dashboardUrl === "string") {
+        window.location.href = dashboardUrl
+        return
+      }
 
       const rawData = (container as any).dados || {}
 

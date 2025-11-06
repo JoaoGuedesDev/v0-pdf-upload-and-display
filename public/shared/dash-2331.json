@@ -1,0 +1,32 @@
+{
+  "dados": {
+    "identificacao": {
+      "razaoSocial": "Empresa Exemplo Ltda",
+      "cnpj": "12.345.678/0001-90",
+      "municipio": "São Paulo",
+      "uf": "SP",
+      "periodoApuracao": "01/2024 a 03/2024"
+    },
+    "receitas": {
+      "receitaPA": 150000.0,
+      "rbt12": 480000.0
+    },
+    "tributos": {
+      "IRPJ": 1000.0,
+      "CSLL": 800.0,
+      "COFINS": 2000.0,
+      "PIS_Pasep": 500.0,
+      "INSS_CPP": 3000.0,
+      "ICMS": 1500.0,
+      "IPI": 0.0,
+      "ISS": 1200.0,
+      "Total": 10000.0
+    }
+  },
+  "graficos": {
+    "receitaLine": { "labels": ["01/2024", "02/2024", "03/2024"], "values": [50000, 45000, 55000] },
+    "totalTributos": { "labels": ["IRPJ", "CSLL", "COFINS", "PIS/PASEP", "INSS/CPP", "ICMS", "IPI", "ISS"], "values": [1000, 800, 2000, 500, 3000, 1500, 0, 1200] }
+  },
+  "debug": { "note": "Exemplo de arquivo compartilhado para preview" },
+  "metadata": { "createdAt": "2025-11-06T12:00:00Z" }
+}

@@ -1,6 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { processDasData } from "@/lib/das-parse"
 import { createRequire } from "module"
+import fs from "node:fs"
+import path from "node:path"
+import crypto from "node:crypto"
+import { saveDashboard } from "@/lib/storage"
 
 // Configuração opcional para encaminhar ao n8n
 const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL || ""
@@ -97,7 +101,8 @@ export async function POST(request: NextRequest) {
       }
 
       const dasData = processDasData(text)
-      return NextResponse.json(dasData)
+      const share = await persistShare(dasData)
+      return NextResponse.json({ ...dasData, dashboardUrl: share.url, dashboardCode: share.code })
     }
 
     // Caso 2: JSON com campo { text }
@@ -138,7 +143,8 @@ export async function POST(request: NextRequest) {
       }
     }
     const dasData = processDasData(text)
-    return NextResponse.json(dasData)
+    const share = await persistShare(dasData)
+    return NextResponse.json({ ...dasData, dashboardUrl: share.url, dashboardCode: share.code })
   } catch (error) {
     console.error("[v0] Erro ao processar:", error)
     return NextResponse.json(
@@ -148,5 +154,18 @@ export async function POST(request: NextRequest) {
       },
       { status: 500 },
     )
+  }
+}
+
+async function persistShare(payload: any): Promise<{ code: string; url: string; filePath: string }> {
+  try {
+    const saved = await saveDashboard(payload)
+    const url = `/d/${saved.id}`
+    return { code: saved.id, url, filePath: saved.path || "" }
+  } catch (e) {
+    console.error("[share] Falha ao persistir resultado:", e)
+    // Fallback: gerar ID simples mesmo sem storage
+    const code = String(Math.floor(1000 + Math.random() * 9000))
+    return { code, url: `/d/${code}`, filePath: "" }
   }
 }
