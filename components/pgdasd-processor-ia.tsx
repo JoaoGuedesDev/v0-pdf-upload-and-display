@@ -2,6 +2,7 @@
 
 import type React from "react"
 import { useState, useRef, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { useTheme } from "next-themes"
 import {
   Upload,
@@ -210,6 +211,7 @@ function sanitizeInsights(insights: DASData["insights"]): DASData["insights"] {
 }
 
 export function PGDASDProcessorIA({ initialData }: { initialData?: DASData }) {
+  const router = useRouter()
   const [file, setFile] = useState<File | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -876,7 +878,7 @@ export function PGDASDProcessorIA({ initialData }: { initialData?: DASData }) {
           </Button>
         </div>
 
-        {!data && (
+        {!data && !initialData && (
           <Card
             className={`${darkMode ? "bg-slate-800 border-slate-700" : "border-2 border-dashed border-slate-300 bg-white/50"} backdrop-blur-sm`}
           >
@@ -938,6 +940,11 @@ export function PGDASDProcessorIA({ initialData }: { initialData?: DASData }) {
               )}
             </CardContent>
           </Card>
+        )}
+        {initialData && !data && (
+          <div className="flex items-center justify-center py-8">
+            <span className={`text-sm ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>Carregando dashboard...</span>
+          </div>
         )}
 
         {data && (
@@ -2891,9 +2898,7 @@ export function PGDASDProcessorIA({ initialData }: { initialData?: DASData }) {
             >
               <Button
                 onClick={() => {
-                  setData(null)
-                  setFile(null)
-                  setError(null)
+                  router.push('/')
                 }}
                 variant={darkMode ? "secondary" : "outline"}
                 size="lg"
