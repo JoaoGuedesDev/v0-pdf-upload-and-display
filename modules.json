@@ -1,0 +1,26 @@
+{
+  "upload": {
+    "allowedImports": [
+      "^@/components/file-upload",
+      "^@/components/ui/",
+      "^@/lib/monitoring",
+      "^next/link"
+    ]
+  },
+  "generator": {
+    "allowedImports": [
+      "^@/components/modern-pdf-generator",
+      "^@/components/pdf-generator",
+      "^@/lib/pdf-generators/",
+      "^@/lib/monitoring",
+      "^next/link",
+      "^next/dynamic"
+    ]
+  },
+  "insights": {
+    "allowedImports": [
+      "^next/link",
+      "^@/lib/monitoring"
+    ]
+  }
+}

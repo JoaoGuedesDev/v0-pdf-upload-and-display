@@ -46,8 +46,7 @@ import {
   LabelList,
 } from "recharts"
 import { toPng } from "html-to-image"
-import jsPDF from "jspdf"
-import html2canvas from "html2canvas"
+import { generateDasReportPDF } from "@/lib/pdf-generators/das-report-generator"
 
 interface DASData {
   identificacao: {
@@ -234,265 +233,29 @@ export function PGDASDProcessorIA() {
   const [showConsistencyDetails, setShowConsistencyDetails] = useState(false)
 
   const generatePDF = async () => {
-    if (!contentRef.current || !data) return
-
+    if (!data) return
     setGeneratingPDF(true)
-
     try {
-      const element = contentRef.current
-
-      const clone = element.cloneNode(true) as HTMLElement
-      clone.style.position = "absolute"
-      clone.style.left = "-9999px"
-      clone.style.top = "0"
-      document.body.appendChild(clone)
-
-      // Aguardar o navegador computar os estilos
-      await new Promise((resolve) => setTimeout(resolve, 100))
-
-      // Utilitário: normalizar cores CSS modernas (lab/oklch/lch/color()) para RGB
-      const normalizeCssColor = (value: string): string => {
-        if (!value) return value
-        const lower = value.toLowerCase()
-        const hasModernFn = lower.includes('lab(') || lower.includes('oklch(') || lower.includes('lch(') || lower.includes('color(')
-        if (!hasModernFn) return value
-        const tmp = document.createElement('span')
-        tmp.style.color = value
-        document.body.appendChild(tmp)
-        const resolved = getComputedStyle(tmp).color || value
-        document.body.removeChild(tmp)
-        return resolved
-      }
-
-      // Percorrer todos os elementos e aplicar estilos computados como inline (sanitizando cores)
-      const applyComputedStyles = (el: HTMLElement) => {
-        const computed = window.getComputedStyle(el)
-
-        // Propriedades de cor que precisam ser convertidas
-        const colorProps = [
-          "color",
-          "backgroundColor",
-          "borderColor",
-          "borderTopColor",
-          "borderRightColor",
-          "borderBottomColor",
-          "borderLeftColor",
-        ]
-
-        colorProps.forEach((prop) => {
-          let value = computed.getPropertyValue(prop)
-          if (!value) return
-          if (value === "rgba(0, 0, 0, 0)" || value === "transparent") return
-          value = normalizeCssColor(value)
-          el.style.setProperty(prop, value, "important")
-        })
-
-        // Neutralizar SOMENTE quando houver funções de cor modernas ou gradientes problemáticos
-        try {
-          const bgImage = computed.getPropertyValue('background-image')
-          const hasModernBgImage = bgImage && (bgImage.toLowerCase().includes('lab(') || bgImage.toLowerCase().includes('oklch(') || bgImage.toLowerCase().includes('lch(') || bgImage.toLowerCase().includes('color('))
-          const isGradient = bgImage && bgImage.toLowerCase().includes('gradient')
-          if (hasModernBgImage || isGradient) {
-            el.style.setProperty('background-image', 'none', 'important')
-            let bgColor = computed.getPropertyValue('background-color')
-            if (!bgColor || bgColor === 'transparent' || bgColor === 'rgba(0, 0, 0, 0)') {
-              bgColor = darkMode ? '#0f172a' : '#ffffff'
-            } else {
-              bgColor = normalizeCssColor(bgColor)
-            }
-            el.style.setProperty('background-color', bgColor, 'important')
-          }
-
-          const bg = computed.getPropertyValue('background')
-          if (bg && (bg.toLowerCase().includes('lab(') || bg.toLowerCase().includes('oklch(') || bg.toLowerCase().includes('lch(') || bg.toLowerCase().includes('color('))) {
-            const bgColor = normalizeCssColor(computed.getPropertyValue('background-color')) || (darkMode ? '#0f172a' : '#ffffff')
-            el.style.setProperty('background', bgColor, 'important')
-          }
-
-          // Sombras
-          const bs = computed.getPropertyValue('box-shadow')
-          if (bs && (bs.toLowerCase().includes('lab(') || bs.toLowerCase().includes('oklch(') || bs.toLowerCase().includes('lch(') || bs.toLowerCase().includes('color('))) {
-            el.style.setProperty('box-shadow', 'none', 'important')
-          }
-          const ts = computed.getPropertyValue('text-shadow')
-          if (ts && (ts.toLowerCase().includes('lab(') || ts.toLowerCase().includes('oklch(') || ts.toLowerCase().includes('lch(') || ts.toLowerCase().includes('color('))) {
-            el.style.setProperty('text-shadow', 'none', 'important')
-          }
-        } catch {}
-
-        // Sanitizar quaisquer outras propriedades com funções de cor modernas
-        for (let i = 0; i < (computed as any).length; i++) {
-          const propName = (computed as any)[i] as string
-          const rawVal = computed.getPropertyValue(propName)
-          if (!rawVal) continue
-          const lower = rawVal.toLowerCase()
-          if (lower.includes('lab(') || lower.includes('oklch(') || lower.includes('lch(') || lower.includes('color(')) {
-            const normalized = normalizeCssColor(rawVal)
-            if (normalized && normalized !== rawVal) {
-              try {
-                el.style.setProperty(propName, normalized, 'important')
-              } catch {}
-            }
-          }
-        }
-
-        // Sanitizar atributos SVG com cores modernas
-        if (el instanceof SVGElement) {
-          const attrs = ['stroke', 'fill', 'stop-color', 'color']
-          attrs.forEach((attr) => {
-            const val = el.getAttribute(attr)
-            if (!val) return
-            const lower = val.toLowerCase()
-            if (lower.includes('lab(') || lower.includes('oklch(') || lower.includes('lch(') || lower.includes('color(')) {
-              const normalized = normalizeCssColor(val)
-              if (normalized && normalized !== val) {
-                try { el.setAttribute(attr, normalized) } catch {}
-              }
-            }
-          })
-        }
-
-        // Processar filhos recursivamente
-        Array.from(el.children).forEach((child) => {
-          if (child instanceof HTMLElement) {
-            applyComputedStyles(child)
-          }
-        })
-      }
-
-      applyComputedStyles(clone)
-
-      // Fixar largura e layout do clone para evitar reflow durante a captura
-      try {
-        clone.style.width = '1200px'
-        clone.style.boxSizing = 'border-box'
-        clone.style.margin = '0 auto'
-        clone.style.padding = '24px'
-        clone.style.background = '#ffffff'
-        clone.style.overflow = 'visible'
-      } catch {}
-
-      // Gerar PDF a partir do clone
-      const canvas = await html2canvas(clone, {
-        scale: 2.0,
-        useCORS: true,
-        allowTaint: true,
-        foreignObjectRendering: true,
-        logging: false,
-        backgroundColor: darkMode ? '#0f172a' : '#ffffff',
-        width: clone.scrollWidth,
-        height: clone.scrollHeight,
-        scrollX: 0,
-        scrollY: 0,
-        imageTimeout: 2000,
-        ignoreElements: (el) => el.tagName === 'SCRIPT' || el.tagName === 'STYLE',
-        onclone: (clonedDoc) => {
-          const style = clonedDoc.createElement('style')
-          style.textContent = `
-            /* Evitar filtros que possam usar funções de cor modernas sem perder conteúdo */
-            * { filter: none !important; text-shadow: none !important; box-shadow: none !important; }
-            svg * { filter: none !important; }
-
-            /* Garantir visibilidade: cards com gradiente recebem fundo escuro e texto branco */
-            [class*="bg-gradient"] { background-image: none !important; background-color: ${darkMode ? '#0f172a' : '#1e293b'} !important; color: #ffffff !important; }
-
-            /* Forçar cores seguras na área do relatório */
-            #relatorio-pgdasd, #relatorio-pgdasd * {
-              opacity: 1 !important;
-              mix-blend-mode: normal !important;
-              color-adjust: exact !important;
-              -webkit-print-color-adjust: exact !important;
-            }
-            #relatorio-pgdasd { background: none !important; background-color: ${darkMode ? '#0f172a' : '#ffffff'} !important; }
-            #relatorio-pgdasd .card, #relatorio-pgdasd [class*="Card"], #relatorio-pgdasd [class*="card"] {
-              background-color: ${darkMode ? '#0f172a' : '#ffffff'} !important;
-              color: ${darkMode ? '#f8fafc' : '#0f172a'} !important;
-              border-color: ${darkMode ? '#334155' : '#e2e8f0'} !important;
-            }
-          `
-          clonedDoc.head.appendChild(style)
-        }
+      const bytes = generateDasReportPDF({
+        identificacao: data.identificacao,
+        receitas: data.receitas,
+        tributos: data.tributos,
+        calculos: data.calculos,
+        insights: data.insights,
       })
-
-      // Remover clone
-      document.body.removeChild(clone)
-
-      const imgData = canvas.toDataURL("image/png")
-      const pdf = new jsPDF("p", "mm", "a4")
-      const pdfWidth = pdf.internal.pageSize.getWidth()
-      const pdfHeight = pdf.internal.pageSize.getHeight()
-
-      // Calcular dimensões para ocupar toda a página A4
-      const imgWidth = pdfWidth - 20 // margem de 10mm de cada lado
-      const imgHeight = (canvas.height * imgWidth) / canvas.width
-      const pageHeight = pdfHeight - 20 // margem de 10mm em cima e embaixo
-
-      let heightLeft = imgHeight
-      let position = 10
-
-      // Adicionar marca d'água somente no tema claro
-      const logoUrl =
-        "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/integra%20oficial--Z07XEJjpSekUh1Wy1mRTb98rnuPQAq.png"
-
-      if (!darkMode) {
-        try {
-          const logoImg = new Image()
-          logoImg.crossOrigin = "anonymous"
-          logoImg.src = logoUrl
-
-          await new Promise((resolve, reject) => {
-            logoImg.onload = resolve
-            logoImg.onerror = reject
-          })
-
-          const logoWidth = 100
-          const logoHeight = 35
-          const logoX = (pdfWidth - logoWidth) / 2
-          const logoY = (pdfHeight - logoHeight) / 2
-
-          pdf.setGState(new (pdf as any).GState({ opacity: 0.08 }))
-          pdf.addImage(logoImg, "PNG", logoX, logoY, logoWidth, logoHeight)
-          pdf.setGState(new (pdf as any).GState({ opacity: 1 }))
-        } catch (logoError) {
-        }
-      }
-
-      // Adicionar imagem em múltiplas páginas se necessário
-      pdf.addImage(imgData, "PNG", 10, position, imgWidth, imgHeight)
-      heightLeft -= pageHeight
-
-      while (heightLeft > 0) {
-        position = heightLeft - imgHeight + 10
-        pdf.addPage()
-
-        // Adicionar marca d'água em cada página somente no tema claro
-        if (!darkMode) {
-          try {
-            const logoImg = new Image()
-            logoImg.crossOrigin = "anonymous"
-            logoImg.src = logoUrl
-            await new Promise((resolve) => {
-              logoImg.onload = resolve
-            })
-            const logoWidth = 100
-            const logoHeight = 35
-            const logoX = (pdfWidth - logoWidth) / 2
-            const logoY = (pdfHeight - logoHeight) / 2
-            pdf.setGState(new (pdf as any).GState({ opacity: 0.08 }))
-            pdf.addImage(logoImg, "PNG", logoX, logoY, logoWidth, logoHeight)
-            pdf.setGState(new (pdf as any).GState({ opacity: 1 }))
-          } catch {}
-        }
-
-        pdf.addImage(imgData, "PNG", 10, position, imgWidth, imgHeight)
-        heightLeft -= pageHeight
-      }
-
-      const fileName = `DAS_${data.identificacao.cnpj.replace(/[^\d]/g, "")}_${new Date().toISOString().split("T")[0]}.pdf`
-      pdf.save(fileName)
+      const blob = new Blob([bytes], { type: 'application/pdf' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      const base = data.identificacao?.cnpj?.replace(/[^\d]/g, "") || 'documento'
+      a.download = `DAS_${base}_${new Date().toISOString().split('T')[0]}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
     } catch (error) {
       console.error('Erro ao gerar PDF', error)
-      setError("Erro ao gerar PDF. Tente novamente.")
+      setError('Erro ao gerar PDF. Tente novamente.')
     } finally {
       setGeneratingPDF(false)
     }
