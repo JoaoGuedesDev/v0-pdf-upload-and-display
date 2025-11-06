@@ -183,13 +183,18 @@ export async function POST(req: NextRequest) {
 
     const pdfBuffer = await generatePdf({ url, html, baseURL, format, deviceScaleFactor, margin, zoom: body.zoom, orientation })
 
-    return new Response(new Uint8Array(pdfBuffer), {
-      status: 200,
-      headers: {
-        'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="${body.fileName || 'relatorio.pdf'}"`,
-      },
+    if (!pdfBuffer || pdfBuffer.byteLength < 1024) {
+      throw new Error('PDF vazio/inválido gerado')
+    }
+
+    const headers = new Headers({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="${body.fileName || 'relatorio.pdf'}"`,
+      'Cache-Control': 'no-store',
+      'Content-Length': String(pdfBuffer.byteLength),
     })
+
+    return new Response(new Uint8Array(pdfBuffer), { status: 200, headers })
   } catch (error: any) {
     console.error('Erro em /api/make-pdf:', error)
     return new Response(JSON.stringify({ error: 'Falha ao gerar PDF', details: String(error?.message || error) }), {
@@ -226,13 +231,18 @@ export async function GET(req: NextRequest) {
 
     const pdfBuffer = await generatePdf({ url: urlParam, html: htmlParam, baseURL, format, deviceScaleFactor, margin, zoom: zoom ? Number(zoom) : undefined, orientation })
 
-    return new Response(new Uint8Array(pdfBuffer), {
-      status: 200,
-      headers: {
-        'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="${fileName}"`,
-      },
+    if (!pdfBuffer || pdfBuffer.byteLength < 1024) {
+      throw new Error('PDF vazio/inválido gerado (GET)')
+    }
+
+    const headers = new Headers({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="${fileName}"`,
+      'Cache-Control': 'no-store',
+      'Content-Length': String(pdfBuffer.byteLength),
     })
+
+    return new Response(new Uint8Array(pdfBuffer), { status: 200, headers })
   } catch (error: any) {
     console.error('Erro em GET /api/make-pdf:', error)
     return new Response(JSON.stringify({ error: 'Falha ao gerar PDF', details: String(error?.message || error) }), {
