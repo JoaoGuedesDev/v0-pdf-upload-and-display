@@ -219,130 +219,12 @@ export function PGDASDProcessorIA() {
   const [isGeneratingImage, setIsGeneratingImage] = useState(false)
   const [processViaN8n, setProcessViaN8n] = useState(false)
   const [showConsistencyDetails, setShowConsistencyDetails] = useState(false)
-  const [downloadingServerPdf, setDownloadingServerPdf] = useState(false)
-  const [downloadingScreenshotPdf, setDownloadingScreenshotPdf] = useState(false)
   const [downloadingClientPdf, setDownloadingClientPdf] = useState(false)
   const [pdfOrientation, setPdfOrientation] = useState<"portrait" | "landscape">("landscape")
   const [pdfFitMode, setPdfFitMode] = useState<"multipage" | "single_contain" | "single_cover">("multipage")
   const [clientPixelRatio, setClientPixelRatio] = useState<number>(3)
 
-  const handleServerDownloadPDF = async (
-    scale = 3,
-    maxPages?: number,
-    orientation: "portrait" | "landscape" = "landscape",
-    pixelOffsetPx = 0,
-  ) => {
-    try {
-      if (!contentRef.current) return
-      setDownloadingServerPdf(true)
-
-      const base = window.location.origin
-      // Coletar estilos atuais (Tailwind/Next) para preservar cores e layout
-      const headLinks = Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
-        .map((el) => el.outerHTML)
-        .join("\n")
-      const headStyles = Array.from(document.querySelectorAll("style"))
-        .map((el) => el.outerHTML)
-        .join("\n")
-
-      // Usa o conteúdo completo, incluindo gráficos e insights
-      const bodyHtml = contentRef.current.outerHTML
-
-      const htmlContent = `<!doctype html><html><head><base href="${base}" />\n${headLinks}\n${headStyles}
-        <style>
-          @page { size: A4 ${orientation === "landscape" ? "landscape" : "portrait"}; margin: 0; }
-          body { background: ${darkMode ? "#0f172a" : "#ffffff"}; margin: 0; padding: 0; }
-          .print-container { padding: 12mm; }
-          /* Ocultar apenas os controles de PDF no print */
-          [data-hide-for-client-pdf] { display: none !important; }
-          /* Garantir que gráficos sejam visíveis */
-          .recharts-wrapper { display: block !important; }
-          /* Melhorar legibilidade de textos */
-          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-        </style>
-      </head><body><div class="print-container">${bodyHtml}</div></body></html>`
-
-      // Função util para conversão
-      const mmToPx = (mm: number) => (mm / 25.4) * 96
-
-      // Cálculo opcional de zoom para caber em até maxPages
-      let zoom: number | undefined
-      if (maxPages && contentRef.current) {
-        const a4HeightPx = mmToPx(orientation === "landscape" ? 210 : 297)
-        const top = 10,
-          bottom = 10
-        const printableHeight = a4HeightPx - mmToPx(top + bottom)
-        const targetHeight = printableHeight * maxPages
-        const currentHeight = contentRef.current.scrollHeight
-        const computedZoom = targetHeight / currentHeight
-        // Limitar zoom a um intervalo razoável
-        zoom = Math.max(0.5, Math.min(1.2, computedZoom))
-      }
-
-      // Aplicar redução global de escala por pixelOffsetPx baseado na largura imprimível
-      if (pixelOffsetPx > 0) {
-        const pageWidthMm = orientation === "landscape" ? 297 : 210
-        const left = 10,
-          right = 10
-        const printableWidthPx = mmToPx(pageWidthMm) - mmToPx(left + right)
-        const offsetZoom = (printableWidthPx - Math.max(0, pixelOffsetPx)) / printableWidthPx
-        zoom = Math.max(0.5, Math.min(1.2, (zoom ?? 1) * offsetZoom))
-      }
-
-      const payload = {
-        html: htmlContent,
-        base,
-        fileName: "relatorio-pgdasd.pdf",
-        format: "A4" as const,
-        deviceScaleFactor: scale,
-        margin: { top: "10mm", right: "10mm", bottom: "12mm", left: "10mm" },
-        orientation,
-        ...(zoom ? { zoom } : {}),
-      }
-
-      console.log("[v0] Gerando PDF com payload:", {
-        orientation,
-        scale,
-        zoom,
-        htmlLength: htmlContent.length,
-      })
-
-      const resp = await fetch("/api/make-pdf", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      })
-
-      if (!resp.ok) {
-        const errorText = await resp.text()
-        console.error("[v0] Erro ao gerar PDF:", errorText)
-        throw new Error(`Falha ao gerar PDF no servidor: ${resp.status} ${resp.statusText}`)
-      }
-
-      const blob = await resp.blob()
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement("a")
-      link.href = url
-      link.download = "relatorio-pgdasd.pdf"
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      URL.revokeObjectURL(url)
-
-      console.log("[v0] PDF gerado com sucesso")
-      toast({ title: "PDF gerado (servidor)", description: "Download iniciado com sucesso." })
-    } catch (e: any) {
-      console.error("[v0] Erro ao baixar PDF:", e)
-      setError(e?.message || "Erro ao baixar PDF do servidor")
-      toast({
-        title: "Erro ao gerar PDF (servidor)",
-        description: e?.message || "Falha ao gerar PDF no servidor",
-        variant: "destructive",
-      })
-    } finally {
-      setDownloadingServerPdf(false)
-    }
-  }
+  // Fluxo de PDF via servidor removido
 
   const generateImage = async () => {
     if (!contentRef.current || !data) return
@@ -366,95 +248,7 @@ export function PGDASDProcessorIA() {
     }
   }
 
-  const downloadScreenshotPdf = async () => {
-    if (!contentRef.current || !data) return
-    // Variáveis compartilhadas entre try/finally
-    let controlsEls: HTMLElement[] = []
-    let prevControlsDisplay: string[] = []
-    try {
-      setDownloadingScreenshotPdf(true)
-      const node = contentRef.current as HTMLElement
-
-      // Oculta temporariamente elementos marcados para esconder no PDF do cliente
-      controlsEls = Array.from(node.querySelectorAll("[data-hide-for-client-pdf]")) as HTMLElement[]
-      prevControlsDisplay = controlsEls.map((el) => el.style.display)
-      controlsEls.forEach((el) => (el.style.display = "none"))
-
-      // Captura a tela como PNG
-      const dataUrl = await toPng(node, {
-        cacheBust: true,
-        pixelRatio: clientPixelRatio,
-        backgroundColor: darkMode ? "#0f172a" : "#ffffff",
-      })
-
-      // Obter dimensões naturais da imagem capturada
-      // Não usar zoom: dimensionamos a imagem em mm para preencher a página A4 landscape
-
-      // Constrói um HTML mínimo com a imagem ocupando toda a largura da página
-      const base = window.location.origin
-      const pageWmm = pdfOrientation === "landscape" ? 297 : 210
-      const pageHmm = pdfOrientation === "landscape" ? 210 : 297
-      const fit = pdfFitMode === "single_cover" ? "cover" : "contain"
-      const html = `<!doctype html><html><head><base href="${base}" />
-        <style>
-          html, body { margin: 0; padding: 0; }
-          /* Garantir que a imagem caiba em uma página A4 conforme orientação */
-          @media print {
-            /* Preencher página A4 sem margens */
-            html, body { width: ${pageWmm}mm; height: ${pageHmm}mm; }
-            img { width: ${pageWmm}mm; height: ${pageHmm}mm; object-fit: ${fit}; object-position: center top; display: block; }
-          }
-        </style>
-      </head><body>
-        <img src="${dataUrl}" alt="Dashboard" />
-      </body></html>`
-
-      const payload = {
-        html,
-        base,
-        fileName: `dashboard-print-${new Date().toISOString().split("T")[0]}.pdf`,
-        format: "A4" as const,
-        deviceScaleFactor: 3,
-        margin: { top: "0mm", right: "0mm", bottom: "0mm", left: "0mm" },
-        orientation: pdfOrientation,
-      }
-
-      const resp = await fetch("/api/make-pdf", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      })
-
-      if (!resp.ok) {
-        throw new Error(`Falha ao gerar PDF do print: ${resp.status} ${resp.statusText}`)
-      }
-
-      const blob = await resp.blob()
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement("a")
-      link.href = url
-      link.download = payload.fileName
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      URL.revokeObjectURL(url)
-      toast({ title: "PDF gerado (print)", description: "Download iniciado com sucesso." })
-    } catch (err: any) {
-      console.error("Erro ao gerar PDF (print):", err)
-      setError(err?.message || "Erro ao gerar PDF do print. Tente novamente.")
-      toast({
-        title: "Erro ao gerar PDF (print)",
-        description: err?.message || "Falha ao gerar PDF do print",
-        variant: "destructive",
-      })
-    } finally {
-      // Restaura visibilidade dos controles
-      if (controlsEls.length) {
-        controlsEls.forEach((el, idx) => (el.style.display = prevControlsDisplay[idx] || ""))
-      }
-      setDownloadingScreenshotPdf(false)
-    }
-  }
+  // Fluxo de print/servidor removido
 
   const downloadClientPdf = async () => {
     if (!contentRef.current || !data) return
@@ -3041,24 +2835,9 @@ export function PGDASDProcessorIA() {
               <div className="flex w-full sm:w-auto gap-2">
                 <Button
                   type="button"
-                  onClick={() => handleServerDownloadPDF(3, undefined, "landscape", 0)}
-                  disabled={downloadingServerPdf}
-                  variant={darkMode ? "secondary" : "default"}
-                  size="lg"
-                  className={`flex-1 sm:flex-none ${darkMode ? "bg-slate-700 hover:bg-slate-600 text-slate-100 border border-slate-600" : ""} flex items-center gap-2`}
-                >
-                  {downloadingServerPdf ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                  ) : (
-                    <Download className="h-5 w-5" />
-                  )}
-                  <span>{downloadingServerPdf ? 'Gerando...' : 'Baixar PDF (servidor)'}</span>
-                </Button>
-                <Button
-                  type="button"
                   onClick={downloadClientPdf}
                   disabled={downloadingClientPdf}
-                  variant={darkMode ? 'secondary' : 'outline'}
+                  variant={darkMode ? 'secondary' : 'default'}
                   size="lg"
                   className={`flex-1 sm:flex-none ${darkMode ? 'bg-slate-700 hover:bg-slate-600 text-slate-100 border border-slate-600' : ''} flex items-center gap-2`}
                 >
@@ -3067,7 +2846,7 @@ export function PGDASDProcessorIA() {
                   ) : (
                     <Download className="h-5 w-5" />
                   )}
-                  <span>{downloadingClientPdf ? 'Gerando...' : 'Baixar PDF (fallback)'}</span>
+                  <span>{downloadingClientPdf ? 'Gerando...' : 'Baixar PDF'}</span>
                 </Button>
               </div>
             </div>
