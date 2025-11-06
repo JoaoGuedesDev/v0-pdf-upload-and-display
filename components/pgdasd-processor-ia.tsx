@@ -26,9 +26,10 @@ import {
   HelpCircle
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { PdfGenerator } from "./pdf-generator"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
   BarChart,
   Bar,
@@ -46,7 +47,7 @@ import {
   LabelList,
 } from "recharts"
 import { toPng } from "html-to-image"
-import { generateDasReportPDF } from "@/lib/pdf-generators/das-report-generator"
+ 
 
 interface DASData {
   identificacao: {
@@ -227,37 +228,89 @@ export function PGDASDProcessorIA() {
   const [data, setData] = useState<DASData | null>(null)
   const [dragActive, setDragActive] = useState(false)
   const contentRef = useRef<HTMLDivElement>(null)
-  const [generatingPDF, setGeneratingPDF] = useState(false)
   const [isGeneratingImage, setIsGeneratingImage] = useState(false)
   const [processViaN8n, setProcessViaN8n] = useState(false)
   const [showConsistencyDetails, setShowConsistencyDetails] = useState(false)
+  const [downloadingServerPdf, setDownloadingServerPdf] = useState(false)
+  
 
-  const generatePDF = async () => {
-    if (!data) return
-    setGeneratingPDF(true)
+  const handleServerDownloadPDF = async (
+    scale: number = 3,
+    maxPages?: number,
+    orientation: 'portrait' | 'landscape' = 'landscape',
+    pixelOffsetPx: number = 30
+  ) => {
     try {
-      const bytes = generateDasReportPDF({
-        identificacao: data.identificacao,
-        receitas: data.receitas,
-        tributos: data.tributos,
-        calculos: data.calculos,
-        insights: data.insights,
+      if (!contentRef.current) return
+      setDownloadingServerPdf(true)
+
+      const base = window.location.origin
+      // Coletar estilos atuais (Tailwind/Next) para preservar cores e layout
+      const headLinks = Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
+        .map((el) => el.outerHTML)
+        .join('\n')
+      const headStyles = Array.from(document.querySelectorAll('style'))
+        .map((el) => el.outerHTML)
+        .join('\n')
+      const htmlContent = `<!doctype html><html><head><base href="${base}" />\n${headLinks}\n${headStyles}</head><body>${contentRef.current.outerHTML}</body></html>`
+
+      // Função util para conversão
+      const mmToPx = (mm: number) => (mm / 25.4) * 96
+
+      // Cálculo opcional de zoom para caber em até maxPages
+      let zoom: number | undefined
+      if (maxPages && contentRef.current) {
+        const a4HeightPx = mmToPx(297)
+        const top = 10, bottom = 10
+        const printableHeight = a4HeightPx - mmToPx(top + bottom)
+        const targetHeight = printableHeight * maxPages
+        const currentHeight = contentRef.current.scrollHeight
+        const computedZoom = targetHeight / currentHeight
+        // Limitar zoom a um intervalo razoável
+        zoom = Math.max(0.6, Math.min(1, computedZoom))
+      }
+
+      // Aplicar redução global de escala por pixelOffsetPx baseado na largura imprimível
+      const pageWidthMm = orientation === 'landscape' ? 297 : 210
+      const left = 10, right = 10
+      const printableWidthPx = mmToPx(pageWidthMm) - mmToPx(left + right)
+      const offsetZoom = (printableWidthPx - Math.max(0, pixelOffsetPx)) / printableWidthPx
+      zoom = Math.max(0.6, Math.min(1, (zoom ?? 1) * offsetZoom))
+
+      const payload = {
+        html: htmlContent,
+        base,
+        fileName: 'relatorio-pgdasd.pdf',
+        format: 'A4' as const,
+        deviceScaleFactor: scale,
+        margin: { top: '10mm', right: '10mm', bottom: '10mm', left: '10mm' },
+        orientation,
+        ...(zoom ? { zoom } : {}),
+      }
+
+      const resp = await fetch('/api/make-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
       })
-      const blob = new Blob([bytes], { type: 'application/pdf' })
+
+      if (!resp.ok) {
+        throw new Error(`Falha ao gerar PDF no servidor: ${resp.status} ${resp.statusText}`)
+      }
+
+      const blob = await resp.blob()
       const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      const base = data.identificacao?.cnpj?.replace(/[^\d]/g, "") || 'documento'
-      a.download = `DAS_${base}_${new Date().toISOString().split('T')[0]}.pdf`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = 'relatorio-pgdasd.pdf'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
       URL.revokeObjectURL(url)
-    } catch (error) {
-      console.error('Erro ao gerar PDF', error)
-      setError('Erro ao gerar PDF. Tente novamente.')
+    } catch (e: any) {
+      setError(e?.message || 'Erro ao baixar PDF do servidor')
     } finally {
-      setGeneratingPDF(false)
+      setDownloadingServerPdf(false)
     }
   }
 
@@ -268,7 +321,7 @@ export function PGDASDProcessorIA() {
       const node = contentRef.current as HTMLElement
       const dataUrl = await toPng(node, {
         cacheBust: true,
-        pixelRatio: 2,
+        pixelRatio: 3,
         backgroundColor: darkMode ? '#0f172a' : '#ffffff',
       })
       const a = document.createElement('a')
@@ -1268,12 +1321,12 @@ export function PGDASDProcessorIA() {
             {/* Bloco "Operação Mista" removido conforme solicitação */}
 
             {data.graficos && (data.graficos.tributosBar || data.graficos.totalTributos) && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 print:contents">
 
                 
 
                 {(data.graficos.receitaLine || data.graficos.receitaMensal) && (
-                  <Card className={`${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border border-slate-200'} shadow-lg hover:shadow-xl transition-all duration-200 md:col-span-2`}>
+                  <Card className={`${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border border-slate-200'} shadow-lg hover:shadow-xl transition-all duration-200 md:col-span-2 print:inline-block print:w-1/3 print:align-top print:break-inside-avoid`}>
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
                       <div>
                         <CardTitle className={`text-base sm:text-lg flex items-center gap-2 ${darkMode ? 'text-white' : 'text-slate-800'}`}>
@@ -1287,7 +1340,9 @@ export function PGDASDProcessorIA() {
                       {/* Botão de exportação movido para o final do relatório */}
                     </CardHeader>
                     <CardContent>
-                      <ResponsiveContainer width="100%" height={350}>
+                      <div id="chart-receita-mensal" className="relative">
+                        <div className="h-[350px] print:h-[260px] w-full">
+                          <ResponsiveContainer width="100%" height="100%">
                         {(() => {
                           const base = (data.graficos!.receitaLine || data.graficos!.receitaMensal)!
                           const me = data.graficos!.receitaLineExterno
@@ -1495,8 +1550,10 @@ export function PGDASDProcessorIA() {
                           </LineChart>
                           )
                         })()}
-                          
-                        </ResponsiveContainer>
+                        
+                          </ResponsiveContainer>
+                        </div>
+                        </div>
                     </CardContent>
                   </Card>
                 )}
@@ -1849,9 +1906,9 @@ export function PGDASDProcessorIA() {
 
             {/* Gráficos de Pizza - Composição dos Tributos */}
             {data.graficos && (data.graficos.dasPie || data.graficos.totalTributos) && (
-              <div className="grid grid-cols-1 gap-4 sm:gap-6">
+              <div className="grid grid-cols-1 gap-4 sm:gap-6 print:contents">
                 {/* Gráfico de Pizza - Distribuição do DAS */}
-                <Card className={`${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border border-slate-200'} shadow-lg hover:shadow-xl transition-all duration-200`}>
+                <Card className={`${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border border-slate-200'} shadow-lg hover:shadow-xl transition-all duration-200 print:inline-block print:w-1/3 print:align-top print:break-inside-avoid`}>
                   <CardHeader className="flex flex-row items-center justify-between pb-2">
                     <div>
                       <CardTitle className={`text-base sm:text-lg flex items-center gap-2 ${darkMode ? 'text-white' : 'text-slate-800'}`}>
@@ -1867,7 +1924,7 @@ export function PGDASDProcessorIA() {
                   <CardContent>
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                       {/* Valores numéricos à esquerda */}
-                      <div className="space-y-3">
+                      <div className="space-y-3 print:hidden">
                         <h4 className={`font-semibold text-sm ${darkMode ? 'text-slate-200' : 'text-slate-700'} mb-4`}>
                           Valores por Tributo
                         </h4>
@@ -1934,8 +1991,9 @@ export function PGDASDProcessorIA() {
                         <h4 className={`font-semibold text-sm ${darkMode ? 'text-slate-200' : 'text-slate-700'} mb-4`}>
                           Visualização Gráfica
                         </h4>
-                        <div className="flex-1 flex items-center justify-center">
-                          <ResponsiveContainer width="100%" height={300}>
+                        <div id="chart-das-pie" className="flex-1 flex items-center justify-center">
+                          <div className="h-[300px] print:h-[260px] w-full">
+                            <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
                               <Pie
                                 data={[
@@ -1995,7 +2053,8 @@ export function PGDASDProcessorIA() {
                                 )}
                               />
                             </PieChart>
-                          </ResponsiveContainer>
+                            </ResponsiveContainer>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -2020,7 +2079,7 @@ export function PGDASDProcessorIA() {
               ]
               const total = mercadorias + servicos
               return (
-                <Card className={`${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border border-slate-200'} shadow-lg hover:shadow-xl transition-all duration-200`}>
+                <Card className={`${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border border-slate-200'} shadow-lg hover:shadow-xl transition-all duration-200 print:inline-block print:w-1/3 print:align-top print:break-inside-avoid`}>
                   <CardHeader className="flex flex-row items-center justify-between pb-2">
                     <div>
                       <CardTitle className={`text-base sm:text-lg flex items-center gap-2 ${darkMode ? 'text-white' : 'text-slate-800'}`}>
@@ -2038,7 +2097,7 @@ export function PGDASDProcessorIA() {
                   <CardContent>
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                       {/* Tabela rápida à esquerda */}
-                      <div className="space-y-3">
+                      <div className="space-y-3 print:hidden">
                         {[{ key: 'mercadorias', label: 'Mercadorias', value: mercadorias, color: ATIVIDADES_COLORS?.mercadorias || '#3b82f6' }, { key: 'servicos', label: 'Serviços', value: servicos, color: ATIVIDADES_COLORS?.servicos || '#10b981' }]
                           .filter(item => item.value > 0)
                           .map(({ key, label, value, color }) => {
@@ -2071,8 +2130,9 @@ export function PGDASDProcessorIA() {
                       {/* Gráfico de barras à direita */}
                       <div className="flex flex-col">
                         <h4 className={`font-semibold text-sm ${darkMode ? 'text-slate-200' : 'text-slate-700'} mb-4`}>Visualização Gráfica</h4>
-                        <div className="flex-1 flex items-center justify-center">
-                          <ResponsiveContainer width="100%" height={300}>
+                        <div id="chart-atividades-bar" className="flex-1 flex items-center justify-center">
+                          <div className="h-[300px] print:h-[260px] w-full">
+                            <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={chartData} margin={{ top: 20, right: 20, left: 20, bottom: 20 }}>
                               <CartesianGrid strokeDasharray="1 1" opacity={0.2} vertical={false} stroke={darkMode ? '#475569' : '#e2e8f0'} />
                               <XAxis dataKey="name" tick={{ fontSize: 12, fontWeight: 500, fill: darkMode ? '#94a3b8' : '#64748b' }} tickLine={false} axisLine={{ stroke: darkMode ? '#475569' : '#cbd5e1', strokeWidth: 1 }} />
@@ -2086,7 +2146,8 @@ export function PGDASDProcessorIA() {
                                 <LabelList dataKey={(d: any) => formatCurrency(d.value)} position="top" fill={darkMode ? '#e2e8f0' : '#1f2937'} fontSize={11} />
                               </Bar>
                             </BarChart>
-                          </ResponsiveContainer>
+                            </ResponsiveContainer>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -2215,22 +2276,6 @@ export function PGDASDProcessorIA() {
               >
                 Processar Novo PDF
               </Button>
-              {/* Botão de exportação posicionado ao final do relatório */}
-              <Button
-                type="button"
-                onClick={generatePDF}
-                disabled={generatingPDF}
-                variant={darkMode ? 'secondary' : 'default'}
-                size="lg"
-                className={`w-full sm:w-auto ${darkMode ? 'bg-slate-700 hover:bg-slate-600 text-slate-100 border border-slate-600' : ''} flex items-center gap-2`}
-              >
-                {generatingPDF ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                ) : (
-                  <FileText className="h-5 w-5" />
-                )}
-                <span>{generatingPDF ? 'Gerando...' : 'Gerar PDF do Relatório'}</span>
-              </Button>
               <Button
                 type="button"
                 onClick={generateImage}
@@ -2246,6 +2291,23 @@ export function PGDASDProcessorIA() {
                 )}
                 <span>{isGeneratingImage ? 'Gerando...' : 'Gerar Imagem (PNG)'}</span>
               </Button>
+              <div className="flex w-full sm:w-auto gap-2">
+                <Button
+                  type="button"
+                  onClick={() => handleServerDownloadPDF(4, undefined, 'portrait', 6000)}
+                  disabled={downloadingServerPdf}
+                  variant={darkMode ? 'secondary' : 'default'}
+                  size="lg"
+                  className={`flex-1 sm:flex-none ${darkMode ? 'bg-slate-700 hover:bg-slate-600 text-slate-100 border border-slate-600' : ''} flex items-center gap-2`}
+                >
+                  {downloadingServerPdf ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <Download className="h-5 w-5" />
+                  )}
+                  <span>{downloadingServerPdf ? 'Gerando...' : 'Baixar PDF'}</span>
+                </Button>
+              </div>
             </div>
           </div>
         )}

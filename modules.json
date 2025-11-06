@@ -10,7 +10,6 @@
   "generator": {
     "allowedImports": [
       "^@/components/modern-pdf-generator",
-      "^@/components/pdf-generator",
       "^@/lib/pdf-generators/",
       "^@/lib/monitoring",
       "^next/link",

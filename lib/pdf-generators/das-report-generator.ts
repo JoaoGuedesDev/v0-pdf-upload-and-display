@@ -51,6 +51,7 @@ export interface DasReportData {
     regimeTributario?: { adequado: boolean; sugestao?: string; justificativa?: string }
     dasObservacoes?: string[]
   }
+  charts?: { title?: string; dataUrl: string }[]
 }
 
 // Utilitário simples para formatar reais
@@ -166,6 +167,38 @@ export function generateDasReportPDF(data: DasReportData): Uint8Array {
       }
       doc.text(lines, 15, y)
       y += lines.length * 5 + 2
+    })
+  }
+
+  // Dashboards (imagens geradas dos gráficos)
+  if (data.charts && data.charts.length > 0) {
+    y += 8
+    sectionTitle(doc, 'Dashboards', y)
+    y += 8
+    data.charts.forEach((chart, index) => {
+      // Medidas/escala
+      const imgProps = (doc as any).getImageProperties?.(chart.dataUrl)
+      const pageWidth = doc.internal.pageSize.getWidth()
+      const maxWidth = Math.min(180, pageWidth - 30)
+      let imgWidth = maxWidth
+      let imgHeight = 100
+      if (imgProps && imgProps.width && imgProps.height) {
+        const ratio = imgProps.width / imgProps.height
+        imgHeight = Math.round((imgWidth / ratio) * 100) / 100
+      }
+
+      if (y + imgHeight > 280) {
+        doc.addPage()
+        y = 20
+      }
+      if (chart.title) {
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(11)
+        doc.text(chart.title, 15, y)
+        y += 6
+      }
+      doc.addImage(chart.dataUrl, 'PNG', 15, y, imgWidth, imgHeight)
+      y += imgHeight + 6
     })
   }
 

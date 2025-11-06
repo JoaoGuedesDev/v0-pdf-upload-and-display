@@ -12,8 +12,6 @@
 'use client';
 
 import React, { useState } from 'react';
-import { ModernPDFGenerator } from '@/components/modern-pdf-generator';
-import { DocumentData } from '@/lib/pdf-generators/modern-pdf-generator';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -31,10 +29,9 @@ import {
 
 export default function DemoPDFPage() {
   const [selectedDemo, setSelectedDemo] = useState<string>('business');
-  const [generatedBlob, setGeneratedBlob] = useState<Blob | null>(null);
 
   // Dados de demonstração
-  const demoData: Record<string, DocumentData> = {
+  const demoData: Record<string, any> = {
     business: {
       title: 'Proposta Comercial - Empresa XYZ',
       subtitle: 'Soluções Digitais Inovadoras',
@@ -194,29 +191,7 @@ export default function DemoPDFPage() {
     },
   ];
 
-  const handleBlobGenerated = (blob: Blob) => {
-    setGeneratedBlob(blob);
-  };
-
-  const handleDownloadDemo = () => {
-    if (generatedBlob) {
-      const url = URL.createObjectURL(generatedBlob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `demo-${selectedDemo}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-    }
-  };
-
-  const handlePreviewDemo = () => {
-    if (generatedBlob) {
-      const url = URL.createObjectURL(generatedBlob);
-      window.open(url, '_blank');
-    }
-  };
+  // Client-side gerador removido
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
@@ -275,28 +250,17 @@ export default function DemoPDFPage() {
             ))}
           </div>
 
-          {/* Ações rápidas */}
-          {generatedBlob && (
-            <div className="flex gap-3 mb-6">
-              <Button onClick={handleDownloadDemo} className="flex items-center space-x-2">
-                <Download className="h-4 w-4" />
-                <span>Download PDF</span>
-              </Button>
-              <Button variant="outline" onClick={handlePreviewDemo} className="flex items-center space-x-2">
-                <Eye className="h-4 w-4" />
-                <span>Visualizar</span>
-              </Button>
-            </div>
-          )}
-
+          {/* Download via servidor (mantido) */}
+          <div className="flex flex-wrap gap-3 mb-6">
+            <a
+              href="/api/make-pdf?url=/demo-pdf&fileName=relatorio-demo.pdf"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700"
+            >
+              <Download className="h-4 w-4" />
+              <span>Baixar PDF (servidor)</span>
+            </a>
+          </div>
           <Separator className="my-6" />
-
-          {/* Gerador de PDF */}
-          <ModernPDFGenerator
-            initialData={demoData[selectedDemo]}
-            onGenerated={handleBlobGenerated}
-            className="border-0 shadow-none p-0"
-          />
         </div>
 
         {/* Informações Técnicas */}

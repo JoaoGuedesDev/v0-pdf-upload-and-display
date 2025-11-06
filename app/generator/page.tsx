@@ -1,11 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import dynamic from "next/dynamic"
 import { monitor } from "@/lib/monitoring"
-
-// Carregar geradores de forma lazy para isolar responsabilidades
-const ModernPDFGeneratorComp = dynamic(() => import("@/components/modern-pdf-generator"), { ssr: false })
 
 export default function GeneratorPage() {
   return (
@@ -15,21 +11,26 @@ export default function GeneratorPage() {
         <p className="text-muted-foreground">Página dedicada à geração de PDFs (demonstração).</p>
       </header>
 
-      <div className="rounded-lg border p-6">
-        <p className="mb-4">Use a página de demonstração para visualizar a geração:</p>
-        <Link
-          className="underline text-primary"
-          href="/demo-pdf"
-          onClick={() => monitor.log({ module: 'generator', action: 'open_demo', at: new Date().toISOString() })}
-        >
-          Abrir Demo PDF
-        </Link>
-      </div>
+  <div className="rounded-lg border p-6">
+    <p className="mb-4">Use a página de demonstração para visualizar a geração:</p>
+    <Link
+      className="underline text-primary"
+      href="/demo-pdf"
+      onClick={() => monitor.log({ module: 'generator', action: 'open_demo', at: new Date().toISOString() })}
+    >
+      Abrir Demo PDF
+    </Link>
+    <div className="mt-4">
+      <a
+        href="/api/make-pdf?url=/generator&fileName=relatorio-generator.pdf"
+        className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700"
+      >
+        Baixar PDF (servidor)
+      </a>
+    </div>
+  </div>
 
-      <div className="rounded-lg border p-6">
-        <p className="mb-2">Carregamento lazy do gerador moderno (isolado):</p>
-        <ModernPDFGeneratorComp />
-      </div>
+      {/* Componente de gerador removido */}
 
       <nav className="pt-4">
         <Link className="underline text-primary" href="/">Voltar ao início</Link>

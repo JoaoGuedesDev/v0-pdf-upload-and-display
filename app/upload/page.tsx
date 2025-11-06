@@ -20,6 +20,15 @@ export default function UploadPage() {
 
       <FileUpload onFileSelect={handleFileSelect} isLoading={false} />
 
+      <div className="pt-2">
+        <a
+          href="/api/make-pdf?url=/upload&fileName=relatorio-upload.pdf"
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700"
+        >
+          Baixar PDF (servidor)
+        </a>
+      </div>
+
       <nav className="pt-4">
         <Link className="underline text-primary" href="/">Voltar ao início</Link>
       </nav>
