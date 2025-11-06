@@ -1,5 +1,4 @@
 import { NextRequest } from 'next/server'
-import { chromium } from 'playwright'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -83,38 +82,80 @@ async function generatePdf(params: {
   orientation?: 'portrait' | 'landscape'
 }) {
   const { url, html, baseURL, format, deviceScaleFactor, margin, zoom, orientation = 'portrait' } = params
+  
+  const usePuppeteer = !!process.env.VERCEL
 
-  const browser = await chromium.launch()
-  // Define baseURL no contexto para suportar recursos relativos e navegação relativa
-  const context = await browser.newContext({ deviceScaleFactor, baseURL })
-  const page = await context.newPage()
+  if (usePuppeteer) {
+    const puppeteerModule = await import('puppeteer-core')
+    const chromiumModule = await import('@sparticuz/chromium')
+    const puppeteer = puppeteerModule.default
+    const chromium = chromiumModule.default
 
-  if (url) {
-    const absoluteUrl = url.startsWith('http') ? url : new URL(url, baseURL).toString()
-    await page.goto(absoluteUrl, { waitUntil: 'networkidle' })
-    const pageMarginCSS = `${margin.top} ${margin.right} ${margin.bottom} ${margin.left}`
-    await page.addStyleTag({ content: getPrintCSS(zoom, orientation, pageMarginCSS) })
-  } else if (html) {
-    const pageMarginCSS = `${margin.top} ${margin.right} ${margin.bottom} ${margin.left}`
-    const preparedHtml = /<\/head>/i.test(html)
-      ? html.replace(/<\/head>/i, `${getPrintCSS(zoom, orientation, pageMarginCSS)}\n</head>`)
-      : `${getPrintCSS(zoom, orientation, pageMarginCSS)}${html}`
-    // Em Playwright, setContent não aceita baseURL nas opções; o baseURL é dado no newContext acima
-    await page.setContent(preparedHtml, { waitUntil: 'networkidle' })
+    const browser = await puppeteer.launch({
+      args: chromium.args,
+      defaultViewport: chromium.defaultViewport,
+      executablePath: await chromium.executablePath(),
+      headless: true,
+    })
+    const page = await browser.newPage()
+
+    if (url) {
+      const absoluteUrl = url.startsWith('http') ? url : new URL(url, baseURL).toString()
+      await page.goto(absoluteUrl, { waitUntil: 'networkidle0' })
+      const pageMarginCSS = `${margin.top} ${margin.right} ${margin.bottom} ${margin.left}`
+      await page.addStyleTag({ content: getPrintCSS(zoom, orientation, pageMarginCSS) })
+    } else if (html) {
+      const pageMarginCSS = `${margin.top} ${margin.right} ${margin.bottom} ${margin.left}`
+      const preparedHtml = /<\/head>/i.test(html)
+        ? html.replace(/<\/head>/i, `${getPrintCSS(zoom, orientation, pageMarginCSS)}\n</head>`)
+        : `${getPrintCSS(zoom, orientation, pageMarginCSS)}${html}`
+      await page.setContent(preparedHtml, { waitUntil: 'networkidle0' })
+    }
+
+    await page.emulateMediaType('print')
+
+    const pdfBuffer = await page.pdf({
+      format,
+      printBackground: true,
+      margin,
+      preferCSSPageSize: true,
+      landscape: orientation === 'landscape',
+    })
+
+    await browser.close()
+    return pdfBuffer
+  } else {
+    const { chromium } = await import('playwright')
+    const browser = await chromium.launch()
+    const context = await browser.newContext({ deviceScaleFactor, baseURL })
+    const page = await context.newPage()
+
+    if (url) {
+      const absoluteUrl = url.startsWith('http') ? url : new URL(url, baseURL).toString()
+      await page.goto(absoluteUrl, { waitUntil: 'networkidle' })
+      const pageMarginCSS = `${margin.top} ${margin.right} ${margin.bottom} ${margin.left}`
+      await page.addStyleTag({ content: getPrintCSS(zoom, orientation, pageMarginCSS) })
+    } else if (html) {
+      const pageMarginCSS = `${margin.top} ${margin.right} ${margin.bottom} ${margin.left}`
+      const preparedHtml = /<\/head>/i.test(html)
+        ? html.replace(/<\/head>/i, `${getPrintCSS(zoom, orientation, pageMarginCSS)}\n</head>`)
+        : `${getPrintCSS(zoom, orientation, pageMarginCSS)}${html}`
+      await page.setContent(preparedHtml, { waitUntil: 'networkidle' })
+    }
+
+    await page.emulateMedia({ media: 'print' })
+
+    const pdfBuffer = await page.pdf({
+      format,
+      printBackground: true,
+      margin,
+      preferCSSPageSize: true,
+      landscape: orientation === 'landscape',
+    })
+
+    await browser.close()
+    return pdfBuffer
   }
-
-  await page.emulateMedia({ media: 'print' })
-
-  const pdfBuffer = await page.pdf({
-    format,
-    printBackground: true,
-    margin,
-    preferCSSPageSize: true,
-    landscape: orientation === 'landscape',
-  })
-
-  await browser.close()
-  return pdfBuffer
 }
 
 export async function POST(req: NextRequest) {

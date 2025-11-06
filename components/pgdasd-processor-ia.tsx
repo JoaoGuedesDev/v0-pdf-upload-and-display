@@ -47,7 +47,6 @@ import {
   LabelList,
 } from "recharts"
 import { toPng } from "html-to-image"
-import html2canvas from 'html2canvas'
 import { jsPDF } from 'jspdf'
  
 
@@ -1020,7 +1019,7 @@ export function PGDASDProcessorIA() {
                     )}
                   </Button>
                 )}
-                {/* Opção n8n removida a pedido */}
+                {/* Toggle n8n removido */}
               </div>
 
               {error && (

@@ -25,7 +25,10 @@ function buildAuthHeader(): Record<string, string> {
 export async function POST(request: NextRequest) {
   try {
     const via = request.nextUrl.searchParams.get("via") || ""
-  const useN8N = via.toLowerCase() === "n8n" && !!N8N_WEBHOOK_URL
+    const hasN8N = !!N8N_WEBHOOK_URL
+    // Encaminha ao n8n por padrão quando configurado, exceto se via=local|direct
+    const viaParam = via.toLowerCase()
+    const useN8N = hasN8N ? (viaParam !== "local" && viaParam !== "direct") : (viaParam === "n8n" && hasN8N)
     const contentType = request.headers.get("content-type") || ""
 
     // Caso 1: multipart/form-data com arquivo PDF
