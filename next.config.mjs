@@ -1,5 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  experimental: {
+    // Garante que módulos nativos/externos sejam incluídos no bundle do servidor
+    serverComponentsExternalPackages: ['puppeteer-core', '@sparticuz/chromium'],
+  },
   typescript: {
     ignoreBuildErrors: true,
   },

@@ -99,9 +99,11 @@ async function generatePdf(params: {
     })
     const page = await browser.newPage()
 
+    await page.setViewport({ width: 1280, height: 800, deviceScaleFactor })
+
     if (url) {
       const absoluteUrl = url.startsWith('http') ? url : new URL(url, baseURL).toString()
-      await page.goto(absoluteUrl, { waitUntil: 'networkidle0' })
+      await page.goto(absoluteUrl, { waitUntil: 'domcontentloaded', timeout: 60000 })
       const pageMarginCSS = `${margin.top} ${margin.right} ${margin.bottom} ${margin.left}`
       await page.addStyleTag({ content: getPrintCSS(zoom, orientation, pageMarginCSS) })
     } else if (html) {
@@ -109,7 +111,7 @@ async function generatePdf(params: {
       const preparedHtml = /<\/head>/i.test(html)
         ? html.replace(/<\/head>/i, `${getPrintCSS(zoom, orientation, pageMarginCSS)}\n</head>`)
         : `${getPrintCSS(zoom, orientation, pageMarginCSS)}${html}`
-      await page.setContent(preparedHtml, { waitUntil: 'networkidle0' })
+      await page.setContent(preparedHtml, { waitUntil: 'domcontentloaded', timeout: 60000 })
     }
 
     await page.emulateMediaType('print')
