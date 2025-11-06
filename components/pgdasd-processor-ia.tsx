@@ -1,7 +1,8 @@
 "use client"
 
 import type React from "react"
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
+import { useTheme } from 'next-themes'
 import {
   Upload,
   FileText,
@@ -44,6 +45,9 @@ import {
   Cell,
   LabelList,
 } from "recharts"
+import { toPng } from "html-to-image"
+import jsPDF from "jspdf"
+import html2canvas from "html2canvas"
 
 interface DASData {
   identificacao: {
@@ -225,6 +229,7 @@ export function PGDASDProcessorIA() {
   const [dragActive, setDragActive] = useState(false)
   const contentRef = useRef<HTMLDivElement>(null)
   const [generatingPDF, setGeneratingPDF] = useState(false)
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false)
   const [processViaN8n, setProcessViaN8n] = useState(false)
   const [showConsistencyDetails, setShowConsistencyDetails] = useState(false)
 
@@ -234,9 +239,6 @@ export function PGDASDProcessorIA() {
     setGeneratingPDF(true)
 
     try {
-      const html2canvas = (await import("html2canvas")).default
-      const jsPDF = (await import("jspdf")).default
-
       const element = contentRef.current
 
       const clone = element.cloneNode(true) as HTMLElement
@@ -248,7 +250,21 @@ export function PGDASDProcessorIA() {
       // Aguardar o navegador computar os estilos
       await new Promise((resolve) => setTimeout(resolve, 100))
 
-      // Percorrer todos os elementos e aplicar estilos computados como inline
+      // Utilitário: normalizar cores CSS modernas (lab/oklch/lch/color()) para RGB
+      const normalizeCssColor = (value: string): string => {
+        if (!value) return value
+        const lower = value.toLowerCase()
+        const hasModernFn = lower.includes('lab(') || lower.includes('oklch(') || lower.includes('lch(') || lower.includes('color(')
+        if (!hasModernFn) return value
+        const tmp = document.createElement('span')
+        tmp.style.color = value
+        document.body.appendChild(tmp)
+        const resolved = getComputedStyle(tmp).color || value
+        document.body.removeChild(tmp)
+        return resolved
+      }
+
+      // Percorrer todos os elementos e aplicar estilos computados como inline (sanitizando cores)
       const applyComputedStyles = (el: HTMLElement) => {
         const computed = window.getComputedStyle(el)
 
@@ -264,11 +280,77 @@ export function PGDASDProcessorIA() {
         ]
 
         colorProps.forEach((prop) => {
-          const value = computed.getPropertyValue(prop)
-          if (value && value !== "rgba(0, 0, 0, 0)" && value !== "transparent") {
-            el.style.setProperty(prop, value, "important")
-          }
+          let value = computed.getPropertyValue(prop)
+          if (!value) return
+          if (value === "rgba(0, 0, 0, 0)" || value === "transparent") return
+          value = normalizeCssColor(value)
+          el.style.setProperty(prop, value, "important")
         })
+
+        // Neutralizar SOMENTE quando houver funções de cor modernas ou gradientes problemáticos
+        try {
+          const bgImage = computed.getPropertyValue('background-image')
+          const hasModernBgImage = bgImage && (bgImage.toLowerCase().includes('lab(') || bgImage.toLowerCase().includes('oklch(') || bgImage.toLowerCase().includes('lch(') || bgImage.toLowerCase().includes('color('))
+          const isGradient = bgImage && bgImage.toLowerCase().includes('gradient')
+          if (hasModernBgImage || isGradient) {
+            el.style.setProperty('background-image', 'none', 'important')
+            let bgColor = computed.getPropertyValue('background-color')
+            if (!bgColor || bgColor === 'transparent' || bgColor === 'rgba(0, 0, 0, 0)') {
+              bgColor = darkMode ? '#0f172a' : '#ffffff'
+            } else {
+              bgColor = normalizeCssColor(bgColor)
+            }
+            el.style.setProperty('background-color', bgColor, 'important')
+          }
+
+          const bg = computed.getPropertyValue('background')
+          if (bg && (bg.toLowerCase().includes('lab(') || bg.toLowerCase().includes('oklch(') || bg.toLowerCase().includes('lch(') || bg.toLowerCase().includes('color('))) {
+            const bgColor = normalizeCssColor(computed.getPropertyValue('background-color')) || (darkMode ? '#0f172a' : '#ffffff')
+            el.style.setProperty('background', bgColor, 'important')
+          }
+
+          // Sombras
+          const bs = computed.getPropertyValue('box-shadow')
+          if (bs && (bs.toLowerCase().includes('lab(') || bs.toLowerCase().includes('oklch(') || bs.toLowerCase().includes('lch(') || bs.toLowerCase().includes('color('))) {
+            el.style.setProperty('box-shadow', 'none', 'important')
+          }
+          const ts = computed.getPropertyValue('text-shadow')
+          if (ts && (ts.toLowerCase().includes('lab(') || ts.toLowerCase().includes('oklch(') || ts.toLowerCase().includes('lch(') || ts.toLowerCase().includes('color('))) {
+            el.style.setProperty('text-shadow', 'none', 'important')
+          }
+        } catch {}
+
+        // Sanitizar quaisquer outras propriedades com funções de cor modernas
+        for (let i = 0; i < (computed as any).length; i++) {
+          const propName = (computed as any)[i] as string
+          const rawVal = computed.getPropertyValue(propName)
+          if (!rawVal) continue
+          const lower = rawVal.toLowerCase()
+          if (lower.includes('lab(') || lower.includes('oklch(') || lower.includes('lch(') || lower.includes('color(')) {
+            const normalized = normalizeCssColor(rawVal)
+            if (normalized && normalized !== rawVal) {
+              try {
+                el.style.setProperty(propName, normalized, 'important')
+              } catch {}
+            }
+          }
+        }
+
+        // Sanitizar atributos SVG com cores modernas
+        if (el instanceof SVGElement) {
+          const attrs = ['stroke', 'fill', 'stop-color', 'color']
+          attrs.forEach((attr) => {
+            const val = el.getAttribute(attr)
+            if (!val) return
+            const lower = val.toLowerCase()
+            if (lower.includes('lab(') || lower.includes('oklch(') || lower.includes('lch(') || lower.includes('color(')) {
+              const normalized = normalizeCssColor(val)
+              if (normalized && normalized !== val) {
+                try { el.setAttribute(attr, normalized) } catch {}
+              }
+            }
+          })
+        }
 
         // Processar filhos recursivamente
         Array.from(el.children).forEach((child) => {
@@ -280,14 +362,56 @@ export function PGDASDProcessorIA() {
 
       applyComputedStyles(clone)
 
+      // Fixar largura e layout do clone para evitar reflow durante a captura
+      try {
+        clone.style.width = '1200px'
+        clone.style.boxSizing = 'border-box'
+        clone.style.margin = '0 auto'
+        clone.style.padding = '24px'
+        clone.style.background = '#ffffff'
+        clone.style.overflow = 'visible'
+      } catch {}
+
       // Gerar PDF a partir do clone
       const canvas = await html2canvas(clone, {
-        scale: 3.125,
+        scale: 2.0,
         useCORS: true,
+        allowTaint: true,
+        foreignObjectRendering: true,
         logging: false,
-        backgroundColor: "#ffffff",
+        backgroundColor: darkMode ? '#0f172a' : '#ffffff',
         width: clone.scrollWidth,
         height: clone.scrollHeight,
+        scrollX: 0,
+        scrollY: 0,
+        imageTimeout: 2000,
+        ignoreElements: (el) => el.tagName === 'SCRIPT' || el.tagName === 'STYLE',
+        onclone: (clonedDoc) => {
+          const style = clonedDoc.createElement('style')
+          style.textContent = `
+            /* Evitar filtros que possam usar funções de cor modernas sem perder conteúdo */
+            * { filter: none !important; text-shadow: none !important; box-shadow: none !important; }
+            svg * { filter: none !important; }
+
+            /* Garantir visibilidade: cards com gradiente recebem fundo escuro e texto branco */
+            [class*="bg-gradient"] { background-image: none !important; background-color: ${darkMode ? '#0f172a' : '#1e293b'} !important; color: #ffffff !important; }
+
+            /* Forçar cores seguras na área do relatório */
+            #relatorio-pgdasd, #relatorio-pgdasd * {
+              opacity: 1 !important;
+              mix-blend-mode: normal !important;
+              color-adjust: exact !important;
+              -webkit-print-color-adjust: exact !important;
+            }
+            #relatorio-pgdasd { background: none !important; background-color: ${darkMode ? '#0f172a' : '#ffffff'} !important; }
+            #relatorio-pgdasd .card, #relatorio-pgdasd [class*="Card"], #relatorio-pgdasd [class*="card"] {
+              background-color: ${darkMode ? '#0f172a' : '#ffffff'} !important;
+              color: ${darkMode ? '#f8fafc' : '#0f172a'} !important;
+              border-color: ${darkMode ? '#334155' : '#e2e8f0'} !important;
+            }
+          `
+          clonedDoc.head.appendChild(style)
+        }
       })
 
       // Remover clone
@@ -306,29 +430,31 @@ export function PGDASDProcessorIA() {
       let heightLeft = imgHeight
       let position = 10
 
-      // Adicionar marca d'água
+      // Adicionar marca d'água somente no tema claro
       const logoUrl =
         "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/integra%20oficial--Z07XEJjpSekUh1Wy1mRTb98rnuPQAq.png"
 
-      try {
-        const logoImg = new Image()
-        logoImg.crossOrigin = "anonymous"
-        logoImg.src = logoUrl
+      if (!darkMode) {
+        try {
+          const logoImg = new Image()
+          logoImg.crossOrigin = "anonymous"
+          logoImg.src = logoUrl
 
-        await new Promise((resolve, reject) => {
-          logoImg.onload = resolve
-          logoImg.onerror = reject
-        })
+          await new Promise((resolve, reject) => {
+            logoImg.onload = resolve
+            logoImg.onerror = reject
+          })
 
-        const logoWidth = 100
-        const logoHeight = 35
-        const logoX = (pdfWidth - logoWidth) / 2
-        const logoY = (pdfHeight - logoHeight) / 2
+          const logoWidth = 100
+          const logoHeight = 35
+          const logoX = (pdfWidth - logoWidth) / 2
+          const logoY = (pdfHeight - logoHeight) / 2
 
-        pdf.setGState(new (pdf as any).GState({ opacity: 0.08 }))
-        pdf.addImage(logoImg, "PNG", logoX, logoY, logoWidth, logoHeight)
-        pdf.setGState(new (pdf as any).GState({ opacity: 1 }))
-      } catch (logoError) {
+          pdf.setGState(new (pdf as any).GState({ opacity: 0.08 }))
+          pdf.addImage(logoImg, "PNG", logoX, logoY, logoWidth, logoHeight)
+          pdf.setGState(new (pdf as any).GState({ opacity: 1 }))
+        } catch (logoError) {
+        }
       }
 
       // Adicionar imagem em múltiplas páginas se necessário
@@ -339,22 +465,24 @@ export function PGDASDProcessorIA() {
         position = heightLeft - imgHeight + 10
         pdf.addPage()
 
-        // Adicionar marca d'água em cada página
-        try {
-          const logoImg = new Image()
-          logoImg.crossOrigin = "anonymous"
-          logoImg.src = logoUrl
-          await new Promise((resolve) => {
-            logoImg.onload = resolve
-          })
-          const logoWidth = 100
-          const logoHeight = 35
-          const logoX = (pdfWidth - logoWidth) / 2
-          const logoY = (pdfHeight - logoHeight) / 2
-          pdf.setGState(new (pdf as any).GState({ opacity: 0.08 }))
-          pdf.addImage(logoImg, "PNG", logoX, logoY, logoWidth, logoHeight)
-          pdf.setGState(new (pdf as any).GState({ opacity: 1 }))
-        } catch {}
+        // Adicionar marca d'água em cada página somente no tema claro
+        if (!darkMode) {
+          try {
+            const logoImg = new Image()
+            logoImg.crossOrigin = "anonymous"
+            logoImg.src = logoUrl
+            await new Promise((resolve) => {
+              logoImg.onload = resolve
+            })
+            const logoWidth = 100
+            const logoHeight = 35
+            const logoX = (pdfWidth - logoWidth) / 2
+            const logoY = (pdfHeight - logoHeight) / 2
+            pdf.setGState(new (pdf as any).GState({ opacity: 0.08 }))
+            pdf.addImage(logoImg, "PNG", logoX, logoY, logoWidth, logoHeight)
+            pdf.setGState(new (pdf as any).GState({ opacity: 1 }))
+          } catch {}
+        }
 
         pdf.addImage(imgData, "PNG", 10, position, imgWidth, imgHeight)
         heightLeft -= pageHeight
@@ -363,9 +491,32 @@ export function PGDASDProcessorIA() {
       const fileName = `DAS_${data.identificacao.cnpj.replace(/[^\d]/g, "")}_${new Date().toISOString().split("T")[0]}.pdf`
       pdf.save(fileName)
     } catch (error) {
+      console.error('Erro ao gerar PDF', error)
       setError("Erro ao gerar PDF. Tente novamente.")
     } finally {
       setGeneratingPDF(false)
+    }
+  }
+
+  const generateImage = async () => {
+    if (!contentRef.current || !data) return
+    try {
+      setIsGeneratingImage(true)
+      const node = contentRef.current as HTMLElement
+      const dataUrl = await toPng(node, {
+        cacheBust: true,
+        pixelRatio: 2,
+        backgroundColor: darkMode ? '#0f172a' : '#ffffff',
+      })
+      const a = document.createElement('a')
+      a.href = dataUrl
+      a.download = `DAS_${data.identificacao.cnpj.replace(/[^\d]/g, '')}_${new Date().toISOString().split('T')[0]}.png`
+      a.click()
+    } catch (err) {
+      console.error('Erro ao gerar imagem', err)
+      setError('Erro ao gerar imagem. Tente novamente.')
+    } finally {
+      setIsGeneratingImage(false)
     }
   }
 
@@ -786,9 +937,15 @@ export function PGDASDProcessorIA() {
   }
 
   const [darkMode, setDarkMode] = useState(false)
+  const { theme, setTheme } = useTheme()
+  useEffect(() => {
+    setDarkMode(theme === 'dark')
+  }, [theme])
 
   const toggleDarkMode = () => {
-    setDarkMode(!darkMode)
+    const next = !darkMode
+    setDarkMode(next)
+    setTheme(next ? 'dark' : 'light')
   }
 
   return (
@@ -828,7 +985,7 @@ export function PGDASDProcessorIA() {
                 onDrop={handleDrop}
               >
                 <Upload
-                  className={`h-12 w-12 sm:h-16 sm:w-16 mb-4 ${dragActive ? "text-blue-500" : darkMode ? "text-slate-300" : "text-slate-400"}`}
+                  className={`h-12 w-12 sm:h-16 sm:w-16 mb-4 ${dragActive ? (darkMode ? 'text-blue-300' : 'text-blue-600') : darkMode ? 'text-slate-300' : 'text-slate-400'}`}
                 />
                 <h3 className={`text-lg sm:text-xl font-semibold mb-2 text-center break-words max-w-full ${darkMode ? 'text-white' : 'text-slate-800'}`}>
                   {file ? file.name : "Arraste seu PDF aqui"}
@@ -874,19 +1031,20 @@ export function PGDASDProcessorIA() {
         {data && (
           <div 
             id="relatorio-pgdasd" 
-            className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 relative"
+            ref={contentRef}
+            className="space-y-4 sm:space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 relative"
             style={{
-              backgroundImage: 'url(/integra-watermark.svg)',
-              backgroundRepeat: 'repeat',
-              backgroundSize: '300px 90px',
-              backgroundPosition: 'center',
-              backgroundAttachment: 'fixed'
+              backgroundImage: darkMode ? 'none' : 'url(/integra-watermark.svg)',
+              backgroundRepeat: darkMode ? 'initial' : 'repeat',
+              backgroundSize: darkMode ? 'initial' : '300px 90px',
+              backgroundPosition: darkMode ? 'initial' : 'center',
+              backgroundAttachment: darkMode ? 'initial' : 'fixed'
             }}
           >
 
             
 
-            <Card className="bg-gradient-to-br from-slate-900 to-slate-800 text-white border-0 shadow-xl">
+            <Card className="bg-gradient-to-br from-slate-900 to-slate-800 text-white border-0 shadow-xl py-4">
               <CardHeader>
                 <div className="flex items-center gap-2">
                   <FileText className="h-5 w-5" />
@@ -911,12 +1069,12 @@ export function PGDASDProcessorIA() {
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
               {/* Receita Bruta PA - Azul escuro */}
-              <Card className="bg-gradient-to-br from-slate-700 to-slate-800 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200">
-                <CardHeader className="pb-2 p-4 sm:p-6 flex flex-row items-center justify-between space-y-0">
+              <Card className="bg-gradient-to-br from-slate-700 to-slate-800 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200 py-4">
+                <CardHeader className="pb-2 p-3 sm:p-5 flex flex-row items-center justify-between space-y-0">
                   <CardTitle className="text-xs sm:text-sm font-bold">Receita Bruta PA</CardTitle>
                   <DollarSign className="h-4 w-4" />
                 </CardHeader>
-                <CardContent className="p-4 sm:p-6 pt-0">
+                <CardContent className="p-3 sm:p-5 pt-0">
                   <p className="text-lg sm:text-2xl font-bold break-words">{formatCurrency(data.receitas.receitaPA)}</p>
                   <p className="text-[10px] sm:text-xs opacity-75 mt-1 flex items-center gap-1">
                     <Clock className="h-3 w-3" /> Período de apuração
@@ -1028,24 +1186,24 @@ export function PGDASDProcessorIA() {
               </Card>
 
               {/* Margem Líquida - Roxo */}
-              <Card className="bg-gradient-to-br from-purple-600 to-purple-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200">
-                <CardHeader className="pb-2 p-4 sm:p-6">
+              <Card className="bg-gradient-to-br from-purple-600 to-purple-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200 py-4">
+                <CardHeader className="pb-2 p-3 sm:p-5">
                   <CardTitle className="text-xs sm:text-sm font-bold">Margem Líquida</CardTitle>
                 </CardHeader>
-                <CardContent className="p-4 sm:p-6 pt-0">
+                <CardContent className="p-3 sm:p-5 pt-0">
                   <p className="text-lg sm:text-2xl font-bold font-sans">{(data.calculos?.margemLiquida || data.calculos?.margemLiquidaPercent || 0).toFixed(3)}%</p>
                   <p className="text-[10px] sm:text-xs opacity-75 mt-1">Receita após impostos</p>
                 </CardContent>
               </Card>
             </div>
 
-            <Card className="shadow-lg">
+            <Card className={`${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border border-slate-200 text-slate-800'} shadow-lg`}>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-                  <DollarSign className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-600" />
+                <CardTitle className={`flex items-center gap-2 text-base sm:text-lg ${darkMode ? 'text-white' : ''}`}>
+                  <DollarSign className={`h-4 w-4 sm:h-5 sm:w-5 ${darkMode ? 'text-emerald-400' : 'text-emerald-600'}`} />
                   Discriminativo de Receitas
                 </CardTitle>
-                <CardDescription className="text-xs sm:text-sm">
+                <CardDescription className={`text-xs sm:text-sm ${darkMode ? 'text-slate-300' : ''}`}>
                   Detalhamento completo das receitas conforme PGDASD
                 </CardDescription>
               </CardHeader>
@@ -1091,11 +1249,11 @@ export function PGDASDProcessorIA() {
                   <div className="inline-block min-w-full align-middle">
                     <table className="w-full text-xs sm:text-sm">
                       <thead>
-                        <tr className="border-b-2 border-slate-200">
-                          <th className="text-left py-2 sm:py-3 px-2 sm:px-4 font-semibold text-slate-700">
+                        <tr className={`${darkMode ? 'border-b-2 border-slate-700' : 'border-b-2 border-slate-200'}`}>
+                          <th className={`text-left py-2 sm:py-3 px-2 sm:px-4 font-semibold ${darkMode ? 'text-slate-200' : 'text-slate-700'}`}>
                             Local de Receitas (R$)
                           </th>
-                          <th className="text-right py-2 sm:py-3 px-2 sm:px-4 font-semibold text-slate-700">
+                          <th className={`text-right py-2 sm:py-3 px-2 sm:px-4 font-semibold ${darkMode ? 'text-slate-200' : 'text-slate-700'}`}>
                             Mercado Interno
                           </th>
                           {/* Exibir coluna Mercado Externo apenas se houver valores */}
@@ -1103,17 +1261,17 @@ export function PGDASDProcessorIA() {
                             || ((data as any).__rows?.rbt12.me || 0) > 0
                             || ((data as any).__rows?.rba.me || 0) > 0
                             || ((data as any).__rows?.rbaa.me || 0) > 0) && (
-                            <th className="text-right py-2 sm:py-3 px-2 sm:px-4 font-semibold text-slate-700">
+                            <th className={`text-right py-2 sm:py-3 px-2 sm:px-4 font-semibold ${darkMode ? 'text-slate-200' : 'text-slate-700'}`}>
                               Mercado Externo
                             </th>
                           )}
-                          <th className="text-right py-2 sm:py-3 px-2 sm:px-4 font-semibold text-slate-700 bg-slate-50">
+                          <th className={`text-right py-2 sm:py-3 px-2 sm:px-4 font-semibold ${darkMode ? 'text-slate-200 bg-slate-800' : 'text-slate-700 bg-slate-50'}`}>
                             Total
                           </th>
                         </tr>
                       </thead>
                       <tbody>
-                        <tr className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                        <tr className={`${darkMode ? 'border-b border-slate-700 hover:bg-slate-800' : 'border-b border-slate-100 hover:bg-slate-50'} transition-colors`}>
                           <td className="py-2 sm:py-3 px-2 sm:px-4 font-medium">
                             Receita Bruta do PA (RPA) - Competência
                           </td>
@@ -1125,11 +1283,11 @@ export function PGDASDProcessorIA() {
                               {formatCurrency(((data as any).__rows?.rpa.me) || 0)}
                             </td>
                           )}
-                          <td className="text-right py-2 sm:py-3 px-2 sm:px-4 bg-slate-50 font-semibold whitespace-nowrap">
+                          <td className={`text-right py-2 sm:py-3 px-2 sm:px-4 font-semibold whitespace-nowrap ${darkMode ? 'bg-slate-800 text-slate-200' : 'bg-slate-50 text-slate-800'}`}>
                             {formatCurrency(((data as any).__rows?.rpa.total) || 0)}
                           </td>
                         </tr>
-                        <tr className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                        <tr className={`${darkMode ? 'border-b border-slate-700 hover:bg-slate-800' : 'border-b border-slate-100 hover:bg-slate-50'} transition-colors`}>
                           <td className="py-2 sm:py-3 px-2 sm:px-4 font-medium">
                             Receita bruta acumulada nos doze meses anteriores ao PA (RBT12)
                           </td>
@@ -1141,24 +1299,24 @@ export function PGDASDProcessorIA() {
                               {formatCurrency(((data as any).__rows?.rbt12.me) || 0)}
                             </td>
                           )}
-                          <td className="text-right py-2 sm:py-3 px-2 sm:px-4 bg-slate-50 font-semibold whitespace-nowrap">
+                          <td className={`text-right py-2 sm:py-3 px-2 sm:px-4 font-semibold whitespace-nowrap ${darkMode ? 'bg-slate-800 text-slate-200' : 'bg-slate-50 text-slate-800'}`}>
                             {formatCurrency(((data as any).__rows?.rbt12.total) || 0)}
                           </td>
                         </tr>
-                        <tr className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                        <tr className={`${darkMode ? 'border-b border-slate-700 hover:bg-slate-800' : 'border-b border-slate-100 hover:bg-slate-50'} transition-colors`}>
                           <td className="py-2 sm:py-3 px-2 sm:px-4 font-medium">
                             Receita bruta acumulada nos doze meses anteriores ao PA proporcionalizada (RBT12p)
                           </td>
-                          <td className="text-right py-2 sm:py-3 px-2 sm:px-4 text-slate-400">-</td>
+                          <td className={`text-right py-2 sm:py-3 px-2 sm:px-4 ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>-</td>
                           {(((data.receitas.mercadoExterno?.rpa || 0) > 0)
                             || ((data.receitas.mercadoExterno?.rbt12 || 0) > 0)
                             || ((data.receitas.mercadoExterno?.rba || 0) > 0)
                             || ((data.receitas.mercadoExterno?.rbaa || 0) > 0)) && (
-                            <td className="text-right py-2 sm:py-3 px-2 sm:px-4 text-slate-400">-</td>
+                            <td className={`text-right py-2 sm:py-3 px-2 sm:px-4 ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>-</td>
                           )}
-                          <td className="text-right py-2 sm:py-3 px-2 sm:px-4 bg-slate-50 text-slate-400">-</td>
+                          <td className={`text-right py-2 sm:py-3 px-2 sm:px-4 ${darkMode ? 'bg-slate-800 text-slate-500' : 'bg-slate-50 text-slate-400'}`}>-</td>
                         </tr>
-                        <tr className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                        <tr className={`${darkMode ? 'border-b border-slate-700 hover:bg-slate-800' : 'border-b border-slate-100 hover:bg-slate-50'} transition-colors`}>
                           <td className="py-2 sm:py-3 px-2 sm:px-4 font-medium">
                             Receita bruta acumulada no ano-calendário corrente (RBA)
                           </td>
@@ -1170,11 +1328,11 @@ export function PGDASDProcessorIA() {
                               {formatCurrency(((data as any).__rows?.rba.me) || 0)}
                             </td>
                           )}
-                          <td className="text-right py-2 sm:py-3 px-2 sm:px-4 bg-slate-50 font-semibold whitespace-nowrap">
+                          <td className={`text-right py-2 sm:py-3 px-2 sm:px-4 font-semibold whitespace-nowrap ${darkMode ? 'bg-slate-800 text-slate-200' : 'bg-slate-50 text-slate-800'}`}>
                             {formatCurrency(((data as any).__rows?.rba.total) || 0)}
                           </td>
                         </tr>
-                        <tr className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                        <tr className={`${darkMode ? 'border-b border-slate-700 hover:bg-slate-800' : 'border-b border-slate-100 hover:bg-slate-50'} transition-colors`}>
                           <td className="py-2 sm:py-3 px-2 sm:px-4 font-medium">
                             Receita bruta acumulada no ano-calendário anterior (RBAA)
                           </td>
@@ -1186,7 +1344,7 @@ export function PGDASDProcessorIA() {
                               {formatCurrency(((data as any).__rows?.rbaa.me) || 0)}
                             </td>
                           )}
-                          <td className="text-right py-2 sm:py-3 px-2 sm:px-4 bg-slate-50 font-semibold whitespace-nowrap">
+                          <td className={`text-right py-2 sm:py-3 px-2 sm:px-4 font-semibold whitespace-nowrap ${darkMode ? 'bg-slate-800 text-slate-200' : 'bg-slate-50 text-slate-800'}`}>
                             {formatCurrency(((data as any).__rows?.rbaa.total) || 0)}
                           </td>
                         </tr>
@@ -1197,11 +1355,11 @@ export function PGDASDProcessorIA() {
 
                 <div className="mt-4 sm:mt-6 grid grid-cols-1 sm:grid-cols-4 gap-3 sm:gap-4 pt-4 border-t border-slate-200">
                   <div className="bg-blue-50 rounded-lg p-3 sm:p-4">
-                    <p className="text-xs text-blue-600 font-medium mb-1">Utilização do Limite</p>
+                <p className={`text-xs font-medium mb-1 ${darkMode ? 'text-blue-300' : 'text-blue-600'}`}>Utilização do Limite</p>
                     <p className="text-xl sm:text-2xl font-bold text-blue-900">
                       {((data.receitas.rba / (data.receitas.limite || 4800000)) * 100).toFixed(1)}%
                     </p>
-                    <p className="text-xs text-blue-600 mt-1">RBA / Limite</p>
+                <p className={`text-xs mt-1 ${darkMode ? 'text-blue-300' : 'text-blue-600'}`}>RBA / Limite</p>
                   </div>
                   <div className="bg-emerald-50 rounded-lg p-3 sm:p-4">
                     <p className="text-xs text-emerald-600 font-medium mb-1">Comparativo de Crescimento</p>
@@ -1235,7 +1393,7 @@ export function PGDASDProcessorIA() {
                   </div>
                   {/* Último mês vs média dos últimos 3 meses */}
                   <div className="bg-indigo-50 rounded-lg p-3 sm:p-4">
-                    <p className="text-xs text-indigo-600 font-medium mb-1">Último mês vs média trimestral</p>
+                <p className={`text-xs font-medium mb-1 ${darkMode ? 'text-indigo-300' : 'text-indigo-600'}`}>Último mês vs média trimestral</p>
                     <p className="text-xl sm:text-2xl font-bold text-indigo-900">
                       {(() => {
                         const serieBase = (data.graficos?.receitaLine?.values
@@ -1252,7 +1410,7 @@ export function PGDASDProcessorIA() {
                       })()}
                       %
                     </p>
-                    <p className="text-xs text-indigo-600 mt-1">Variação do último mês vs média 3 meses</p>
+                <p className={`text-xs mt-1 ${darkMode ? 'text-indigo-300' : 'text-indigo-600'}`}>Variação do último mês vs média 3 meses</p>
                   </div>
                   {/* Consistência: coeficiente de variação últimos 6 meses */}
                   <div
@@ -1363,9 +1521,7 @@ export function PGDASDProcessorIA() {
                           Evolução de Receitas - Histórico mensal simplificado
                         </CardDescription>
                       </div>
-                      <Button variant="ghost" size="sm" className={`${darkMode ? 'text-slate-400 hover:text-white hover:bg-slate-700' : 'text-slate-500 hover:text-slate-900'}`}>
-                        <Download className="h-4 w-4 mr-1" /> Exportar
-                      </Button>
+                      {/* Botão de exportação movido para o final do relatório */}
                     </CardHeader>
                     <CardContent>
                       <ResponsiveContainer width="100%" height={350}>
@@ -1419,71 +1575,68 @@ export function PGDASDProcessorIA() {
                             return !(a.x2 < b.x1 || a.x1 > b.x2 || a.y2 < b.y1 || a.y1 > b.y2)
                           }
 
-                          // Renderer customizado: seta saindo da bolinha até o texto do valor
+                          // Renderer customizado: seta pequena saindo do ponto até o texto
                           const makeArrowLabel = (strokeColor: string, textColor: string) => (props: any) => {
                             const { x, y, value, index } = props
                             const valueStr = String(value ?? "").trim()
-                            if (!valueStr || valueStr === "" || valueStr === "0,00" || valueStr === "R$ 0,00" || valueStr === "R$\u00a00,00") return null
-                            let spacing = 30
-                            const fontSize = 11
-                            let dx = index === 0 ? 12 : 0
-                            let startX = x + dx
+                            if (!valueStr || valueStr === "" || valueStr === "0,00" || valueStr === "R$ 0,00" || valueStr === "R$\u00a00,00") return <g key={index} />
+                            let spacing = 7
+                            const fontSize = 8
+                            const pointX = props?.cx ?? x
+                            // desloca o texto um pouco menos para a direita (-1px)
+                            const textShiftRight = 17
+                            let textX = pointX + textShiftRight
                             let labelY = y - spacing
                             const textW = estimateTextWidth(valueStr, fontSize)
-                            let bbox = { x1: startX - textW / 2, x2: startX + textW / 2, y1: labelY - fontSize, y2: labelY }
-                            // Evitar proximidade com a linha vertical do eixo Y (lado esquerdo)
-                            // Usa um limite mínimo aproximado do interior da área do gráfico (margem esquerda + acolchoamento)
-                            const axisLeftPadding = 56 // ~ left margin (40) + folga visual
-                            if (bbox.x1 < axisLeftPadding) {
-                              const shift = axisLeftPadding - bbox.x1 + 8
-                              startX += shift
-                              bbox = { x1: startX - textW / 2, x2: startX + textW / 2, y1: labelY - fontSize, y2: labelY }
-                            }
+                            let bbox = { x1: textX - textW / 2, x2: textX + textW / 2, y1: labelY - fontSize, y2: labelY }
+                            
                             // Se a posição acima sair do topo, inverte para baixo mantendo setas dentro da área
                             let arrowUp = true
                             const topClamp = 16
                             if (labelY < topClamp) {
                               labelY = y + spacing
                               arrowUp = false
-                              bbox = { x1: startX - textW / 2, x2: startX + textW / 2, y1: labelY - fontSize, y2: labelY }
+                              bbox = { x1: textX - textW / 2, x2: textX + textW / 2, y1: labelY - fontSize, y2: labelY }
                             }
                             let tries = 0
-                            // Elevar o rótulo em pequenos passos enquanto houver sobreposição
-                            while (placedBounds.some(b => overlaps(b, bbox)) && tries < 6) {
-                              spacing += 12
+                            const hStep = 4
+                            // Elevar o rótulo e ajustar horizontalmente enquanto houver sobreposição
+                            while (placedBounds.some(b => overlaps(b, bbox)) && tries < 10) {
+                              spacing += 7
+                              // alterna pequenos deslocamentos horizontais para espalhar rótulos próximos
+                              textX += (tries % 2 === 0 ? hStep : -hStep)
                               labelY = arrowUp ? (y - spacing) : (y + spacing)
-                              bbox = { x1: startX - textW / 2, x2: startX + textW / 2, y1: labelY - fontSize, y2: labelY }
+                              bbox = { x1: textX - textW / 2, x2: textX + textW / 2, y1: labelY - fontSize, y2: labelY }
                               tries++
                             }
-                            // Caso ainda haja colisão, aplicar leve deslocamento horizontal alternado
-                            if (placedBounds.some(b => overlaps(b, bbox))) {
-                              const h = index % 2 === 0 ? -14 : 14
-                              startX += h
-                              bbox = { x1: startX - textW / 2, x2: startX + textW / 2, y1: labelY - fontSize, y2: labelY }
-                            }
                             placedBounds.push(bbox)
-                            const endX = startX
-                            const endY = arrowUp ? (labelY + 6) : (labelY - 6)
+                            const endX = textX
+                            const endY = arrowUp ? (labelY + 1) : (labelY - 1)
                             return (
-                              <g>
-                                {/* haste da seta saindo do ponto */}
-                                <line x1={startX} y1={y} x2={endX} y2={endY} stroke={strokeColor} strokeWidth={1.5} />
-                                {/* cabeça da seta apontando para o texto */}
-                                <polyline points={arrowUp ? `${endX-5},${endY+3} ${endX},${endY} ${endX+5},${endY+3}` : `${endX-5},${endY-3} ${endX},${endY} ${endX+5},${endY-3}`} fill="none" stroke={strokeColor} strokeWidth={1.5} />
-                                {/* texto do valor acima da ponta da seta */}
-                                <text x={startX} y={labelY} dy={arrowUp ? -2 : 10} textAnchor="middle" fontSize={fontSize} fill={textColor}>{String(valueStr)}</text>
+                              <g key={index}
+                              >
+                                {/* haste da seta pequena saindo do ponto */}
+                                <line x1={pointX} y1={y} x2={endX} y2={endY} stroke={strokeColor} strokeWidth={1} />
+                                {/* cabeça da seta pequena apontando para o texto (reduzida 1px) */}
+                                <polyline points={arrowUp ? `${endX-1},${endY+1} ${endX},${endY} ${endX+1},${endY+1}` : `${endX-1},${endY-1} ${endX},${endY} ${endX+1},${endY-1}`} fill="none" stroke={strokeColor} strokeWidth={1} />
+                                {/* texto do valor próximo à ponta da seta */}
+                                <text x={textX} y={labelY} dy={arrowUp ? -1 : 6} textAnchor="middle" fontSize={fontSize} fill={textColor} style={{ pointerEvents: 'none', paintOrder: 'stroke' }}>{String(valueStr)}</text>
                               </g>
                             )
                           }
-                          // Dot condicional: não renderiza bolinha quando valor arredondado é zero
+                          // Dot condicional: sempre retorna um elemento válido para satisfazer o tipo do Recharts
                           const conditionalDot = (color: string) => (props: any) => {
                             const v = Number(props?.value || 0)
                             const vr = Math.round(v * 100) / 100
-                            const r = vr === 0 ? 0 : 3
-                            return <circle cx={props.cx} cy={props.cy} r={r} stroke="#0891b2" strokeWidth={1} fill={color} />
+                            const key = props?.index ?? `${props?.cx}-${props?.cy}-${color}`
+                            if (vr === 0) {
+                              // elemento "invisível" quando o valor é zero, evitando retorno null
+                              return <circle key={key} cx={props.cx} cy={props.cy} r={0} stroke="transparent" fill="transparent" />
+                            }
+                            return <circle key={key} cx={props.cx} cy={props.cy} r={3} stroke="#0891b2" strokeWidth={1} fill={color} />
                           }
                           return (
-                            <LineChart data={chartData} margin={{ top: 60, right: 60, left: 72, bottom: 60 }}>
+                            <LineChart data={chartData} margin={{ top: 60, right: 60, left: 72, bottom: 28 }}>
                           {/* Grid com linhas horizontais sutis */}
                           <CartesianGrid 
                             strokeDasharray="1 1" 
@@ -1558,11 +1711,22 @@ export function PGDASDProcessorIA() {
                             }}
                           />
                           <Legend />
-                          <Line yAxisId="left" type="monotone" dataKey="mi" stroke="#2563eb" strokeWidth={3} dot={conditionalDot('#06b6d4')} activeDot={{ r: 5 }} name="Mercado Interno (MI)">
-                            <LabelList dataKey="miLabel" content={makeArrowLabel('#2563eb', darkMode ? '#93c5fd' : '#1e40af')} />
+                          {/* Linhas visíveis sem LabelList para permitir rótulos sobrepostos acima */}
+                          <Line yAxisId="left" type="monotone" dataKey="mi" stroke="#2563eb" strokeWidth={3} dot={conditionalDot('#06b6d4')} activeDot={{ r: 5 }} name="Mercado Interno (MI)" />
+                          <Line yAxisId="right" type="monotone" dataKey="me" stroke="#06b6d4" strokeWidth={3.5} dot={conditionalDot('#06b6d4')} activeDot={{ r: 5 }} name="Mercado Externo (ME)" />
+
+                          {/* Camada de rótulos ao topo: Lines transparentes apenas para LabelList */}
+                          <Line yAxisId="left" type="monotone" dataKey="mi" stroke="transparent" strokeWidth={0} dot={false} activeDot={false} name="MI Labels">
+                            <LabelList
+                              dataKey="miLabel"
+                              content={makeArrowLabel(darkMode ? '#60a5fa' : '#1e40af', darkMode ? '#93c5fd' : '#1e40af')}
+                            />
                           </Line>
-                          <Line yAxisId="right" type="monotone" dataKey="me" stroke="#06b6d4" strokeWidth={3.5} dot={conditionalDot('#06b6d4')} activeDot={{ r: 5 }} name="Mercado Externo (ME)">
-                            <LabelList dataKey="meLabel" content={makeArrowLabel('#06b6d4', darkMode ? '#22d3ee' : '#0284c7')} />
+                          <Line yAxisId="right" type="monotone" dataKey="me" stroke="transparent" strokeWidth={0} dot={false} activeDot={false} name="ME Labels">
+                            <LabelList
+                              dataKey="meLabel"
+                              content={makeArrowLabel(darkMode ? '#22d3ee' : '#0284c7', darkMode ? '#22d3ee' : '#0284c7')}
+                            />
                           </Line>
                           {/* Mantém os overlays customizados abaixo */}
                           </LineChart>
@@ -1589,9 +1753,7 @@ export function PGDASDProcessorIA() {
                     Composição do DAS por categoria e tributo
                   </CardDescription>
                 </div>
-                <Button variant="ghost" size="sm" className={`${darkMode ? 'text-slate-400 hover:text-white hover:bg-slate-700' : 'text-slate-500 hover:text-slate-900'}`}>
-                  <Download className="h-4 w-4 mr-1" /> Exportar
-                </Button>
+                {/* Botão de exportação removido conforme solicitado */}
               </CardHeader>
               <CardContent>
                 <div className="overflow-x-auto">
@@ -1681,10 +1843,10 @@ export function PGDASDProcessorIA() {
                           <tr className="border-b border-slate-200">
                             <th className={`text-left py-3 px-2 font-semibold ${darkMode ? 'text-white' : 'text-slate-800'}`}>Tributo</th>
                             {colMercadoriasInternoVisible && (
-                              <th className={`text-center py-3 px-2 font-semibold text-blue-600`}>Mercadorias (interno)</th>
+                          <th className={`text-center py-3 px-2 font-semibold ${darkMode ? 'text-blue-300' : 'text-blue-600'}`}>Mercadorias (interno)</th>
                             )}
                             {colMercadoriasExteriorVisible && (
-                              <th className={`text-center py-3 px-2 font-semibold text-indigo-600`}>Mercadorias (externo)</th>
+                          <th className={`text-center py-3 px-2 font-semibold ${darkMode ? 'text-indigo-300' : 'text-indigo-600'}`}>Mercadorias (externo)</th>
                             )}
                             {colServicosInternoVisible && (
                               <th className={`text-center py-3 px-2 font-semibold text-emerald-600`}>Serviços (interno)</th>
@@ -1812,10 +1974,10 @@ export function PGDASDProcessorIA() {
                           <tr key={key} className="border-b border-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800">
                             <td className={`py-3 px-2 font-medium ${darkMode ? 'text-white' : 'text-slate-800'}`}>{label}</td>
                             {colMercadoriasInternoVisible && (
-                              <td className="py-3 px-2 text-center text-blue-600 font-medium">{mercadoriasInterno > 0 ? formatCurrency(mercadoriasInterno) : ""}</td>
+                          <td className={`py-3 px-2 text-center font-medium ${darkMode ? 'text-blue-300' : 'text-blue-600'}`}>{mercadoriasInterno > 0 ? formatCurrency(mercadoriasInterno) : ""}</td>
                             )}
                             {colMercadoriasExteriorVisible && (
-                              <td className="py-3 px-2 text-center text-indigo-600 font-medium">{mercadoriasExterior > 0 ? formatCurrency(mercadoriasExterior) : ""}</td>
+                          <td className={`py-3 px-2 text-center font-medium ${darkMode ? 'text-indigo-300' : 'text-indigo-600'}`}>{mercadoriasExterior > 0 ? formatCurrency(mercadoriasExterior) : ""}</td>
                             )}
                             {colServicosInternoVisible && (
                               <td className="py-3 px-2 text-center text-emerald-600 font-medium">{servicosInterno > 0 ? formatCurrency(servicosInterno) : ""}</td>
@@ -1898,13 +2060,13 @@ export function PGDASDProcessorIA() {
                         const colServicosExteriorVisible = totalServicosExterior > 0
 
                         return (
-                          <tr className="border-t-2 border-slate-300 bg-slate-50 dark:bg-slate-800">
+                          <tr className={`${darkMode ? 'border-t-2 border-slate-700 bg-slate-800' : 'border-t-2 border-slate-300 bg-slate-50'}`}>
                             <td className={`py-3 px-2 font-bold ${darkMode ? 'text-white' : 'text-slate-800'}`}>Total</td>
                             {colMercadoriasInternoVisible && (
-                              <td className="py-3 px-2 text-center font-bold text-blue-600">{formatCurrency(totalMercadoriasInterno)}</td>
+                          <td className={`py-3 px-2 text-center font-bold ${darkMode ? 'text-blue-300' : 'text-blue-600'}`}>{formatCurrency(totalMercadoriasInterno)}</td>
                             )}
                             {colMercadoriasExteriorVisible && (
-                              <td className="py-3 px-2 text-center font-bold text-indigo-600">{formatCurrency(totalMercadoriasExterior)}</td>
+                          <td className={`py-3 px-2 text-center font-bold ${darkMode ? 'text-indigo-300' : 'text-indigo-600'}`}>{formatCurrency(totalMercadoriasExterior)}</td>
                             )}
                             {colServicosInternoVisible && (
                               <td className="py-3 px-2 text-center font-bold text-emerald-600">{formatCurrency(totalServicosInterno)}</td>
@@ -1937,10 +2099,8 @@ export function PGDASDProcessorIA() {
                         Composição percentual dos tributos
                       </CardDescription>
                     </div>
-                    <Button variant="ghost" size="sm" className={`${darkMode ? 'text-slate-400 hover:text-white hover:bg-slate-700' : 'text-slate-500 hover:text-slate-900'}`}>
-                      <Download className="h-4 w-4 mr-1" /> Exportar
-                    </Button>
-                  </CardHeader>
+                  {/* Botão de exportação removido conforme solicitado */}
+                </CardHeader>
                   <CardContent>
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                       {/* Valores numéricos à esquerda */}
@@ -2279,25 +2439,50 @@ export function PGDASDProcessorIA() {
               </CardContent>
             </Card>
 
-            <div className="flex justify-center gap-3 pt-4">
+            <div className="flex flex-col sm:flex-row justify-center gap-3 pt-4">
               <Button
                 onClick={() => {
                   setData(null)
                   setFile(null)
                   setError(null)
                 }}
-                variant="outline"
+                variant={darkMode ? "secondary" : "outline"}
                 size="lg"
-                className="w-full sm:w-auto"
+                className={`w-full sm:w-auto ${darkMode ? 'bg-slate-700 hover:bg-slate-600 text-slate-100 border border-slate-600' : ''}`}
               >
                 Processar Novo PDF
               </Button>
-              <PdfGenerator 
-                contentId="relatorio-pgdasd" 
-                fileName="Relatorio_DAS" 
-                isTextWatermark={false}
-                watermarkImage="/integra.png"
-              />
+              {/* Botão de exportação posicionado ao final do relatório */}
+              <Button
+                type="button"
+                onClick={generatePDF}
+                disabled={generatingPDF}
+                variant={darkMode ? 'secondary' : 'default'}
+                size="lg"
+                className={`w-full sm:w-auto ${darkMode ? 'bg-slate-700 hover:bg-slate-600 text-slate-100 border border-slate-600' : ''} flex items-center gap-2`}
+              >
+                {generatingPDF ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <FileText className="h-5 w-5" />
+                )}
+                <span>{generatingPDF ? 'Gerando...' : 'Gerar PDF do Relatório'}</span>
+              </Button>
+              <Button
+                type="button"
+                onClick={generateImage}
+                disabled={isGeneratingImage}
+                variant={darkMode ? 'secondary' : 'default'}
+                size="lg"
+                className={`w-full sm:w-auto ${darkMode ? 'bg-slate-700 hover:bg-slate-600 text-slate-100 border border-slate-600' : ''} flex items-center gap-2`}
+              >
+                {isGeneratingImage ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <Download className="h-5 w-5" />
+                )}
+                <span>{isGeneratingImage ? 'Gerando...' : 'Gerar Imagem (PNG)'}</span>
+              </Button>
             </div>
           </div>
         )}

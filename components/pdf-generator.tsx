@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useRef } from "react"
+import { useTheme } from 'next-themes'
 import { Button } from "@/components/ui/button"
 import { FileDown } from "lucide-react"
 import jsPDF from "jspdf"
@@ -20,6 +21,8 @@ export function PdfGenerator({
   isTextWatermark = false
 }: PdfGeneratorProps) {
   const [isGenerating, setIsGenerating] = useState(false)
+  const { theme } = useTheme()
+  const isDark = theme === 'dark'
   
   const generatePDF = async () => {
     setIsGenerating(true)
@@ -75,15 +78,17 @@ export function PdfGenerator({
         dynamicScale = Math.min(dpr, Math.max(0.2, dynamicScale))
 
         canvas = await html2canvas(element, {
-          scale: dynamicScale,
+          scale: Math.min(1, dynamicScale),
           useCORS: true,
           allowTaint: true,
           backgroundColor: '#ffffff',
           logging: false,
-          width: element.scrollWidth,
+          foreignObjectRendering: true,
+          width: element.getBoundingClientRect().width,
           height: element.scrollHeight,
           scrollX: 0,
           scrollY: 0,
+          imageTimeout: 2000,
           ignoreElements: (element) => {
             return element.tagName === 'SCRIPT' || element.tagName === 'STYLE'
           },
@@ -95,6 +100,8 @@ export function PdfGenerator({
                 -webkit-font-smoothing: antialiased !important;
                 -moz-osx-font-smoothing: grayscale !important;
                 text-rendering: optimizeLegibility !important;
+                filter: none !important;
+                opacity: 1 !important;
               }
               
               body {
@@ -110,6 +117,21 @@ export function PdfGenerator({
         // Segunda tentativa: clona manualmente e limpa completamente
         const clonedElement = element.cloneNode(true) as HTMLElement
         clonedElement.id = contentId + '-clone'
+        // Normaliza dimensões e remove restrições que causam conteúdo estreito
+        clonedElement.style.position = 'absolute'
+        clonedElement.style.left = '-9999px'
+        clonedElement.style.top = '0'
+        clonedElement.style.background = '#ffffff'
+        clonedElement.style.margin = '0'
+        clonedElement.style.padding = '0'
+        clonedElement.style.maxWidth = 'none'
+        const logicalWidth = element.getBoundingClientRect().width
+        clonedElement.style.width = `${Math.max(logicalWidth, element.clientWidth)}px`
+        clonedElement.style.maxWidth = 'none'
+        clonedElement.style.overflow = 'visible'
+        clonedElement.style.transform = 'none'
+        clonedElement.style.boxShadow = 'none'
+        clonedElement.style.border = 'none'
         
         // Adiciona o clone temporariamente ao DOM
         document.body.appendChild(clonedElement)
@@ -321,8 +343,8 @@ export function PdfGenerator({
         }
       }
 
-      // Adiciona a marca d'água somente quando configurada
-      if (isTextWatermark && watermarkImage) {
+      // Adiciona a marca d'água somente no tema claro e quando configurada
+      if (!isDark && isTextWatermark && watermarkImage) {
         // Marca d'água com texto sem transparência (cinza claro)
         pdf.setFontSize(30)
         pdf.setTextColor(180, 180, 180)
@@ -338,7 +360,7 @@ export function PdfGenerator({
 
         pdf.save(`${fileName}.pdf`)
         setIsGenerating(false)
-      } else if (watermarkImage) {
+      } else if (!isDark && watermarkImage) {
         // Marca d'água com imagem suavizada (faded)
         const watermarkImg = new Image()
         watermarkImg.crossOrigin = 'anonymous'

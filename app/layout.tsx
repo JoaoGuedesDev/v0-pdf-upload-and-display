@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
+import { ThemeProvider } from '@/components/theme-provider'
 
 const _geist = Geist({ subsets: ["latin"] });
 const _geistMono = Geist_Mono({ subsets: ["latin"] });
@@ -25,10 +26,12 @@ export default function RootLayout({
     process.env.NEXT_PUBLIC_ENABLE_VERCEL_ANALYTICS === 'true'
 
   return (
-    <html lang="en">
-      <body className={`font-sans antialiased`}>
-        {children}
-        {enableAnalytics && <Analytics />}
+    <html lang="pt-BR" suppressHydrationWarning>
+      <body className={`font-sans antialiased bg-background text-foreground`}>
+        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
+          {children}
+          {enableAnalytics && <Analytics />}
+        </ThemeProvider>
       </body>
     </html>
   )
