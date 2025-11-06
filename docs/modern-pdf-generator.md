@@ -43,19 +43,19 @@ Um sistema completo e moderno para geração de PDFs com cores vibrantes, links 
 
 ### Dependências Necessárias
 
-```bash
+\`\`\`bash
 npm install pdfkit @types/pdfkit chroma-js @types/chroma-js
-```
+\`\`\`
 
 ### Dependências Opcionais (para funcionalidades extras)
 
-```bash
+\`\`\`bash
 npm install pdfmake  # Para funcionalidades avançadas de layout
-```
+\`\`\`
 
 ### Estrutura de Arquivos
 
-```
+\`\`\`
 lib/
 ├── pdf-generators/
 │   └── modern-pdf-generator.ts    # Gerador principal
@@ -67,13 +67,13 @@ __tests__/
 ├── modern-pdf-generator.test.ts   # Testes unitários
 docs/
 └── modern-pdf-generator.md        # Esta documentação
-```
+\`\`\`
 
 ## ⚙️ Configuração
 
 ### 1. Configuração Básica
 
-```typescript
+\`\`\`typescript
 import { ModernPDFGenerator, DocumentData } from '@/lib/pdf-generators/modern-pdf-generator';
 
 const documentData: DocumentData = {
@@ -91,11 +91,11 @@ const documentData: DocumentData = {
     buttonText: 'Contatar via WhatsApp'
   }
 };
-```
+\`\`\`
 
 ### 2. Configuração Avançada
 
-```typescript
+\`\`\`typescript
 import { GenerationOptions } from '@/lib/pdf-generators/modern-pdf-generator';
 
 const options: GenerationOptions = {
@@ -104,13 +104,13 @@ const options: GenerationOptions = {
   includeWatermark: false,    // Marca d'água opcional
   quality: 'high'             // 'standard' | 'high' | 'print'
 };
-```
+\`\`\`
 
 ## 📖 Uso Básico
 
 ### 1. Geração Simples
 
-```typescript
+\`\`\`typescript
 import { ModernPDFGenerator } from '@/lib/pdf-generators/modern-pdf-generator';
 
 // Geração direta
@@ -119,11 +119,11 @@ const buffer = await ModernPDFGenerator.generateDocument(documentData);
 // Salvar arquivo
 const blob = new Blob([buffer], { type: 'application/pdf' });
 const url = URL.createObjectURL(blob);
-```
+\`\`\`
 
 ### 2. Usando o Hook React
 
-```typescript
+\`\`\`typescript
 import { useModernPDF } from '@/hooks/use-modern-pdf';
 
 function MyComponent() {
@@ -152,11 +152,11 @@ function MyComponent() {
     </div>
   );
 }
-```
+\`\`\`
 
 ### 3. Usando o Componente Completo
 
-```typescript
+\`\`\`typescript
 import { ModernPDFGenerator } from '@/components/modern-pdf-generator';
 
 function App() {
@@ -174,7 +174,7 @@ function App() {
     />
   );
 }
-```
+\`\`\`
 
 ## 📚 API Reference
 
@@ -222,7 +222,7 @@ Finaliza e gera o buffer do PDF.
 
 Esquema de cores pré-definido com cores vibrantes e acessíveis:
 
-```typescript
+\`\`\`typescript
 export const ColorScheme = {
   primary: '#2563eb',      // Azul vibrante
   secondary: '#7c3aed',    // Roxo vibrante
@@ -232,7 +232,7 @@ export const ColorScheme = {
   warning: '#d97706',      // Laranja âmbar
   // ... mais cores
 };
-```
+\`\`\`
 
 ### ColorUtils
 
@@ -254,7 +254,7 @@ Converte uma cor para diferentes formatos.
 
 Hook React para geração de PDF com estado reativo:
 
-```typescript
+\`\`\`typescript
 const {
   // Estado
   isGenerating,     // boolean: PDF sendo gerado
@@ -269,13 +269,13 @@ const {
   clearError,      // Limpa erro atual
   reset           // Reseta estado
 } = useModernPDF();
-```
+\`\`\`
 
 ## 💡 Exemplos
 
 ### Exemplo 1: Documento Simples
 
-```typescript
+\`\`\`typescript
 const simpleDocument: DocumentData = {
   title: 'Relatório Mensal',
   subtitle: 'Janeiro 2024',
@@ -301,11 +301,11 @@ const simpleDocument: DocumentData = {
     keywords: ['vendas', 'relatório', 'mensal']
   }
 };
-```
+\`\`\`
 
 ### Exemplo 2: Documento com WhatsApp
 
-```typescript
+\`\`\`typescript
 const documentWithWhatsApp: DocumentData = {
   title: 'Proposta Comercial',
   content: [
@@ -324,11 +324,11 @@ const documentWithWhatsApp: DocumentData = {
     buttonText: 'Falar com Vendedor'
   }
 };
-```
+\`\`\`
 
 ### Exemplo 3: Validação Personalizada
 
-```typescript
+\`\`\`typescript
 import { useDocumentValidation } from '@/hooks/use-modern-pdf';
 
 function DocumentForm() {
@@ -347,13 +347,13 @@ function DocumentForm() {
     generatePDF(data);
   };
 }
-```
+\`\`\`
 
 ## 🧪 Testes
 
 ### Executar Testes
 
-```bash
+\`\`\`bash
 # Todos os testes
 npm test
 
@@ -362,7 +362,7 @@ npm test modern-pdf-generator
 
 # Testes com coverage
 npm test -- --coverage
-```
+\`\`\`
 
 ### Estrutura dos Testes
 
@@ -395,7 +395,7 @@ Os testes cobrem:
 
 ### Exemplo de Teste
 
-```typescript
+\`\`\`typescript
 describe('WhatsApp Functionality', () => {
   it('should generate correct WhatsApp URL', () => {
     const phoneNumber = '+5511999999999';
@@ -408,7 +408,7 @@ describe('WhatsApp Functionality', () => {
     expect(generatedUrl).toBe(expectedUrl);
   });
 });
-```
+\`\`\`
 
 ## 🔧 Troubleshooting
 
@@ -419,16 +419,16 @@ describe('WhatsApp Functionality', () => {
 **Problema:** `Cannot resolve module 'pdfkit'`
 
 **Solução:**
-```bash
+\`\`\`bash
 npm install pdfkit @types/pdfkit --save
-```
+\`\`\`
 
 #### 2. Erro de Contraste de Cores
 
 **Problema:** Cores não passam na validação de acessibilidade
 
 **Solução:**
-```typescript
+\`\`\`typescript
 import { ColorUtils } from '@/lib/pdf-generators/modern-pdf-generator';
 
 // Verificar contraste antes de usar
@@ -436,14 +436,14 @@ if (!ColorUtils.isAccessible(foregroundColor, backgroundColor)) {
   // Usar cor alternativa ou ajustar
   foregroundColor = ColorUtils.ensureContrast(foregroundColor, backgroundColor);
 }
-```
+\`\`\`
 
 #### 3. Número de WhatsApp Inválido
 
 **Problema:** Validação falha para números internacionais
 
 **Solução:**
-```typescript
+\`\`\`typescript
 // Formato correto para números internacionais
 const phoneNumber = '+5511999999999'; // Código do país + DDD + número
 
@@ -452,40 +452,40 @@ const cleanPhone = phoneNumber.replace(/\D/g, '');
 if (cleanPhone.length < 10 || cleanPhone.length > 15) {
   throw new Error('Número de telefone inválido');
 }
-```
+\`\`\`
 
 #### 4. PDF Muito Grande
 
 **Problema:** Arquivo PDF com tamanho excessivo
 
 **Solução:**
-```typescript
+\`\`\`typescript
 const options: GenerationOptions = {
   quality: 'standard', // Em vez de 'high'
   // Ou usar compressão
 };
-```
+\`\`\`
 
 #### 5. Erro de Memória
 
 **Problema:** `JavaScript heap out of memory`
 
 **Solução:**
-```bash
+\`\`\`bash
 # Aumentar limite de memória do Node.js
 node --max-old-space-size=4096 your-script.js
-```
+\`\`\`
 
 ### Logs de Debug
 
 Para ativar logs detalhados:
 
-```typescript
+\`\`\`typescript
 // Adicionar no início do arquivo
 if (process.env.NODE_ENV === 'development') {
   console.log('PDF Generator Debug Mode');
 }
-```
+\`\`\`
 
 ### Performance
 

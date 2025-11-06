@@ -1,13 +1,11 @@
-import { NextRequest } from 'next/server'
+import type { NextRequest } from "next/server"
 
-export const dynamic = 'force-dynamic'
-export const runtime = 'nodejs'
+export const dynamic = "force-dynamic"
+export const runtime = "nodejs"
 
-function getPrintCSS(zoom?: number, orientation: 'portrait' | 'landscape' = 'portrait', pageMarginCSS: string = '10mm') {
-  const zoomRule = typeof zoom === 'number' && zoom > 0 && zoom !== 1
-    ? `html { zoom: ${zoom}; }`
-    : ''
-  const pageSize = orientation === 'landscape' ? '@page { size: A4 landscape; }' : '@page { size: A4; }'
+function getPrintCSS(zoom?: number, orientation: "portrait" | "landscape" = "portrait", pageMarginCSS = "10mm") {
+  const zoomRule = typeof zoom === "number" && zoom > 0 && zoom !== 1 ? `html { zoom: ${zoom}; }` : ""
+  const pageSize = orientation === "landscape" ? "@page { size: A4 landscape; }" : "@page { size: A4; }"
   return `
   <style>
     @media print {
@@ -63,31 +61,31 @@ type MakePdfBody = {
   url?: string
   html?: string
   base?: string
-  format?: 'A4' | 'Letter' | 'Legal'
+  format?: "A4" | "Letter" | "Legal"
   deviceScaleFactor?: number
   margin?: { top?: string; right?: string; bottom?: string; left?: string }
   fileName?: string
   zoom?: number
-  orientation?: 'portrait' | 'landscape'
+  orientation?: "portrait" | "landscape"
 }
 
 async function generatePdf(params: {
   url?: string
   html?: string
   baseURL: string
-  format: 'A4' | 'Letter' | 'Legal'
+  format: "A4" | "Letter" | "Legal"
   deviceScaleFactor: number
   margin: { top: string; right: string; bottom: string; left: string }
   zoom?: number
-  orientation?: 'portrait' | 'landscape'
+  orientation?: "portrait" | "landscape"
 }) {
-  const { url, html, baseURL, format, deviceScaleFactor, margin, zoom, orientation = 'portrait' } = params
-  
+  const { url, html, baseURL, format, deviceScaleFactor, margin, zoom, orientation = "portrait" } = params
+
   const usePuppeteer = !!process.env.VERCEL
 
   if (usePuppeteer) {
-    const puppeteerModule = await import('puppeteer-core')
-    const chromiumModule = await import('@sparticuz/chromium')
+    const puppeteerModule = await import("puppeteer-core")
+    const chromiumModule = await import("@sparticuz/chromium")
     const puppeteer = puppeteerModule.default
     const chromium = chromiumModule.default
 
@@ -99,11 +97,9 @@ async function generatePdf(params: {
     })
     const page = await browser.newPage()
 
-    await page.setViewport({ width: 1280, height: 800, deviceScaleFactor })
-
     if (url) {
-      const absoluteUrl = url.startsWith('http') ? url : new URL(url, baseURL).toString()
-      await page.goto(absoluteUrl, { waitUntil: 'domcontentloaded', timeout: 60000 })
+      const absoluteUrl = url.startsWith("http") ? url : new URL(url, baseURL).toString()
+      await page.goto(absoluteUrl, { waitUntil: "networkidle0" })
       const pageMarginCSS = `${margin.top} ${margin.right} ${margin.bottom} ${margin.left}`
       await page.addStyleTag({ content: getPrintCSS(zoom, orientation, pageMarginCSS) })
     } else if (html) {
@@ -111,30 +107,30 @@ async function generatePdf(params: {
       const preparedHtml = /<\/head>/i.test(html)
         ? html.replace(/<\/head>/i, `${getPrintCSS(zoom, orientation, pageMarginCSS)}\n</head>`)
         : `${getPrintCSS(zoom, orientation, pageMarginCSS)}${html}`
-      await page.setContent(preparedHtml, { waitUntil: 'domcontentloaded', timeout: 60000 })
+      await page.setContent(preparedHtml, { waitUntil: "networkidle0" })
     }
 
-    await page.emulateMediaType('print')
+    await page.emulateMediaType("print")
 
     const pdfBuffer = await page.pdf({
       format,
       printBackground: true,
       margin,
       preferCSSPageSize: true,
-      landscape: orientation === 'landscape',
+      landscape: orientation === "landscape",
     })
 
     await browser.close()
     return pdfBuffer
   } else {
-    const { chromium } = await import('playwright')
+    const { chromium } = await import("playwright")
     const browser = await chromium.launch()
     const context = await browser.newContext({ deviceScaleFactor, baseURL })
     const page = await context.newPage()
 
     if (url) {
-      const absoluteUrl = url.startsWith('http') ? url : new URL(url, baseURL).toString()
-      await page.goto(absoluteUrl, { waitUntil: 'networkidle' })
+      const absoluteUrl = url.startsWith("http") ? url : new URL(url, baseURL).toString()
+      await page.goto(absoluteUrl, { waitUntil: "networkidle" })
       const pageMarginCSS = `${margin.top} ${margin.right} ${margin.bottom} ${margin.left}`
       await page.addStyleTag({ content: getPrintCSS(zoom, orientation, pageMarginCSS) })
     } else if (html) {
@@ -142,17 +138,17 @@ async function generatePdf(params: {
       const preparedHtml = /<\/head>/i.test(html)
         ? html.replace(/<\/head>/i, `${getPrintCSS(zoom, orientation, pageMarginCSS)}\n</head>`)
         : `${getPrintCSS(zoom, orientation, pageMarginCSS)}${html}`
-      await page.setContent(preparedHtml, { waitUntil: 'networkidle' })
+      await page.setContent(preparedHtml, { waitUntil: "networkidle" })
     }
 
-    await page.emulateMedia({ media: 'print' })
+    await page.emulateMedia({ media: "print" })
 
     const pdfBuffer = await page.pdf({
       format,
       printBackground: true,
       margin,
       preferCSSPageSize: true,
-      landscape: orientation === 'landscape',
+      landscape: orientation === "landscape",
     })
 
     await browser.close()
@@ -168,88 +164,120 @@ export async function POST(req: NextRequest) {
     if (!url && !html) {
       return new Response(JSON.stringify({ error: 'Informe "url" ou "html" no corpo da requisição.' }), {
         status: 400,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { "Content-Type": "application/json" },
       })
     }
 
     const baseURL = body.base ?? req.nextUrl.origin
-    const format = body.format ?? 'A4'
+    const format = body.format ?? "A4"
     const deviceScaleFactor = body.deviceScaleFactor ?? 3
     const margin = {
-      top: body.margin?.top ?? '10mm',
-      right: body.margin?.right ?? '10mm',
-      bottom: body.margin?.bottom ?? '10mm',
-      left: body.margin?.left ?? '10mm',
+      top: body.margin?.top ?? "10mm",
+      right: body.margin?.right ?? "10mm",
+      bottom: body.margin?.bottom ?? "10mm",
+      left: body.margin?.left ?? "10mm",
     }
-    const orientation = body.orientation ?? 'landscape'
+    const orientation = body.orientation ?? "landscape"
 
-    const pdfBuffer = await generatePdf({ url, html, baseURL, format, deviceScaleFactor, margin, zoom: body.zoom, orientation })
-
-    if (!pdfBuffer || pdfBuffer.byteLength < 1024) {
-      throw new Error('PDF vazio/inválido gerado')
-    }
-
-    const headers = new Headers({
-      'Content-Type': 'application/pdf',
-      'Content-Disposition': `attachment; filename="${body.fileName || 'relatorio.pdf'}"`,
-      'Cache-Control': 'no-store',
-      'Content-Length': String(pdfBuffer.byteLength),
+    const pdfBuffer = await generatePdf({
+      url,
+      html,
+      baseURL,
+      format,
+      deviceScaleFactor,
+      margin,
+      zoom: body.zoom,
+      orientation,
     })
 
-    return new Response(new Uint8Array(pdfBuffer), { status: 200, headers })
+    return new Response(new Uint8Array(pdfBuffer), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `inline; filename="${body.fileName || "relatorio.pdf"}"`,
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type",
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        "X-Content-Type-Options": "nosniff",
+      },
+    })
   } catch (error: any) {
-    console.error('Erro em /api/make-pdf:', error)
-    return new Response(JSON.stringify({ error: 'Falha ao gerar PDF', details: String(error?.message || error) }), {
+    console.error("Erro em /api/make-pdf:", error)
+    return new Response(JSON.stringify({ error: "Falha ao gerar PDF", details: String(error?.message || error) }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { "Content-Type": "application/json" },
     })
   }
 }
 
 export async function GET(req: NextRequest) {
   try {
-    const urlParam = req.nextUrl.searchParams.get('url') || undefined
-    const htmlParam = req.nextUrl.searchParams.get('html') || undefined
+    const urlParam = req.nextUrl.searchParams.get("url") || undefined
+    const htmlParam = req.nextUrl.searchParams.get("html") || undefined
     if (!urlParam && !htmlParam) {
       return new Response(JSON.stringify({ error: 'Informe "url" ou "html" via query string.' }), {
         status: 400,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { "Content-Type": "application/json" },
       })
     }
 
-    const baseURL = req.nextUrl.searchParams.get('base') || req.nextUrl.origin
-    const format = (req.nextUrl.searchParams.get('format') as 'A4' | 'Letter' | 'Legal') || 'A4'
-    const deviceScaleFactor = Number(req.nextUrl.searchParams.get('deviceScaleFactor') || 3)
+    const baseURL = req.nextUrl.searchParams.get("base") || req.nextUrl.origin
+    const format = (req.nextUrl.searchParams.get("format") as "A4" | "Letter" | "Legal") || "A4"
+    const deviceScaleFactor = Number(req.nextUrl.searchParams.get("deviceScaleFactor") || 3)
     const margin = {
-      top: req.nextUrl.searchParams.get('top') || '10mm',
-      right: req.nextUrl.searchParams.get('right') || '10mm',
-      bottom: req.nextUrl.searchParams.get('bottom') || '12mm',
-      left: req.nextUrl.searchParams.get('left') || '10mm',
+      top: req.nextUrl.searchParams.get("top") || "10mm",
+      right: req.nextUrl.searchParams.get("right") || "10mm",
+      bottom: req.nextUrl.searchParams.get("bottom") || "12mm",
+      left: req.nextUrl.searchParams.get("left") || "10mm",
     }
-    const fileName = req.nextUrl.searchParams.get('fileName') || 'relatorio.pdf'
-    const zoom = req.nextUrl.searchParams.get('zoom')
-    const orientationParam = req.nextUrl.searchParams.get('orientation') as 'portrait' | 'landscape' | null
-    const orientation = orientationParam ?? 'landscape'
+    const fileName = req.nextUrl.searchParams.get("fileName") || "relatorio.pdf"
+    const zoom = req.nextUrl.searchParams.get("zoom")
+    const orientationParam = req.nextUrl.searchParams.get("orientation") as "portrait" | "landscape" | null
+    const orientation = orientationParam ?? "landscape"
+    const inline = req.nextUrl.searchParams.get("inline") === "true"
 
-    const pdfBuffer = await generatePdf({ url: urlParam, html: htmlParam, baseURL, format, deviceScaleFactor, margin, zoom: zoom ? Number(zoom) : undefined, orientation })
-
-    if (!pdfBuffer || pdfBuffer.byteLength < 1024) {
-      throw new Error('PDF vazio/inválido gerado (GET)')
-    }
-
-    const headers = new Headers({
-      'Content-Type': 'application/pdf',
-      'Content-Disposition': `attachment; filename="${fileName}"`,
-      'Cache-Control': 'no-store',
-      'Content-Length': String(pdfBuffer.byteLength),
+    const pdfBuffer = await generatePdf({
+      url: urlParam,
+      html: htmlParam,
+      baseURL,
+      format,
+      deviceScaleFactor,
+      margin,
+      zoom: zoom ? Number(zoom) : undefined,
+      orientation,
     })
 
-    return new Response(new Uint8Array(pdfBuffer), { status: 200, headers })
+    const disposition = inline ? "inline" : "attachment"
+
+    return new Response(new Uint8Array(pdfBuffer), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `${disposition}; filename="${fileName}"`,
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type",
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        "X-Content-Type-Options": "nosniff",
+      },
+    })
   } catch (error: any) {
-    console.error('Erro em GET /api/make-pdf:', error)
-    return new Response(JSON.stringify({ error: 'Falha ao gerar PDF', details: String(error?.message || error) }), {
+    console.error("Erro em GET /api/make-pdf:", error)
+    return new Response(JSON.stringify({ error: "Falha ao gerar PDF", details: String(error?.message || error) }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { "Content-Type": "application/json" },
     })
   }
+}
+
+export async function OPTIONS() {
+  return new Response(null, {
+    status: 200,
+    headers: {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type",
+    },
+  })
 }

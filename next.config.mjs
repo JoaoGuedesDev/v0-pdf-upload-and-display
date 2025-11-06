@@ -1,15 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  experimental: {
-    // Garante que módulos nativos/externos sejam incluídos no bundle do servidor
-    serverComponentsExternalPackages: ['puppeteer-core', '@sparticuz/chromium'],
-    // Força inclusão dos binários do Chromium na função serverless da rota
-    outputFileTracingIncludes: {
-      'app/api/make-pdf/route': [
-        './node_modules/@sparticuz/chromium/bin/**',
-        './node_modules/@sparticuz/chromium/lib/**',
-      ],
-    },
+  eslint: {
+    ignoreDuringBuilds: true,
   },
   typescript: {
     ignoreBuildErrors: true,
@@ -17,7 +9,31 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  // Mantemos a config mínima; sem externalização necessária com pdf-parse@1.1.1
+  async headers() {
+    return [
+      {
+        source: '/api/make-pdf',
+        headers: [
+          {
+            key: 'Access-Control-Allow-Origin',
+            value: '*',
+          },
+          {
+            key: 'Access-Control-Allow-Methods',
+            value: 'GET, POST, OPTIONS',
+          },
+          {
+            key: 'Access-Control-Allow-Headers',
+            value: 'Content-Type',
+          },
+          {
+            key: 'X-Content-Type-Options',
+            value: 'nosniff',
+          },
+        ],
+      },
+    ]
+  },
 }
 
 export default nextConfig
