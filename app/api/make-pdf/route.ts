@@ -89,6 +89,17 @@ async function generatePdf(params: {
     const puppeteer = puppeteerModule.default
     const chromium = chromiumModule.default
 
+    // Diagnóstico: loga caminho do executável e existência do diretório bin
+    try {
+      const execPath = await chromium.executablePath()
+      console.log('[make-pdf] chromium executablePath:', execPath)
+      const fs = await import('node:fs')
+      const binDir = '/var/task/node_modules/@sparticuz/chromium/bin'
+      console.log('[make-pdf] binDir exists:', fs.existsSync(binDir))
+    } catch (e) {
+      console.warn('[make-pdf] Falha ao verificar binários do Chromium:', e)
+    }
+
     const browser = await puppeteer.launch({
       args: chromium.args,
       defaultViewport: chromium.defaultViewport,
@@ -129,8 +140,8 @@ async function generatePdf(params: {
     const page = await context.newPage()
 
     if (url) {
-      const absoluteUrl = url.startsWith("http") ? url : new URL(url, baseURL).toString()
-      await page.goto(absoluteUrl, { waitUntil: "networkidle" })
+      const absoluteUrl = url.startsWith('http') ? url : new URL(url, baseURL).toString()
+      await page.goto(absoluteUrl, { waitUntil: 'domcontentloaded' })
       const pageMarginCSS = `${margin.top} ${margin.right} ${margin.bottom} ${margin.left}`
       await page.addStyleTag({ content: getPrintCSS(zoom, orientation, pageMarginCSS) })
     } else if (html) {
@@ -138,7 +149,7 @@ async function generatePdf(params: {
       const preparedHtml = /<\/head>/i.test(html)
         ? html.replace(/<\/head>/i, `${getPrintCSS(zoom, orientation, pageMarginCSS)}\n</head>`)
         : `${getPrintCSS(zoom, orientation, pageMarginCSS)}${html}`
-      await page.setContent(preparedHtml, { waitUntil: "networkidle" })
+      await page.setContent(preparedHtml, { waitUntil: 'domcontentloaded' })
     }
 
     await page.emulateMedia({ media: "print" })
@@ -178,17 +189,11 @@ export async function POST(req: NextRequest) {
       left: body.margin?.left ?? "10mm",
     }
     const orientation = body.orientation ?? "landscape"
+    const pdfBuffer = await generatePdf({ url, html, baseURL, format, deviceScaleFactor, margin, zoom: body.zoom, orientation })
 
-    const pdfBuffer = await generatePdf({
-      url,
-      html,
-      baseURL,
-      format,
-      deviceScaleFactor,
-      margin,
-      zoom: body.zoom,
-      orientation,
-    })
+    if (!pdfBuffer || pdfBuffer.byteLength < 1024) {
+      throw new Error('PDF vazio/inválido gerado')
+    }
 
     return new Response(new Uint8Array(pdfBuffer), {
       status: 200,
@@ -206,7 +211,7 @@ export async function POST(req: NextRequest) {
     console.error("Erro em /api/make-pdf:", error)
     return new Response(JSON.stringify({ error: "Falha ao gerar PDF", details: String(error?.message || error) }), {
       status: 500,
-      headers: { "Content-Type": "application/json" },
+      headers: { 'Content-Type': 'application/json; charset=utf-8', 'X-Content-Type-Options': 'nosniff' },
     })
   }
 }
@@ -237,16 +242,13 @@ export async function GET(req: NextRequest) {
     const orientation = orientationParam ?? "landscape"
     const inline = req.nextUrl.searchParams.get("inline") === "true"
 
-    const pdfBuffer = await generatePdf({
-      url: urlParam,
-      html: htmlParam,
-      baseURL,
-      format,
-      deviceScaleFactor,
-      margin,
-      zoom: zoom ? Number(zoom) : undefined,
-      orientation,
-    })
+    const pdfBuffer = await generatePdf({ url: urlParam, html: htmlParam, baseURL, format, deviceScaleFactor, margin, zoom: zoom ? Number(zoom) : undefined, orientation })
+
+    if (!pdfBuffer || pdfBuffer.byteLength < 1024) {
+      throw new Error('PDF vazio/inválido gerado (GET)')
+    }
+
+    
 
     const disposition = inline ? "inline" : "attachment"
 
@@ -266,7 +268,7 @@ export async function GET(req: NextRequest) {
     console.error("Erro em GET /api/make-pdf:", error)
     return new Response(JSON.stringify({ error: "Falha ao gerar PDF", details: String(error?.message || error) }), {
       status: 500,
-      headers: { "Content-Type": "application/json" },
+      headers: { 'Content-Type': 'application/json; charset=utf-8', 'X-Content-Type-Options': 'nosniff' },
     })
   }
 }

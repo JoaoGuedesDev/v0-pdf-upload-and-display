@@ -3029,7 +3029,22 @@ export function PGDASDProcessorIA() {
                   ) : (
                     <Download className="h-5 w-5" />
                   )}
-                  <span>{downloadingServerPdf ? "Gerando..." : "Baixar PDF"}</span>
+                  <span>{downloadingServerPdf ? 'Gerando...' : 'Baixar PDF (servidor)'}</span>
+                </Button>
+                <Button
+                  type="button"
+                  onClick={downloadClientPdf}
+                  disabled={downloadingClientPdf}
+                  variant={darkMode ? 'secondary' : 'outline'}
+                  size="lg"
+                  className={`flex-1 sm:flex-none ${darkMode ? 'bg-slate-700 hover:bg-slate-600 text-slate-100 border border-slate-600' : ''} flex items-center gap-2`}
+                >
+                  {downloadingClientPdf ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <Download className="h-5 w-5" />
+                  )}
+                  <span>{downloadingClientPdf ? 'Gerando...' : 'Baixar PDF (fallback)'}</span>
                 </Button>
               </div>
             </div>
