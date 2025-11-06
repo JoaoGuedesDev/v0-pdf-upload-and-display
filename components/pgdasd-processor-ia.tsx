@@ -47,6 +47,8 @@ import {
   LabelList,
 } from "recharts"
 import { toPng } from "html-to-image"
+import html2canvas from 'html2canvas'
+import { jsPDF } from 'jspdf'
  
 
 interface DASData {
@@ -232,6 +234,11 @@ export function PGDASDProcessorIA() {
   const [processViaN8n, setProcessViaN8n] = useState(false)
   const [showConsistencyDetails, setShowConsistencyDetails] = useState(false)
   const [downloadingServerPdf, setDownloadingServerPdf] = useState(false)
+  const [downloadingScreenshotPdf, setDownloadingScreenshotPdf] = useState(false)
+  const [downloadingClientPdf, setDownloadingClientPdf] = useState(false)
+  const [pdfOrientation, setPdfOrientation] = useState<'portrait' | 'landscape'>('landscape')
+  const [pdfFitMode, setPdfFitMode] = useState<'multipage' | 'single_contain' | 'single_cover'>('multipage')
+  const [clientPixelRatio, setClientPixelRatio] = useState<number>(3)
   
 
   const handleServerDownloadPDF = async (
@@ -252,7 +259,16 @@ export function PGDASDProcessorIA() {
       const headStyles = Array.from(document.querySelectorAll('style'))
         .map((el) => el.outerHTML)
         .join('\n')
-      const htmlContent = `<!doctype html><html><head><base href="${base}" />\n${headLinks}\n${headStyles}</head><body>${contentRef.current.outerHTML}</body></html>`
+      // Usa o conteúdo completo, mas oculta pizza, insights e controles via CSS para o print
+      const bodyHtml = contentRef.current.outerHTML
+      const htmlContent = `<!doctype html><html><head><base href="${base}" />\n${headLinks}\n${headStyles}
+        <style>
+          @page { size: A4 ${pdfOrientation === 'landscape' ? 'landscape' : 'portrait'}; margin: 0; }
+          body { background: ${darkMode ? '#0f172a' : '#ffffff'}; }
+          .print-container { padding: 12mm; }
+          #print-pie, #print-insights, #print-controls { display: none !important; }
+        </style>
+      </head><body><div class="print-container">${bodyHtml}</div></body></html>`
 
       // Função util para conversão
       const mmToPx = (mm: number) => (mm / 25.4) * 96
@@ -333,6 +349,179 @@ export function PGDASDProcessorIA() {
       setError('Erro ao gerar imagem. Tente novamente.')
     } finally {
       setIsGeneratingImage(false)
+    }
+  }
+
+  const downloadScreenshotPdf = async () => {
+    if (!contentRef.current || !data) return
+    // Variáveis compartilhadas entre try/finally
+    let controlsEls: HTMLElement[] = []
+    let prevControlsDisplay: string[] = []
+    try {
+      setDownloadingScreenshotPdf(true)
+      const node = contentRef.current as HTMLElement
+
+      // Oculta temporariamente elementos marcados para esconder no PDF do cliente
+      controlsEls = Array.from(node.querySelectorAll('[data-hide-for-client-pdf]')) as HTMLElement[]
+      prevControlsDisplay = controlsEls.map(el => el.style.display)
+      controlsEls.forEach(el => (el.style.display = 'none'))
+
+      // Captura a tela como PNG
+      const dataUrl = await toPng(node, {
+        cacheBust: true,
+        pixelRatio: clientPixelRatio,
+        backgroundColor: darkMode ? '#0f172a' : '#ffffff',
+      })
+
+      // Obter dimensões naturais da imagem capturada
+      // Não usar zoom: dimensionamos a imagem em mm para preencher a página A4 landscape
+
+      // Constrói um HTML mínimo com a imagem ocupando toda a largura da página
+      const base = window.location.origin
+      const pageWmm = pdfOrientation === 'landscape' ? 297 : 210
+      const pageHmm = pdfOrientation === 'landscape' ? 210 : 297
+      const fit = pdfFitMode === 'single_cover' ? 'cover' : 'contain'
+      const html = `<!doctype html><html><head><base href="${base}" />
+        <style>
+          html, body { margin: 0; padding: 0; }
+          /* Garantir que a imagem caiba em uma página A4 conforme orientação */
+          @media print {
+            /* Preencher página A4 sem margens */
+            html, body { width: ${pageWmm}mm; height: ${pageHmm}mm; }
+            img { width: ${pageWmm}mm; height: ${pageHmm}mm; object-fit: ${fit}; object-position: center top; display: block; }
+          }
+        </style>
+      </head><body>
+        <img src="${dataUrl}" alt="Dashboard" />
+      </body></html>`
+
+      const payload = {
+        html,
+        base,
+        fileName: `dashboard-print-${new Date().toISOString().split('T')[0]}.pdf`,
+        format: 'A4' as const,
+        deviceScaleFactor: 3,
+        margin: { top: '0mm', right: '0mm', bottom: '0mm', left: '0mm' },
+        orientation: pdfOrientation,
+      }
+
+      const resp = await fetch('/api/make-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+
+      if (!resp.ok) {
+        throw new Error(`Falha ao gerar PDF do print: ${resp.status} ${resp.statusText}`)
+      }
+
+      const blob = await resp.blob()
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = payload.fileName
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+    } catch (err: any) {
+      console.error('Erro ao gerar PDF (print):', err)
+      setError(err?.message || 'Erro ao gerar PDF do print. Tente novamente.')
+    } finally {
+      // Restaura visibilidade dos controles
+      if (controlsEls.length) {
+        controlsEls.forEach((el, idx) => (el.style.display = prevControlsDisplay[idx] || ''))
+      }
+      setDownloadingScreenshotPdf(false)
+    }
+  }
+
+  const downloadClientPdf = async () => {
+    if (!contentRef.current || !data) return
+    const node = contentRef.current as HTMLElement
+    const pieEl = node.querySelector('#print-pie') as HTMLElement | null
+    const insightsEl = node.querySelector('#print-insights') as HTMLElement | null
+    const prevPieDisplay = pieEl?.style.display
+    const prevInsightsDisplay = insightsEl?.style.display
+    const controlsEls = Array.from(node.querySelectorAll('[data-hide-for-client-pdf]')) as HTMLElement[]
+    const prevControlsDisplay = controlsEls.map(el => el.style.display)
+    try {
+      setDownloadingClientPdf(true)
+      if (pieEl) pieEl.style.display = 'none'
+      if (insightsEl) insightsEl.style.display = 'none'
+      controlsEls.forEach(el => (el.style.display = 'none'))
+      const whatsappAnchor = node.querySelector('a[href^="https://wa.me/"]') as HTMLAnchorElement | null
+      const waUrl = whatsappAnchor?.href || 'https://wa.me/559481264638?text=Ol%C3%A1%20quero%20uma%20an%C3%A1lise%20mais%20completa%20do%20meu%20DAS'
+      const waLabel = (whatsappAnchor?.textContent || '94 8126-4638').trim()
+
+      // Usa html-to-image para evitar parsing de cores lab()/oklch do html2canvas
+      const dataUrl = await toPng(node, {
+        cacheBust: true,
+        pixelRatio: clientPixelRatio,
+        backgroundColor: darkMode ? '#0f172a' : '#ffffff',
+      })
+
+      // Descobre dimensões naturais da imagem
+      const dims = await new Promise<{ w: number; h: number }>((resolve, reject) => {
+        const img = new Image()
+        img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight })
+        img.onerror = reject
+        img.src = dataUrl
+      })
+
+      const pdf = new jsPDF(pdfOrientation === 'landscape' ? 'l' : 'p', 'mm', 'a4')
+      const pageWidth = pdf.internal.pageSize.getWidth()
+      const pageHeight = pdf.internal.pageSize.getHeight()
+
+      if (pdfFitMode === 'multipage') {
+        const imgWidth = pageWidth
+        const imgHeight = (dims.h * imgWidth) / dims.w
+        let heightLeft = imgHeight
+        let position = 0
+        pdf.addImage(dataUrl, 'PNG', 0, position, imgWidth, imgHeight)
+        heightLeft -= pageHeight
+        while (heightLeft > 0) {
+          pdf.addPage()
+          position = heightLeft - imgHeight
+          pdf.addImage(dataUrl, 'PNG', 0, position, imgWidth, imgHeight)
+          heightLeft -= pageHeight
+        }
+      } else {
+        const fitContain = pdfFitMode === 'single_contain'
+        const scale = fitContain
+          ? Math.min(pageWidth / dims.w, pageHeight / dims.h)
+          : Math.max(pageWidth / dims.w, pageHeight / dims.h)
+        const renderW = dims.w * scale
+        const renderH = dims.h * scale
+        const x = (pageWidth - renderW) / 2
+        const y = (pageHeight - renderH) / 2
+        pdf.addImage(dataUrl, 'PNG', x, y, renderW, renderH)
+      }
+
+      // Adiciona link clicável do WhatsApp na primeira página (sobreposição)
+      try {
+        pdf.setTextColor(darkMode ? '#10b981' : '#0f766e')
+        pdf.setFontSize(12)
+        const label = `WhatsApp: ${waLabel}`
+        const textWidth = pdf.getTextWidth(label)
+        const textX = (pageWidth - textWidth) / 2
+        const textY = pageHeight - 6
+        pdf.text(label, textX, textY)
+        // Área clicável envolvendo o texto
+        pdf.link(textX - 2, textY - 6, textWidth + 4, 8, { url: waUrl })
+      } catch (_) {
+        // Silencia falhas de anotação sem quebrar geração
+      }
+
+      pdf.save('dashboard-relatorio.pdf')
+    } catch (err) {
+      console.error('Erro ao gerar PDF no cliente', err)
+      setError('Erro ao gerar PDF no cliente. Tente novamente.')
+    } finally {
+      if (pieEl) pieEl.style.display = prevPieDisplay || ''
+      if (insightsEl) insightsEl.style.display = prevInsightsDisplay || ''
+      controlsEls.forEach((el, idx) => (el.style.display = prevControlsDisplay[idx] || ''))
+      setDownloadingClientPdf(false)
     }
   }
 
@@ -860,14 +1049,8 @@ export function PGDASDProcessorIA() {
 
             
 
-            <Card className="bg-gradient-to-br from-slate-900 to-slate-800 text-white border-0 shadow-xl py-4">
-              <CardHeader>
-                <div className="flex items-center gap-2">
-                  <FileText className="h-5 w-5" />
-                  <CardTitle className="text-base sm:text-lg">Identificação da Empresa</CardTitle>
-                </div>
-              </CardHeader>
-              <CardContent className="grid sm:grid-cols-2 md:grid-cols-3 gap-4">
+            <Card className="bg-gradient-to-br from-slate-900 to-slate-800 text-white border-0 shadow-xl py-2">
+              <CardContent className="grid sm:grid-cols-2 md:grid-cols-3 gap-2">
                 <div>
                   <p className="text-slate-400 text-xs sm:text-sm">CNPJ</p>
                   <p className="text-base sm:text-lg font-semibold break-words">{data.identificacao.cnpj}</p>
@@ -883,14 +1066,14 @@ export function PGDASDProcessorIA() {
               </CardContent>
             </Card>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-2">
               {/* Receita Bruta PA - Azul escuro */}
-              <Card className="bg-gradient-to-br from-slate-700 to-slate-800 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200 py-4">
-                <CardHeader className="pb-2 p-3 sm:p-5 flex flex-row items-center justify-between space-y-0">
+              <Card className="bg-gradient-to-br from-slate-700 to-slate-800 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200 py-2">
+                <CardHeader className="pb-1 p-2 sm:p-3 flex flex-row items-center justify-between space-y-0">
                   <CardTitle className="text-xs sm:text-sm font-bold">Receita Bruta PA</CardTitle>
                   <DollarSign className="h-4 w-4" />
                 </CardHeader>
-                <CardContent className="p-3 sm:p-5 pt-0">
+                <CardContent className="p-2 sm:p-3 pt-0">
                   <p className="text-lg sm:text-2xl font-bold break-words">{formatCurrency(data.receitas.receitaPA)}</p>
                   <p className="text-[10px] sm:text-xs opacity-75 mt-1 flex items-center gap-1">
                     <Clock className="h-3 w-3" /> Período de apuração
@@ -900,11 +1083,11 @@ export function PGDASDProcessorIA() {
 
               {/* Total DAS - Azul médio */}
               <Card className="bg-gradient-to-br from-blue-600 to-blue-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200">
-                <CardHeader className="pb-2 p-4 sm:p-6 flex flex-row items-center justify-between space-y-0">
+                <CardHeader className="pb-1 p-2 sm:p-3 flex flex-row items-center justify-between space-y-0">
                   <CardTitle className="text-xs sm:text-sm font-bold">Total DAS</CardTitle>
                   <FileText className="h-4 w-4" />
                 </CardHeader>
-                <CardContent className="p-4 sm:p-6 pt-0">
+                <CardContent className="p-2 sm:p-3 pt-0">
                   {(() => {
                     // Exibe origem do DAS com a MESMA regra de bucket usada na tabela detalhada
                     const atividadesDbgRaw = (data as any)?.debug?.atividades
@@ -984,10 +1167,10 @@ export function PGDASDProcessorIA() {
 
               {/* Alíquota Efetiva - Verde */}
               <Card className="bg-gradient-to-br from-emerald-600 to-emerald-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200">
-                <CardHeader className="pb-2 p-4 sm:p-6">
+                <CardHeader className="pb-1 p-2 sm:p-3">
                   <CardTitle className="text-xs sm:text-sm font-bold">Alíquota Efetiva</CardTitle>
                 </CardHeader>
-                <CardContent className="p-4 sm:p-6 pt-0">
+                <CardContent className="p-2 sm:p-3 pt-0">
                   <p className="text-lg sm:text-2xl font-bold font-sans">
                     {(() => {
                       const formatted = data.calculos?.aliquotaEfetivaFormatada ??
@@ -1002,11 +1185,11 @@ export function PGDASDProcessorIA() {
               </Card>
 
               {/* Margem Líquida - Roxo */}
-              <Card className="bg-gradient-to-br from-purple-600 to-purple-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200 py-4">
-                <CardHeader className="pb-2 p-3 sm:p-5">
+              <Card className="bg-gradient-to-br from-purple-600 to-purple-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200 py-2">
+                <CardHeader className="pb-1 p-2 sm:p-3">
                   <CardTitle className="text-xs sm:text-sm font-bold">Margem Líquida</CardTitle>
                 </CardHeader>
-                <CardContent className="p-3 sm:p-5 pt-0">
+                <CardContent className="p-2 sm:p-3 pt-0">
                   <p className="text-lg sm:text-2xl font-bold font-sans">{(data.calculos?.margemLiquida || data.calculos?.margemLiquidaPercent || 0).toFixed(3)}%</p>
                   <p className="text-[10px] sm:text-xs opacity-75 mt-1">Receita após impostos</p>
                 </CardContent>
@@ -1058,7 +1241,12 @@ export function PGDASDProcessorIA() {
                     data.receitas.mercadoExterno?.rbaa,
                     data.debug?.secao21?.rbaaRow
                   )
-                  ;(data as any).__rows = { rpa, rbt12, rba, rbaa }
+                  const rbt12p = pickRow(
+                    (data as any)?.receitas?.rbt12p,
+                    (data as any)?.receitas?.mercadoExterno?.rbt12p,
+                    (data as any)?.debug?.secao21?.rbt12pRow
+                  )
+                  ;(data as any).__rows = { rpa, rbt12, rbt12p, rba, rbaa }
                   return null
                 })()}
                 <div className="overflow-x-auto -mx-4 sm:mx-0">
@@ -1075,6 +1263,7 @@ export function PGDASDProcessorIA() {
                           {/* Exibir coluna Mercado Externo apenas se houver valores */}
                           {(((data as any).__rows?.rpa.me || 0) > 0
                             || ((data as any).__rows?.rbt12.me || 0) > 0
+                            || ((data as any).__rows?.rbt12p?.me || 0) > 0
                             || ((data as any).__rows?.rba.me || 0) > 0
                             || ((data as any).__rows?.rbaa.me || 0) > 0) && (
                             <th className={`text-right py-2 sm:py-3 px-2 sm:px-4 font-semibold ${darkMode ? 'text-slate-200' : 'text-slate-700'}`}>
@@ -1119,19 +1308,24 @@ export function PGDASDProcessorIA() {
                             {formatCurrency(((data as any).__rows?.rbt12.total) || 0)}
                           </td>
                         </tr>
-                        <tr className={`${darkMode ? 'border-b border-slate-700 hover:bg-slate-800' : 'border-b border-slate-100 hover:bg-slate-50'} transition-colors`}>
-                          <td className="py-2 sm:py-3 px-2 sm:px-4 font-medium">
-                            Receita bruta acumulada nos doze meses anteriores ao PA proporcionalizada (RBT12p)
-                          </td>
-                          <td className={`text-right py-2 sm:py-3 px-2 sm:px-4 ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>-</td>
-                          {(((data.receitas.mercadoExterno?.rpa || 0) > 0)
-                            || ((data.receitas.mercadoExterno?.rbt12 || 0) > 0)
-                            || ((data.receitas.mercadoExterno?.rba || 0) > 0)
-                            || ((data.receitas.mercadoExterno?.rbaa || 0) > 0)) && (
-                            <td className={`text-right py-2 sm:py-3 px-2 sm:px-4 ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>-</td>
-                          )}
-                          <td className={`text-right py-2 sm:py-3 px-2 sm:px-4 ${darkMode ? 'bg-slate-800 text-slate-500' : 'bg-slate-50 text-slate-400'}`}>-</td>
-                        </tr>
+                        {(((data as any).__rows?.rbt12p?.total || 0) > 0) && (
+                          <tr className={`${darkMode ? 'border-b border-slate-700 hover:bg-slate-800' : 'border-b border-slate-100 hover:bg-slate-50'} transition-colors`}>
+                            <td className="py-2 sm:py-3 px-2 sm:px-4 font-medium">
+                              Receita bruta acumulada nos doze meses anteriores ao PA proporcionalizada (RBT12p)
+                            </td>
+                            <td className="text-right py-2 sm:py-3 px-2 sm:px-4 whitespace-nowrap">
+                              {formatCurrency(((data as any).__rows?.rbt12p.mi) || 0)}
+                            </td>
+                            {(((data as any).__rows?.rbt12p.me || 0) > 0) && (
+                              <td className="text-right py-2 sm:py-3 px-2 sm:px-4 whitespace-nowrap">
+                                {formatCurrency(((data as any).__rows?.rbt12p.me) || 0)}
+                              </td>
+                            )}
+                            <td className={`text-right py-2 sm:py-3 px-2 sm:px-4 font-semibold whitespace-nowrap ${darkMode ? 'bg-slate-800 text-slate-200' : 'bg-slate-50 text-slate-800'}`}>
+                              {formatCurrency(((data as any).__rows?.rbt12p.total) || 0)}
+                            </td>
+                          </tr>
+                        )}
                         <tr className={`${darkMode ? 'border-b border-slate-700 hover:bg-slate-800' : 'border-b border-slate-100 hover:bg-slate-50'} transition-colors`}>
                           <td className="py-2 sm:py-3 px-2 sm:px-4 font-medium">
                             Receita bruta acumulada no ano-calendário corrente (RBA)
@@ -1169,15 +1363,15 @@ export function PGDASDProcessorIA() {
                   </div>
                 </div>
 
-                <div className="mt-4 sm:mt-6 grid grid-cols-1 sm:grid-cols-4 gap-3 sm:gap-4 pt-4 border-t border-slate-200">
-                  <div className="bg-blue-50 rounded-lg p-3 sm:p-4">
+                <div className="mt-2 sm:mt-3 grid grid-cols-1 sm:grid-cols-4 gap-1 sm:gap-2 pt-2 border-t border-slate-200">
+                  <div className="bg-blue-50 rounded-lg p-2 sm:p-3">
                 <p className={`text-xs font-medium mb-1 ${darkMode ? 'text-blue-300' : 'text-blue-600'}`}>Utilização do Limite</p>
                     <p className="text-xl sm:text-2xl font-bold text-blue-900">
                       {((data.receitas.rba / (data.receitas.limite || 4800000)) * 100).toFixed(1)}%
                     </p>
                 <p className={`text-xs mt-1 ${darkMode ? 'text-blue-300' : 'text-blue-600'}`}>RBA / Limite</p>
                   </div>
-                  <div className="bg-emerald-50 rounded-lg p-3 sm:p-4">
+                  <div className="bg-emerald-50 rounded-lg p-2 sm:p-3">
                     <p className="text-xs text-emerald-600 font-medium mb-1">Comparativo de Crescimento</p>
                     <p className="text-xl sm:text-2xl font-bold text-emerald-900">
                       {(() => {
@@ -1208,7 +1402,7 @@ export function PGDASDProcessorIA() {
                     <p className="text-xs text-emerald-600 mt-1">3 últimos vs 3 primeiros</p>
                   </div>
                   {/* Último mês vs média dos últimos 3 meses */}
-                  <div className="bg-indigo-50 rounded-lg p-3 sm:p-4">
+                  <div className="bg-indigo-50 rounded-lg p-2 sm:p-3">
                 <p className={`text-xs font-medium mb-1 ${darkMode ? 'text-indigo-300' : 'text-indigo-600'}`}>Último mês vs média trimestral</p>
                     <p className="text-xl sm:text-2xl font-bold text-indigo-900">
                       {(() => {
@@ -1230,7 +1424,7 @@ export function PGDASDProcessorIA() {
                   </div>
                   {/* Consistência: coeficiente de variação últimos 6 meses */}
                   <div
-                    className="bg-amber-50 rounded-lg p-3 sm:p-4 cursor-pointer hover:bg-amber-100 transition"
+                    className="bg-amber-50 rounded-lg p-2 sm:p-3 cursor-pointer hover:bg-amber-100 transition"
                     role="button"
                     onClick={() => setShowConsistencyDetails(v => !v)}
                     aria-label="Abrir detalhamento de consistência"
@@ -1341,6 +1535,8 @@ export function PGDASDProcessorIA() {
                     </CardHeader>
                     <CardContent>
                       <div id="chart-receita-mensal" className="relative">
+                        {/* Overlay sombreado cobrindo toda a área do gráfico (mais claro) */}
+                        <div className={`absolute inset-0 rounded-xl ${darkMode ? 'bg-slate-700/15' : 'bg-slate-100/30'} pointer-events-none`} />
                         <div className="h-[350px] print:h-[260px] w-full">
                           <ResponsiveContainer width="100%" height="100%">
                         {(() => {
@@ -1784,7 +1980,7 @@ export function PGDASDProcessorIA() {
                           return [
                             (
                               <tr key="none" className="border-b border-slate-100">
-                                <td colSpan={colSpan} className={`py-3 px-2 text-center ${darkMode ? 'text-slate-300' : 'text-slate-500'}`}>Nenhum tributo aplicável</td>
+                                <td colSpan={colSpan} className={`py-2 px-2 text-center ${darkMode ? 'text-slate-300' : 'text-slate-500'}`}>Nenhum tributo aplicável</td>
                               </tr>
                             )
                           ]
@@ -1792,20 +1988,20 @@ export function PGDASDProcessorIA() {
 
                         return rows.map(({ key, label, mercadoriasInterno, mercadoriasExterior, servicosInterno, servicosExterior, total }) => (
                           <tr key={key} className="border-b border-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800">
-                            <td className={`py-3 px-2 font-medium ${darkMode ? 'text-white' : 'text-slate-800'}`}>{label}</td>
+                            <td className={`py-2 px-2 font-medium ${darkMode ? 'text-white' : 'text-slate-800'}`}>{label}</td>
                             {colMercadoriasInternoVisible && (
-                          <td className={`py-3 px-2 text-center font-medium ${darkMode ? 'text-blue-300' : 'text-blue-600'}`}>{mercadoriasInterno > 0 ? formatCurrency(mercadoriasInterno) : ""}</td>
+                          <td className={`py-2 px-2 text-center font-medium ${darkMode ? 'text-blue-300' : 'text-blue-600'}`}>{mercadoriasInterno > 0 ? formatCurrency(mercadoriasInterno) : ""}</td>
                             )}
                             {colMercadoriasExteriorVisible && (
-                          <td className={`py-3 px-2 text-center font-medium ${darkMode ? 'text-indigo-300' : 'text-indigo-600'}`}>{mercadoriasExterior > 0 ? formatCurrency(mercadoriasExterior) : ""}</td>
+                          <td className={`py-2 px-2 text-center font-medium ${darkMode ? 'text-indigo-300' : 'text-indigo-600'}`}>{mercadoriasExterior > 0 ? formatCurrency(mercadoriasExterior) : ""}</td>
                             )}
                             {colServicosInternoVisible && (
-                              <td className="py-3 px-2 text-center text-emerald-600 font-medium">{servicosInterno > 0 ? formatCurrency(servicosInterno) : ""}</td>
+                              <td className="py-2 px-2 text-center text-emerald-600 font-medium">{servicosInterno > 0 ? formatCurrency(servicosInterno) : ""}</td>
                             )}
                             {colServicosExteriorVisible && (
-                              <td className="py-3 px-2 text-center text-teal-600 font-medium">{servicosExterior > 0 ? formatCurrency(servicosExterior) : ""}</td>
+                              <td className="py-2 px-2 text-center text-teal-600 font-medium">{servicosExterior > 0 ? formatCurrency(servicosExterior) : ""}</td>
                             )}
-                            <td className={`py-3 px-2 text-center font-semibold ${darkMode ? 'text-white' : 'text-slate-800'}`}>{formatCurrency(total)}</td>
+                            <td className={`py-2 px-2 text-center font-semibold ${darkMode ? 'text-white' : 'text-slate-800'}`}>{formatCurrency(total)}</td>
                           </tr>
                         ))
                       })()}
@@ -1881,20 +2077,20 @@ export function PGDASDProcessorIA() {
 
                         return (
                           <tr className={`${darkMode ? 'border-t-2 border-slate-700 bg-slate-800' : 'border-t-2 border-slate-300 bg-slate-50'}`}>
-                            <td className={`py-3 px-2 font-bold ${darkMode ? 'text-white' : 'text-slate-800'}`}>Total</td>
+                            <td className={`py-2 px-2 font-bold ${darkMode ? 'text-white' : 'text-slate-800'}`}>Total</td>
                             {colMercadoriasInternoVisible && (
-                          <td className={`py-3 px-2 text-center font-bold ${darkMode ? 'text-blue-300' : 'text-blue-600'}`}>{formatCurrency(totalMercadoriasInterno)}</td>
+                          <td className={`py-2 px-2 text-center font-bold ${darkMode ? 'text-blue-300' : 'text-blue-600'}`}>{formatCurrency(totalMercadoriasInterno)}</td>
                             )}
                             {colMercadoriasExteriorVisible && (
-                          <td className={`py-3 px-2 text-center font-bold ${darkMode ? 'text-indigo-300' : 'text-indigo-600'}`}>{formatCurrency(totalMercadoriasExterior)}</td>
+                          <td className={`py-2 px-2 text-center font-bold ${darkMode ? 'text-indigo-300' : 'text-indigo-600'}`}>{formatCurrency(totalMercadoriasExterior)}</td>
                             )}
                             {colServicosInternoVisible && (
-                              <td className="py-3 px-2 text-center font-bold text-emerald-600">{formatCurrency(totalServicosInterno)}</td>
+                              <td className="py-2 px-2 text-center font-bold text-emerald-600">{formatCurrency(totalServicosInterno)}</td>
                             )}
                             {colServicosExteriorVisible && (
-                              <td className="py-3 px-2 text-center font-bold text-teal-600">{formatCurrency(totalServicosExterior)}</td>
+                              <td className="py-2 px-2 text-center font-bold text-teal-600">{formatCurrency(totalServicosExterior)}</td>
                             )}
-                            <td className={`py-3 px-2 text-center font-bold ${darkMode ? 'text-white' : 'text-slate-800'}`}>{formatCurrency(grandTotal)}</td>
+                            <td className={`py-2 px-2 text-center font-bold ${darkMode ? 'text-white' : 'text-slate-800'}`}>{formatCurrency(grandTotal)}</td>
                           </tr>
                         )
                       })()}
@@ -1908,7 +2104,7 @@ export function PGDASDProcessorIA() {
             {data.graficos && (data.graficos.dasPie || data.graficos.totalTributos) && (
               <div className="grid grid-cols-1 gap-4 sm:gap-6 print:contents">
                 {/* Gráfico de Pizza - Distribuição do DAS */}
-                <Card className={`${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border border-slate-200'} shadow-lg hover:shadow-xl transition-all duration-200 print:inline-block print:w-1/3 print:align-top print:break-inside-avoid`}>
+                <Card id="print-pie" className={`${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border border-slate-200'} shadow-lg hover:shadow-xl transition-all duration-200 print:inline-block print:w-1/3 print:align-top print:break-inside-avoid`}>
                   <CardHeader className="flex flex-row items-center justify-between pb-2">
                     <div>
                       <CardTitle className={`text-base sm:text-lg flex items-center gap-2 ${darkMode ? 'text-white' : 'text-slate-800'}`}>
@@ -1924,7 +2120,7 @@ export function PGDASDProcessorIA() {
                   <CardContent>
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                       {/* Valores numéricos à esquerda */}
-                      <div className="space-y-3 print:hidden">
+                      <div className="space-y-0.5 print:hidden">
                         <h4 className={`font-semibold text-sm ${darkMode ? 'text-slate-200' : 'text-slate-700'} mb-4`}>
                           Valores por Tributo
                         </h4>
@@ -1945,8 +2141,8 @@ export function PGDASDProcessorIA() {
                           const percentage = data.tributos.Total > 0 ? (value / data.tributos.Total) * 100 : 0;
                           
                           return (
-                            <div key={key} className={`flex items-center justify-between p-3 rounded-lg ${darkMode ? 'bg-slate-700/50' : 'bg-slate-50'} hover:shadow-md transition-all duration-200`}>
-                              <div className="flex items-center gap-3">
+                          <div key={key} className={`flex items-center justify-between p-2 rounded-lg ${darkMode ? 'bg-slate-700/50' : 'bg-slate-50'} hover:shadow-md transition-all duration-200`}>
+                          <div className="flex items-center gap-2">
                                 <div 
                                   className="w-4 h-4 rounded-full flex-shrink-0 shadow-sm" 
                                   style={{ backgroundColor: color }}
@@ -1968,8 +2164,8 @@ export function PGDASDProcessorIA() {
                         })}
                         
                         {/* Total */}
-                        <div className={`flex items-center justify-between p-3 rounded-lg border-2 ${darkMode ? 'bg-slate-600 border-slate-500' : 'bg-slate-100 border-slate-300'} font-bold`}>
-                          <div className="flex items-center gap-3">
+                        <div className={`flex items-center justify-between p-2 rounded-lg border-2 ${darkMode ? 'bg-slate-600 border-slate-500' : 'bg-slate-100 border-slate-300'} font-bold`}>
+                          <div className="flex items-center gap-2">
                             <div className={`w-4 h-4 rounded-full ${darkMode ? 'bg-slate-300' : 'bg-slate-600'}`} />
                             <div>
                               <div className={`font-bold text-sm ${darkMode ? 'text-slate-100' : 'text-slate-800'}`}>
@@ -1992,9 +2188,9 @@ export function PGDASDProcessorIA() {
                           Visualização Gráfica
                         </h4>
                         <div id="chart-das-pie" className="flex-1 flex items-center justify-center">
-                          <div className="h-[300px] print:h-[260px] w-full">
+                          <div className="h-[270px] print:h-[260px] w-full overflow-visible">
                             <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
+                            <PieChart margin={{ top: 14, bottom: 8, left: 8, right: 8 }}>
                               <Pie
                                 data={[
                                   { name: "IRPJ", value: data.tributos.IRPJ, color: CHART_COLORS[0] },
@@ -2007,9 +2203,9 @@ export function PGDASDProcessorIA() {
                                   { name: "ISS", value: data.tributos.ISS, color: CHART_COLORS[7] },
                                 ].filter(item => item.value > 0)}
                                 cx="50%"
-                                cy="50%"
+                                cy="52%"
                                 innerRadius={60}
-                                outerRadius={120}
+                                outerRadius={116}
                                 paddingAngle={3}
                                 dataKey="value"
                               >
@@ -2023,7 +2219,7 @@ export function PGDASDProcessorIA() {
                                   { name: "IPI", value: data.tributos.IPI, color: CHART_COLORS[6] },
                                   { name: "ISS", value: data.tributos.ISS, color: CHART_COLORS[7] },
                                 ].filter(item => item.value > 0).map((entry, index) => (
-                                  <Cell key={`cell-${index}`} fill={entry.color} stroke={darkMode ? "#1e293b" : "#ffffff"} strokeWidth={2} />
+                                  <Cell key={`cell-${index}`} fill={entry.color} stroke={darkMode ? "#0f172a" : "#e2e8f0"} strokeWidth={3} />
                                 ))}
                               </Pie>
                               <Tooltip 
@@ -2043,15 +2239,7 @@ export function PGDASDProcessorIA() {
                                 }}
                                 labelStyle={{ fontWeight: "600" }}
                               />
-                              <Legend 
-                                verticalAlign="bottom" 
-                                height={36}
-                                formatter={(value, entry) => (
-                                  <span style={{ color: darkMode ? '#e2e8f0' : '#475569', fontSize: '11px', fontWeight: '500' }}>
-                                    {value}
-                                  </span>
-                                )}
-                              />
+                              {/* Legenda removida conforme solicitado */}
                             </PieChart>
                             </ResponsiveContainer>
                           </div>
@@ -2097,14 +2285,14 @@ export function PGDASDProcessorIA() {
                   <CardContent>
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                       {/* Tabela rápida à esquerda */}
-                      <div className="space-y-3 print:hidden">
+                    <div className="space-y-0.5 print:hidden">
                         {[{ key: 'mercadorias', label: 'Mercadorias', value: mercadorias, color: ATIVIDADES_COLORS?.mercadorias || '#3b82f6' }, { key: 'servicos', label: 'Serviços', value: servicos, color: ATIVIDADES_COLORS?.servicos || '#10b981' }]
                           .filter(item => item.value > 0)
                           .map(({ key, label, value, color }) => {
                             const pct = total > 0 ? (value / total) * 100 : 0
                             return (
-                              <div key={key} className={`flex items-center justify-between p-3 rounded-lg ${darkMode ? 'bg-slate-700/50' : 'bg-slate-50'} hover:shadow-md transition-all duration-200`}>
-                                <div className="flex items-center gap-3">
+                      <div key={key} className={`flex items-center justify-between p-2 rounded-lg ${darkMode ? 'bg-slate-700/50' : 'bg-slate-50'} hover:shadow-md transition-all duration-200`}>
+                        <div className="flex items-center gap-2">
                                   <div className="w-4 h-4 rounded-full flex-shrink-0 shadow-sm" style={{ backgroundColor: color }} />
                                   <div>
                                     <div className={`font-medium text-sm ${darkMode ? 'text-slate-200' : 'text-slate-800'}`}>{label}</div>
@@ -2115,8 +2303,8 @@ export function PGDASDProcessorIA() {
                               </div>
                             )
                           })}
-                        <div className={`flex items-center justify-between p-3 rounded-lg border-2 ${darkMode ? 'bg-slate-600 border-slate-500' : 'bg-slate-100 border-slate-300'} font-bold`}>
-                          <div className="flex items-center gap-3">
+                    <div className={`flex items-center justify-between p-2 rounded-lg border-2 ${darkMode ? 'bg-slate-600 border-slate-500' : 'bg-slate-100 border-slate-300'} font-bold`}>
+                      <div className="flex items-center gap-2">
                             <div className={`w-4 h-4 rounded-full ${darkMode ? 'bg-slate-300' : 'bg-slate-600'}`} />
                             <div>
                               <div className={`font-bold text-sm ${darkMode ? 'text-slate-100' : 'text-slate-800'}`}>TOTAL DAS (Atividades)</div>
@@ -2158,11 +2346,8 @@ export function PGDASDProcessorIA() {
 
             {data.insights && (
               <div className="space-y-4">
-                <h2 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
-                  <Lightbulb className="h-5 w-5 sm:h-6 sm:w-6 text-yellow-500" />
-                  Insights
-                </h2>
-                <Card className={`${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border border-slate-200'} shadow`}>
+                {/* Título e ícone de Insights removidos conforme solicitado */}
+                <Card id="print-insights" className={`${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border border-slate-200'} shadow`}>
                   <CardContent className="pt-4 sm:pt-6 space-y-3">
                     {data.insights.comparativoSetorial && (
                       <div className="flex items-start gap-2">
@@ -2262,8 +2447,9 @@ export function PGDASDProcessorIA() {
                 </div>
               </CardContent>
             </Card>
+            {/* Controles de exportação de PDF (visíveis no dashboard, ocultos no PDF) */}
 
-            <div className="flex flex-col sm:flex-row justify-center gap-3 pt-4">
+            <div id="print-controls" className="flex flex-col sm:flex-row justify-center gap-3 pt-2 print:hidden" data-hide-for-client-pdf>
               <Button
                 onClick={() => {
                   setData(null)

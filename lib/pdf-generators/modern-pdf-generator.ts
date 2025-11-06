@@ -138,6 +138,8 @@ export interface GenerationOptions {
   pdfACompliant?: boolean; // Nova opção para PDF/A-1b
   highResolution?: boolean; // Nova opção para 600dpi
   losslessCompression?: boolean; // Nova opção para compactação sem perdas
+  /** Offset global em pontos para adequar espaçamentos às novas dimensões */
+  globalSpacingOffset?: number;
   margins?: {
     top: number;
     right: number;
@@ -179,6 +181,7 @@ export class ModernPDFGenerator {
   private options: GenerationOptions;
   private colorScheme: ColorScheme;
   private currentY: number = 20;
+  private spacingOffset: number = 0;
   
   constructor(options: GenerationOptions = {}) {
     // Configurar margens baseadas no tipo especificado
@@ -214,9 +217,26 @@ export class ModernPDFGenerator {
       ...options
     };
 
-    // Handle colorScheme properly - if it's a string, use enhanced vibrant palette
+    // Definir offset global (padrão −5pt para compactar espaços)
+    this.spacingOffset = typeof this.options.globalSpacingOffset === 'number' ? this.options.globalSpacingOffset! : -5;
+
+    // Aplicar offset às margens selecionadas
+    const applyMarginOffset = (m: { top: number; right: number; bottom: number; left: number }, off: number) => ({
+      top: Math.max(0, m.top + off),
+      right: Math.max(0, m.right + off),
+      bottom: Math.max(0, m.bottom + off),
+      left: Math.max(0, m.left + off),
+    });
+    this.options.margins = applyMarginOffset(this.options.margins!, this.spacingOffset);
+
+    // Selecionar paleta pelas opções string (muted/vibrant)
     if (typeof this.options.colorScheme === 'string') {
-      this.colorScheme = ColorUtils.generateEnhancedVibrantPalette();
+      const scheme = (this.options.colorScheme || '').toLowerCase();
+      if (scheme === 'muted' || scheme === 'soft' || scheme === 'pastel') {
+        this.colorScheme = ColorUtils.generateMutedPalette();
+      } else {
+        this.colorScheme = ColorUtils.generateEnhancedVibrantPalette();
+      }
     } else {
       this.colorScheme = this.options.colorScheme!;
     }
@@ -238,8 +258,15 @@ export class ModernPDFGenerator {
     // Configurar Y inicial baseado na margem superior e logo
     this.currentY = this.options.margins!.top;
     if (this.options.includeHeaderLogo) {
-      this.currentY += LayoutConfig.logo.height + LayoutConfig.logo.marginBottom;
+      // Não compactar a altura do logo, apenas o espaçamento inferior
+      this.currentY += LayoutConfig.logo.height + Math.max(0, LayoutConfig.logo.marginBottom + this.spacingOffset);
     }
+  }
+
+  // Helper para incrementar Y com offset global
+  private incY(amount: number) {
+    const delta = Math.max(0, amount + this.spacingOffset);
+    this.currentY += delta;
   }
   
   private configurePDFA(): void {
@@ -293,7 +320,7 @@ export class ModernPDFGenerator {
     const titleY = this.currentY;
     if (!isNaN(pageWidth) && !isNaN(titleY)) {
       this.doc.text(title, pageWidth / 2, titleY, { align: 'center' });
-      this.currentY += 15;
+      this.incY(15);
     }
 
     // Subtitle com melhor contraste
@@ -304,7 +331,7 @@ export class ModernPDFGenerator {
       const subtitleY = this.currentY;
       if (!isNaN(pageWidth) && !isNaN(subtitleY)) {
         this.doc.text(subtitle, pageWidth / 2, subtitleY, { align: 'center' });
-        this.currentY += 10;
+        this.incY(10);
       }
     }
 
@@ -320,7 +347,7 @@ export class ModernPDFGenerator {
       this.doc.line(leftMargin, lineY, pageWidth - rightMargin, lineY);
     }
     
-    this.currentY += 15;
+    this.incY(15);
   }
   
   addWhatsAppButton(number: string, message?: string, buttonText?: string): void {
@@ -354,7 +381,9 @@ export class ModernPDFGenerator {
     const url = WhatsAppUtils.generateWhatsAppURL(number, message);
     this.doc.link(buttonX, buttonY, buttonWidth, buttonHeight, { url });
 
-    this.currentY += buttonHeight + 20;
+    // Preservar altura do botão e compactar apenas o espaçamento extra
+    this.currentY += buttonHeight;
+    this.incY(20);
   }
   
   addText(content: string | ContentItem[], options: { fontSize?: number; color?: string; align?: 'left' | 'center' | 'right' } = {}): void {
@@ -398,11 +427,11 @@ export class ModernPDFGenerator {
           this.currentY += itemOptions.fontSize * 1.5;
         });
         
-        this.currentY += 5; // Espaço entre itens
+        this.incY(5); // Espaço entre itens
       });
     }
     
-    this.currentY += 10;
+    this.incY(10);
   }
 
   addTable(headers: string[], rows: string[][]): void {
@@ -450,7 +479,7 @@ export class ModernPDFGenerator {
     this.doc.setLineWidth(1);
     this.doc.rect(this.options.margins!.left, this.currentY - (rows.length + 1) * rowHeight, tableWidth, (rows.length + 1) * rowHeight, 'S');
     
-    this.currentY += 20;
+    this.incY(20);
   }
 
   addFooter(): void {
@@ -585,6 +614,29 @@ export const ColorUtils = {
    */
   isAccessible: (foreground: string, background: string = ColorScheme.background): boolean => {
     return chroma.contrast(foreground, background) >= 4.5;
+  },
+  
+  /**
+   * Gera paleta de cores mais amenas (muted), reduzindo saturação e ligeiramente clareando
+   */
+  generateMutedPalette: (): ColorScheme => {
+    const base = {
+      primary: chroma('#3b82f6').desaturate(0.8).brighten(0.15), // azul mais suave
+      secondary: chroma('#6366f1').desaturate(0.9).brighten(0.15), // roxo mais suave
+      accent: chroma('#22c55e').desaturate(0.8).brighten(0.1), // verde suave
+      success: chroma('#16a34a').desaturate(0.7).brighten(0.1), // verde sucesso suave
+    };
+    return {
+      primary: base.primary.hex(),
+      secondary: base.secondary.hex(),
+      accent: base.accent.hex(),
+      background: '#ffffff',
+      text: '#1f2937',            // slate-800
+      textSecondary: '#6b7280',   // gray-500
+      success: base.success.hex(),
+      surface: '#fafafa',         // cinza muito claro
+      border: '#e5e7eb',          // cinza claro
+    };
   },
   
   /**
