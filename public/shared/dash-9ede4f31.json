@@ -1,0 +1,60 @@
+{
+  "dados": {
+    "identificacao": {
+      "cnpj": "06.863.783/0001-13",
+      "razaoSocial": "INTEGRA SOLUCOES EMPRESARIAIS LTDA",
+      "periodoInicio": "01/08/2025",
+      "periodoFim": "31/08/2025"
+    },
+    "receitas": {
+      "receitaPA": 38000
+    },
+    "tributos": {
+      "Total": 3434.38,
+      "IRPJ": 137.38,
+      "CSLL": 120.2,
+      "COFINS": 468.45,
+      "PIS_Pasep": 101.66,
+      "INSS_CPP": 1490.52,
+      "ICMS": 0,
+      "IPI": 0,
+      "ISS": 1116.17
+    },
+    "atividades": {
+      "atividade1": { "Total": 0 },
+      "atividade2": { "Total": 38000 }
+    }
+  },
+  "graficos": {
+    "tributosBar": {
+      "labels": [
+        "IRPJ",
+        "CSLL",
+        "COFINS",
+        "PIS/Pasep",
+        "INSS/CPP",
+        "ICMS",
+        "IPI",
+        "ISS"
+      ],
+      "values": [137.38, 120.2, 468.45, 101.66, 1490.52, 0, 0, 1116.17]
+    },
+    "dasPie": {
+      "labels": [
+        "IRPJ",
+        "CSLL",
+        "COFINS",
+        "PIS/Pasep",
+        "INSS/CPP",
+        "ICMS",
+        "IPI",
+        "ISS"
+      ],
+      "values": [137.38, 120.2, 468.45, 101.66, 1490.52, 0, 0, 1116.17]
+    },
+    "receitaLine": {
+      "labels": ["08/2025"],
+      "values": [38000]
+    }
+  }
+}
