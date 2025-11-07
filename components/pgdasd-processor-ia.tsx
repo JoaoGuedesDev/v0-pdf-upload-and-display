@@ -193,21 +193,65 @@ function classifyAtividade(nome: string): { tipo: "servicos" | "mercadorias"; me
 // Sanitiza insights para remover frases proibidas
 function sanitizeInsights(insights: DASData["insights"]): DASData["insights"] {
   if (!insights) return insights
-  const banned = ["desbalanceamento entre serviços e mercadorias", "otimizar divisão entre serviços e mercadorias"]
+
+  const banned = [
+    "desbalanceamento entre serviços e mercadorias",
+    "otimizar divisão entre serviços e mercadorias",
+  ]
   const isBanned = (txt: string) => {
     const n = normalizeTextPTBR(txt)
     return banned.some((b) => n.includes(b))
   }
-  const filterArr = (arr?: string[]) => (Array.isArray(arr) ? arr.filter((item) => !isBanned(item)) : [])
+
+  const toStrings = (arr?: any[]): string[] => {
+    if (!Array.isArray(arr)) return []
+    return arr
+      .map((item) => {
+        if (item == null) return ""
+        if (typeof item === "string") return item
+        // para números ou objetos, converte de forma segura
+        if (typeof item === "number") return String(item)
+        try {
+          return JSON.stringify(item)
+        } catch {
+          return String(item)
+        }
+      })
+      .filter((s) => s && !isBanned(s))
+  }
+
+  // Normaliza comparativoSetorial quando a IA retorna um objeto
+  const normalizeComparativo = (comp: any): string => {
+    if (!comp) return ""
+    if (typeof comp === "string") return comp
+    if (typeof comp === "number") return String(comp)
+    if (typeof comp === "object") {
+      const setor = comp.setor ?? comp.sector ?? comp.setorial ?? undefined
+      const media = comp.mediaSetorial ?? comp.media ?? undefined
+      const obs = comp.observacao ?? comp.observações ?? comp.obs ?? undefined
+      const parts: string[] = []
+      if (setor) parts.push(`Setor: ${setor}`)
+      if (media != null) parts.push(`Média setorial: ${media}`)
+      if (obs) parts.push(String(obs))
+      if (parts.length) return parts.join(". ")
+      try {
+        return JSON.stringify(comp)
+      } catch {
+        return String(comp)
+      }
+    }
+    return String(comp)
+  }
+
   return {
-    comparativoSetorial: insights.comparativoSetorial,
-    pontosAtencao: filterArr(insights.pontosAtencao),
-    oportunidades: filterArr(insights.oportunidades),
-    recomendacoes: insights.recomendacoes || [],
-    economiaImpostos: insights.economiaImpostos || [],
-    regimeTributario: insights.regimeTributario,
-    dasObservacoes: insights.dasObservacoes || [],
-    receitaMensal: insights.receitaMensal || [],
+    comparativoSetorial: normalizeComparativo((insights as any).comparativoSetorial),
+    pontosAtencao: toStrings((insights as any).pontosAtencao),
+    oportunidades: toStrings((insights as any).oportunidades),
+    recomendacoes: toStrings((insights as any).recomendacoes),
+    economiaImpostos: toStrings((insights as any).economiaImpostos),
+    regimeTributario: (insights as any).regimeTributario,
+    dasObservacoes: toStrings((insights as any).dasObservacoes),
+    receitaMensal: toStrings((insights as any).receitaMensal),
   }
 }
 
