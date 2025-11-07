@@ -88,16 +88,19 @@ export async function POST(request: NextRequest) {
               // Se já estiver normalizado (tem 'success'/'dados'), retornamos como está; caso contrário, convertemos.
               const isNormalized = json && typeof json === 'object' && ('success' in json) && ('dados' in json)
               if (isNormalized) {
-                return NextResponse.json(json)
+                const share = await persistShare(json)
+                return NextResponse.json({ ...json, dashboardUrl: share.url, dashboardCode: share.code })
               }
               const normalized = processDasData(JSON.stringify(json))
-              return NextResponse.json(normalized)
+              const share = await persistShare(normalized)
+              return NextResponse.json({ ...normalized, dashboardUrl: share.url, dashboardCode: share.code })
             } catch (e) {
             }
           }
           // Fallback: tentar processar texto bruto como DAS
           const parsed = processDasData(bodyText)
-          return NextResponse.json(parsed)
+          const share = await persistShare(parsed)
+          return NextResponse.json({ ...parsed, dashboardUrl: share.url, dashboardCode: share.code })
         } catch (e) {
           console.error("[v0-n8n] Erro ao encaminhar ao n8n:", e)
           // Fallback: processamento local quando não foi possível contatar o n8n
