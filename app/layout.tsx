@@ -19,12 +19,10 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  // Evita carregar o script de Web Analytics localmente.
-  // Em Vercel, a env `VERCEL` é definida como "1".
-  // Também pode ser habilitado manualmente via `NEXT_PUBLIC_ENABLE_VERCEL_ANALYTICS=true`.
-  const enableAnalytics =
-    process.env.VERCEL === '1' ||
-    process.env.NEXT_PUBLIC_ENABLE_VERCEL_ANALYTICS === 'true'
+  // Carrega o script de Web Analytics somente quando habilitado explicitamente.
+  // Isso evita possíveis exceções de cliente em ambientes de produção (Vercel)
+  // caso o pacote tenha incompatibilidades com a versão do React/Next.
+  const enableAnalytics = process.env.NEXT_PUBLIC_ENABLE_VERCEL_ANALYTICS === 'true'
 
   return (
     <html lang="pt-BR" suppressHydrationWarning>
