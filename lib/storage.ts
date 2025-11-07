@@ -2,7 +2,18 @@ import fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import path from 'node:path'
 import crypto from 'node:crypto'
-import { kv } from '@vercel/kv'
+// Import opcional de '@vercel/kv' para evitar erro de build quando o pacote não está instalado
+let kvClient: any | undefined
+async function getKv() {
+  if (kvClient) return kvClient
+  try {
+    const mod: any = await import('@vercel/kv')
+    kvClient = mod.kv
+    return kvClient
+  } catch {
+    return undefined
+  }
+}
 
 type SaveResult = { id: string; storage: 'kv' | 'file'; path?: string }
 
@@ -25,8 +36,11 @@ export async function saveDashboard(payload: any): Promise<SaveResult> {
   // Tenta KV primeiro
   if (kvReady()) {
     try {
-      await kv.set(`dash:${id}`, payload, { ex: 60 * 60 * 24 * 30 }) // 30 dias
-      return { id, storage: 'kv' }
+      const kv = await getKv()
+      if (kv) {
+        await kv.set(`dash:${id}`, payload, { ex: 60 * 60 * 24 * 30 }) // 30 dias
+        return { id, storage: 'kv' }
+      }
     } catch (e) {
       console.error('[storage] KV set falhou, usando fallback em arquivo:', e)
     }
@@ -44,8 +58,11 @@ export async function getDashboard(id: string): Promise<any | null> {
   // Tenta KV
   if (kvReady()) {
     try {
-      const value = await kv.get<any>(`dash:${id}`)
-      if (value) return value
+      const kv = await getKv()
+      if (kv) {
+        const value = await kv.get(`dash:${id}`)
+        if (value) return value as any
+      }
     } catch (e) {
       console.error('[storage] KV get falhou, tentando arquivo:', e)
     }

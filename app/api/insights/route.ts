@@ -25,13 +25,17 @@ type InputDAS = {
 
 // Heurística simples de fallback quando não há chave de IA
 function heuristicaInsights(das: InputDAS) {
-  const aliquota = das.calculos?.aliquotaEfetiva || 0
-  const margem = das.calculos?.margemLiquida || 0
-  const total = das.tributos?.Total || 0
-  const iss = das.tributos?.ISS || 0
-  const icms = das.tributos?.ICMS || 0
-  const inss = das.tributos?.INSS_CPP || 0
-  const rbt12 = (das as any)?.receitas?.rbt12 || 0
+  const toNum = (v: any) => {
+    const n = Number(v)
+    return Number.isFinite(n) ? n : 0
+  }
+  const aliquota = toNum(das.calculos?.aliquotaEfetiva)
+  const margem = toNum(das.calculos?.margemLiquida)
+  const total = toNum(das.tributos?.Total)
+  const iss = toNum(das.tributos?.ISS)
+  const icms = toNum(das.tributos?.ICMS)
+  const inss = toNum(das.tributos?.INSS_CPP)
+  const rbt12 = toNum((das as any)?.receitas?.rbt12)
   const cenario = das.cenario || 'misto'
 
   let comparativo = ''
@@ -90,7 +94,7 @@ function heuristicaInsights(das: InputDAS) {
   dasObs.push(`Composição de tributos: ISS=${pct(iss)}, ICMS=${pct(icms)}, INSS/CPP=${pct(inss)}.`)
 
   // Receita mensal (tendência simples)
-  const vals = das.graficos?.receitaLine?.values || []
+  const vals = (das.graficos?.receitaLine?.values || []).map(toNum)
   if (vals.length >= 3) {
     const last = vals[vals.length - 1] || 0
     const avg3 = (vals.slice(-3).reduce((a, b) => a + (Number.isFinite(b) ? b : 0), 0) / 3)
@@ -152,6 +156,7 @@ Responda apenas com JSON.`
           { role: 'user', content: prompt },
         ],
         temperature: 0.2,
+        response_format: { type: 'json_object' },
       }),
     })
 

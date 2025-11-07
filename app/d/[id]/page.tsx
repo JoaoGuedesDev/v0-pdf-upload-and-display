@@ -4,14 +4,9 @@ import { getDashboard } from '@/lib/store'
 import PGDASDProcessorIA from '@/components/pgdasd-processor-ia'
 export const dynamic = 'force-dynamic'
 
-// Em Next 16, `params` é uma Promise em rotas dinâmicas
-type Props = { params: Promise<{ id?: string }> }
-
-export default async function SharedDashboardPage({ params }: Props) {
-  // Desembrulha a Promise de params
-  const p = await params
-  console.log('[route:/d/[id]] params =', p)
-  const raw = (p?.id ?? '').toString()
+export default async function Page({ params }: any) {
+  const p = typeof params?.then === 'function' ? await params : params
+  const raw = ((p?.id ?? '') as string).toString()
   const id = raw.replace(/[^a-z0-9-]/gi, '')
 
   if (!id) {
@@ -42,6 +37,11 @@ export default async function SharedDashboardPage({ params }: Props) {
     calculos: (data as any)?.calculos,
   }
 
-  // Renderiza o dashboard completo como componente cliente, hidratado com os dados salvos
-  return <PGDASDProcessorIA initialData={initialData as any} />
+  return (
+    <main className="px-6 py-4">
+      <div className="mt-4">
+        <PGDASDProcessorIA initialData={initialData as any} shareId={id} />
+      </div>
+    </main>
+  )
 }

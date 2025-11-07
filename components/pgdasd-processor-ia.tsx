@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { useState, useRef, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useParams } from "next/navigation"
 import { useTheme } from "next-themes"
 import {
   Upload,
@@ -210,7 +210,7 @@ function sanitizeInsights(insights: DASData["insights"]): DASData["insights"] {
   }
 }
 
-export function PGDASDProcessorIA({ initialData }: { initialData?: DASData }) {
+export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: { initialData?: DASData; shareId?: string; hideDownloadButton?: boolean }) {
   const router = useRouter()
   const [file, setFile] = useState<File | null>(null)
   const [loading, setLoading] = useState(false)
@@ -225,6 +225,19 @@ export function PGDASDProcessorIA({ initialData }: { initialData?: DASData }) {
   const [pdfOrientation, setPdfOrientation] = useState<"portrait" | "landscape">("landscape")
   const [pdfFitMode, setPdfFitMode] = useState<"multipage" | "single_contain" | "single_cover">("multipage")
   const [clientPixelRatio, setClientPixelRatio] = useState<number>(3)
+
+  // Resolve ID para geração de PDF via servidor
+  const params = useParams() as any
+  const routeId = typeof params?.id === 'string' ? params.id : undefined
+  const urlId = typeof window !== 'undefined' ? (window.location.pathname.match(/\/d\/([^/?#]+)/)?.[1] || undefined) : undefined
+  const resolvedShareId = shareId || routeId || urlId
+
+  // Sinaliza para a rota de PDF quando o dashboard está pronto para impressão
+  useEffect(() => {
+    try {
+      ;(window as any).__dashReady = !!data
+    } catch {}
+  }, [data])
 
   // Fluxo de PDF via servidor removido
 
@@ -2917,23 +2930,34 @@ export function PGDASDProcessorIA({ initialData }: { initialData?: DASData }) {
                 {isGeneratingImage ? <Loader2 className="h-5 w-5 animate-spin" /> : <Download className="h-5 w-5" />}
                 <span>{isGeneratingImage ? "Gerando..." : "Gerar Imagem (PNG)"}</span>
               </Button>
-              <div className="flex w-full sm:w-auto gap-2">
-                <Button
-                  type="button"
-                  onClick={downloadClientPdf}
-                  disabled={downloadingClientPdf}
-                  variant={darkMode ? 'secondary' : 'default'}
-                  size="lg"
-                  className={`flex-1 sm:flex-none ${darkMode ? 'bg-slate-700 hover:bg-slate-600 text-slate-100 border border-slate-600' : ''} flex items-center gap-2`}
-                >
-                  {downloadingClientPdf ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                  ) : (
-                    <Download className="h-5 w-5" />
-                  )}
-                  <span>{downloadingClientPdf ? 'Gerando...' : 'Baixar PDF'}</span>
-                </Button>
-              </div>
+              {!hideDownloadButton && (
+                <div className="flex w-full sm:w-auto gap-2">
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      const idToUse = resolvedShareId
+                      if (idToUse) {
+                        const base = (process.env.NEXT_PUBLIC_BASE_URL as string | undefined) || window.location.origin
+                        const url = `${base}/api/pdf/id?id=${idToUse}`
+                        window.open(url, '_blank', 'noopener')
+                      } else {
+                        downloadClientPdf()
+                      }
+                    }}
+                    disabled={downloadingClientPdf && !resolvedShareId}
+                    variant={darkMode ? 'secondary' : 'default'}
+                    size="lg"
+                    className={`flex-1 sm:flex-none ${darkMode ? 'bg-slate-700 hover:bg-slate-600 text-slate-100 border border-slate-600' : ''} flex items-center gap-2`}
+                  >
+                    {downloadingClientPdf ? (
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    ) : (
+                      <Download className="h-5 w-5" />
+                    )}
+                    <span>{downloadingClientPdf && !resolvedShareId ? 'Gerando...' : 'Baixar PDF'}</span>
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         )}
