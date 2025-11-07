@@ -205,6 +205,8 @@ export async function POST(request: NextRequest) {
   }
 }
 
+// (mantido no topo) runtime já definido como 'nodejs'
+
 async function persistShare(payload: any): Promise<{ code: string; url: string; filePath: string }> {
   try {
     const saved = await saveDashboard(payload)

@@ -25,9 +25,15 @@ export async function POST(req: NextRequest) {
 
     const dasData = processDasData(text)
     const id = await saveDashboard(dasData, 60) // expira em 60 dias
+    try {
+      console.log('[upload] ID gerado:', id)
+    } catch {}
     return NextResponse.redirect(new URL(`/d/${id}`, req.url), { status: 303 })
   } catch (e) {
     console.error('[upload] Falha ao processar PDF:', e)
     return NextResponse.json({ error: 'Falha ao ler o arquivo PDF.' }, { status: 500 })
   }
 }
+
+// Assegura que esta rota execute no runtime Node.js (necessário para Buffer/createRequire/pdf-parse)
+export const runtime = 'nodejs'
