@@ -512,6 +512,14 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
     } catch (err) {
       console.error("Erro ao gerar PDF no cliente", err)
       setError("Erro ao gerar PDF no cliente. Tente novamente.")
+      // Fallback automático: abre o PDF gerado no servidor quando houver shareId
+      try {
+        const base = (process.env.NEXT_PUBLIC_BASE_URL as string | undefined) || window.location.origin
+        const id = shareId
+        if (id && typeof id === 'string' && id.length > 0) {
+          window.open(`${base}/api/pdf/id?id=${id}`, "_blank", "noopener,noreferrer")
+        }
+      } catch (_) {}
       toast({
         title: "Erro ao gerar PDF (cliente)",
         description: (err as Error)?.message || "Falha ao gerar PDF no cliente",
@@ -986,7 +994,7 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
         cacheBust: true,
         backgroundColor: darkMode ? "#0b1220" : "#ffffff",
       })
-        .then((url) => setPieImageUrl(url))
+        .then((url: string) => setPieImageUrl(url))
         .catch(() => {})
     }
 
@@ -2536,7 +2544,7 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
                                         ))}
                                       </Pie>
                                       <Tooltip
-                                        formatter={(value, name) => [formatCurrency(Number(value)), String(name)]}
+                                        formatter={(value: number | string, name: string) => [formatCurrency(Number(value)), String(name)]}
                                         contentStyle={{
                                           background: darkMode ? "#0f172a" : "#ffffff",
                                           borderColor: darkMode ? "#334155" : "#e2e8f0",
@@ -2689,14 +2697,14 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
                                   tick={{ fontSize: 12, fontWeight: 500, fill: darkMode ? "#94a3b8" : "#64748b" }}
                                   tickLine={false}
                                   axisLine={{ stroke: darkMode ? "#475569" : "#cbd5e1", strokeWidth: 1 }}
-                                  tickFormatter={(v) =>
+                                  tickFormatter={(v: number) =>
                                     new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
                                       Number(v),
                                     )
                                   }
                                 />
                                 <Tooltip
-                                  formatter={(value, name) => [formatCurrency(Number(value)), name]}
+                                  formatter={(value: number | string, name: string) => [formatCurrency(Number(value)), String(name)]}
                                   contentStyle={{
                                     borderRadius: "12px",
                                     backgroundColor: darkMode ? "#1e293b" : "#ffffff",

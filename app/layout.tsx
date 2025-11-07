@@ -1,12 +1,12 @@
 import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
-import { Analytics } from '@vercel/analytics/next'
+import { Analytics } from '@vercel/analytics/react'
 import './globals.css'
 import { ThemeProvider } from '@/components/theme-provider'
 import { Toaster as AppToaster } from '@/components/ui/toaster'
 
-const _geist = Geist({ subsets: ["latin"] });
-const _geistMono = Geist_Mono({ subsets: ["latin"] });
+const _geist = Geist({ subsets: ["latin"], preload: false });
+const _geistMono = Geist_Mono({ subsets: ["latin"], preload: false });
 
 export const metadata: Metadata = {
   title: 'v0 App',
