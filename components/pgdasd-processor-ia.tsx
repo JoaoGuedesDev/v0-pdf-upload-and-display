@@ -2882,9 +2882,14 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
                         const base = (process.env.NEXT_PUBLIC_BASE_URL as string | undefined) || window.location.origin
                         const url = `${base}/api/pdf/id?id=${idToUse}`
                         window.open(url, '_blank', 'noopener')
-                      } else {
-                        downloadClientPdf()
+                        return
                       }
+                      // Em produção, evitamos gerador de PDF do cliente que pode falhar
+                      if (process.env.NODE_ENV === 'production') {
+                        toast({ title: 'Baixar PDF', description: 'Crie um link compartilhado antes de baixar o PDF.', })
+                        return
+                      }
+                      downloadClientPdf()
                     }}
                     disabled={downloadingClientPdf && !resolvedShareId}
                     variant={darkMode ? 'secondary' : 'default'}

@@ -7,7 +7,7 @@ import { createRequire } from "module"
 import fs from "node:fs"
 import path from "node:path"
 import crypto from "node:crypto"
-import { saveDashboard } from "@/lib/storage"
+import { saveDashboard } from "@/lib/store"
 
 // Configuração opcional para encaminhar ao n8n
 const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL || ""
@@ -209,9 +209,9 @@ export async function POST(request: NextRequest) {
 
 async function persistShare(payload: any): Promise<{ code: string; url: string; filePath: string }> {
   try {
-    const saved = await saveDashboard(payload)
-    const url = `/d/${saved.id}`
-    return { code: saved.id, url, filePath: saved.path || "" }
+    const id = await saveDashboard(payload)
+    const url = `/d/${id}`
+    return { code: id, url, filePath: "" }
   } catch (e) {
     console.error("[share] Falha ao persistir resultado:", e)
     // Fallback: gerar ID simples mesmo sem storage
