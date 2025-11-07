@@ -40,6 +40,7 @@ import {
 import { toPng } from "html-to-image"
 import { jsPDF } from "jspdf"
 import { toast } from "@/components/ui/use-toast"
+import { DonutTributos } from "@/components/DonutTributos"
 
 interface DASData {
   identificacao: {
@@ -224,7 +225,11 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
   const [downloadingClientPdf, setDownloadingClientPdf] = useState(false)
   const [pdfOrientation, setPdfOrientation] = useState<"portrait" | "landscape">("landscape")
   const [pdfFitMode, setPdfFitMode] = useState<"multipage" | "single_contain" | "single_cover">("multipage")
-  const [clientPixelRatio, setClientPixelRatio] = useState<number>(3)
+  const [clientPixelRatio, setClientPixelRatio] = useState<number>(4)
+
+  // PieChart: imagem estática unificada para PDF
+  const pieRef = useRef<HTMLDivElement>(null)
+  const [pieImageUrl, setPieImageUrl] = useState<string | null>(null)
 
   // Resolve ID para geração de PDF via servidor
   const params = useParams() as any
@@ -370,25 +375,26 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
       const pdf = new jsPDF(pdfOrientation === "landscape" ? "l" : "p", "mm", "a4")
       const pageWidth = pdf.internal.pageSize.getWidth()
       const pageHeight = pdf.internal.pageSize.getHeight()
+      const margin = 6
 
       if (pdfFitMode === "multipage") {
-        const imgWidth = pageWidth
+        const imgWidth = pageWidth - margin * 2
         const imgHeight = (dims.h * imgWidth) / dims.w
         let heightLeft = imgHeight
-        let position = 0
-        pdf.addImage(dataUrl, "PNG", 0, position, imgWidth, imgHeight)
+        let position = margin
+        pdf.addImage(dataUrl, "PNG", margin, position, imgWidth, imgHeight)
         heightLeft -= pageHeight
         while (heightLeft > 0) {
           pdf.addPage()
           position = heightLeft - imgHeight
-          pdf.addImage(dataUrl, "PNG", 0, position, imgWidth, imgHeight)
+          pdf.addImage(dataUrl, "PNG", margin, position, imgWidth, imgHeight)
           heightLeft -= pageHeight
         }
       } else {
         const fitContain = pdfFitMode === "single_contain"
         const scale = fitContain
-          ? Math.min(pageWidth / dims.w, pageHeight / dims.h)
-          : Math.max(pageWidth / dims.w, pageHeight / dims.h)
+          ? Math.min((pageWidth - margin * 2) / dims.w, (pageHeight - margin * 2) / dims.h)
+          : Math.max((pageWidth - margin * 2) / dims.w, (pageHeight - margin * 2) / dims.h)
         const renderW = dims.w * scale
         const renderH = dims.h * scale
         const x = (pageWidth - renderW) / 2
@@ -865,6 +871,38 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
     setTheme(next ? "dark" : "light")
   }
 
+  // Geração da imagem estática do PieChart somente após o SVG estar renderizado
+  useEffect(() => {
+    const total = Number((data as any)?.tributos?.Total || 0)
+    if (!pieRef.current || pieImageUrl || total <= 0) return
+
+    let timeoutId: ReturnType<typeof setTimeout> | undefined
+    const tryCapture = () => {
+      const root = pieRef.current
+      if (!root) return
+      const svg = root.querySelector('svg')
+      const rect = root.getBoundingClientRect()
+      const ready = !!svg && rect.width > 0 && rect.height > 0
+      if (!ready) {
+        timeoutId = setTimeout(tryCapture, 250)
+        return
+      }
+      toPng(root, {
+        pixelRatio: clientPixelRatio,
+        cacheBust: true,
+        backgroundColor: darkMode ? "#0b1220" : "#ffffff",
+      })
+        .then((url) => setPieImageUrl(url))
+        .catch(() => {})
+    }
+
+    timeoutId = setTimeout(tryCapture, 150)
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId)
+    }
+  }, [data, darkMode, clientPixelRatio, pieImageUrl])
+
+
   return (
     <div
       className={`min-h-screen p-4 sm:p-6 ${darkMode ? "bg-slate-900 text-white" : "bg-gradient-to-br from-slate-50 via-gray-50 to-slate-100"}`}
@@ -992,14 +1030,14 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-2">
               {/* Receita Bruta PA - Azul escuro */}
-              <Card className="bg-gradient-to-br from-slate-700 to-slate-800 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200 py-2">
-                <CardHeader className="pb-1 p-2 sm:p-3 flex flex-row items-center justify-between space-y-0">
-                  <CardTitle className="text-xs sm:text-sm font-bold">Receita Bruta PA</CardTitle>
+              <Card className="bg-gradient-to-br from-slate-700 to-slate-800 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200 py-1">
+                <CardHeader className="pb-0.5 p-1 sm:p-2 flex flex-row items-center justify-between space-y-0">
+                  <CardTitle className="text-[11px] sm:text-xs font-bold">Receita Bruta PA</CardTitle>
                   <DollarSign className="h-4 w-4" />
                 </CardHeader>
-                <CardContent className="p-2 sm:p-3 pt-0">
-                  <p className="text-lg sm:text-2xl font-bold break-words">{formatCurrency(data.receitas.receitaPA)}</p>
-                  <p className="text-[10px] sm:text-xs opacity-75 mt-1 flex items-center gap-1">
+                <CardContent className="p-1 sm:p-2 pt-0">
+                  <p className="text-base sm:text-lg font-bold break-words">{formatCurrency(data.receitas.receitaPA)}</p>
+                  <p className="text-[10px] sm:text-[11px] opacity-75 mt-1 flex items-center gap-1">
                     <Clock className="h-3 w-3" /> Período de apuração
                   </p>
                 </CardContent>
@@ -1007,11 +1045,11 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
 
               {/* Total DAS - Azul médio */}
               <Card className="bg-gradient-to-br from-blue-600 to-blue-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200">
-                <CardHeader className="pb-1 p-2 sm:p-3 flex flex-row items-center justify-between space-y-0">
-                  <CardTitle className="text-xs sm:text-sm font-bold">Total DAS</CardTitle>
+                <CardHeader className="pb-0.5 p-1 sm:p-2 flex flex-row items-center justify-between space-y-0">
+                  <CardTitle className="text-[11px] sm:text-xs font-bold">Total DAS</CardTitle>
                   <FileText className="h-4 w-4" />
                 </CardHeader>
-                <CardContent className="p-2 sm:p-3 pt-0">
+                <CardContent className="p-1 sm:p-2 pt-0">
                   {(() => {
                     // Exibe origem do DAS com a MESMA regra de bucket usada na tabela detalhada
                     const atividadesDbgRaw = (data as any)?.debug?.atividades
@@ -1094,34 +1132,34 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
                     const anyBadge = mercadoriasTotal > 0 || servicosTotal > 0
                     if (!anyBadge) return null
                     return (
-                      <div className="flex flex-wrap gap-2 mb-2">
+                      <div className="flex flex-wrap gap-1 mb-1">
                         {servicosTotal > 0 && (
-                          <span className="inline-flex items-center rounded-full px-2 py-1 text-xs font-medium bg-white/20 text-white border border-white/30">
+                          <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium bg-white/20 text-white border border-white/30">
                             Serviços: {formatCurrency(servicosTotal)}
                           </span>
                         )}
                         {mercadoriasTotal > 0 && (
-                          <span className="inline-flex items-center rounded-full px-2 py-1 text-xs font-medium bg-white/20 text-white border border-white/30">
+                          <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium bg-white/20 text-white border border-white/30">
                             Mercadorias: {formatCurrency(mercadoriasTotal)}
                           </span>
                         )}
                       </div>
                     )
                   })()}
-                  <p className="text-lg sm:text-2xl font-bold font-sans break-words">
+                  <p className="text-base sm:text-lg font-bold font-sans break-words">
                     {formatCurrency(data.tributos.Total)}
                   </p>
-                  <p className="text-[10px] sm:text-xs opacity-75 mt-1">Valor a pagar</p>
+                  <p className="text-[10px] sm:text-[11px] opacity-75 mt-1">Valor a pagar</p>
                 </CardContent>
               </Card>
 
               {/* Alíquota Efetiva - Verde */}
               <Card className="bg-gradient-to-br from-emerald-600 to-emerald-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200">
-                <CardHeader className="pb-1 p-2 sm:p-3">
-                  <CardTitle className="text-xs sm:text-sm font-bold">Alíquota Efetiva</CardTitle>
+                <CardHeader className="pb-0.5 p-1 sm:p-2">
+                  <CardTitle className="text-[11px] sm:text-xs font-bold">Alíquota Efetiva</CardTitle>
                 </CardHeader>
-                <CardContent className="p-2 sm:p-3 pt-0">
-                  <p className="text-lg sm:text-2xl font-bold font-sans">
+                <CardContent className="p-1 sm:p-2 pt-0">
+                  <p className="text-base sm:text-lg font-bold font-sans">
                     {(() => {
                       const formatted =
                         data.calculos?.aliquotaEfetivaFormatada ??
@@ -1131,20 +1169,20 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
                       return formatted.includes("%") ? formatted : `${formatted}%`
                     })()}
                   </p>
-                  <p className="text-[10px] sm:text-xs opacity-75 mt-1">DAS / Receita PA</p>
+                  <p className="text-[10px] sm:text-[11px] opacity-75 mt-1">DAS / Receita PA</p>
                 </CardContent>
               </Card>
 
               {/* Margem Líquida - Roxo */}
-              <Card className="bg-gradient-to-br from-purple-600 to-purple-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200 py-2">
-                <CardHeader className="pb-1 p-2 sm:p-3">
-                  <CardTitle className="text-xs sm:text-sm font-bold">Margem Líquida</CardTitle>
+              <Card className="bg-gradient-to-br from-purple-600 to-purple-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200 py-1">
+                <CardHeader className="pb-0.5 p-1 sm:p-2">
+                  <CardTitle className="text-[11px] sm:text-xs font-bold">Margem Líquida</CardTitle>
                 </CardHeader>
-                <CardContent className="p-2 sm:p-3 pt-0">
-                  <p className="text-lg sm:text-2xl font-bold font-sans">
+                <CardContent className="p-1 sm:p-2 pt-0">
+                  <p className="text-base sm:text-lg font-bold font-sans">
                     {(data.calculos?.margemLiquida || data.calculos?.margemLiquidaPercent || 0).toFixed(3)}%
                   </p>
-                  <p className="text-[10px] sm:text-xs opacity-75 mt-1">Receita após impostos</p>
+                  <p className="text-[10px] sm:text-[11px] opacity-75 mt-1">Receita após impostos</p>
                 </CardContent>
               </Card>
             </div>
@@ -1559,332 +1597,162 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
                         <div
                           className={`absolute inset-0 rounded-xl ${darkMode ? "bg-slate-700/15" : "bg-slate-100/30"} pointer-events-none`}
                         />
-                        <div className="h-[350px] print:h-[260px] w-full">
+                        <div className="h-[300px] w-full">
                           <ResponsiveContainer width="100%" height="100%">
                             {(() => {
                               const base = (data.graficos!.receitaLine || data.graficos!.receitaMensal)!
-                              const me = data.graficos!.receitaLineExterno
-                              const miLabels = base.labels || []
-                              const miValues = base.values || []
-                              const meMap = new Map<string, { v: number; s?: string }>()
-                              if (me && Array.isArray(me.labels)) {
-                                me.labels.forEach((l: string, i: number) => {
-                                  meMap.set(String(l), { v: Number(me.values?.[i] || 0), s: me.valuesFormatados?.[i] })
+                              const labels = base.labels || []
+                              const totals = (base.values || []).map((v: any) => Number(v) || 0)
+                              const externoSerie = (data.graficos as any)?.receitaLineExterno || null
+                              const extMap: Record<string, number> = {}
+                              if (externoSerie && Array.isArray(externoSerie.labels) && Array.isArray(externoSerie.values)) {
+                                externoSerie.labels.forEach((l: string, i: number) => {
+                                  const v = Number(externoSerie.values[i]) || 0
+                                  extMap[l] = v
                                 })
                               }
-                              // Escala comum: calcular limites iguais para MI e ME
-                              const miValuesNumeric = miValues.map((v: any) => Number(v) || 0)
-                              const meValuesAligned = miLabels.map((l: string) => meMap.get(String(l))?.v ?? 0)
-                              const miMax = Math.max(0, ...miValuesNumeric)
-                              const meMax = Math.max(0, ...meValuesAligned)
-                              const miMin = Math.min(...miValuesNumeric, miMax)
-                              const meMin = Math.min(...meValuesAligned, meMax)
-                              const rawMin = Math.min(miMin, meMin)
-                              const rawMax = Math.max(miMax, meMax)
-                              const range = Math.max(1, rawMax - rawMin)
-                              const pad = Math.max(range * 0.35, rawMax * 0.08)
-                              const domainMin = Math.max(0, rawMin - pad)
-                              const domainMax = rawMax + pad
-                              const leftDomain = [domainMin, domainMax]
-                              const rightDomain = [domainMin, domainMax]
 
-                              // Mapeamento usando valores arredondados a 2 casas para evitar rótulos "0,00"
-                              const round2 = (n: number) => Math.round(Number(n || 0) * 100) / 100
-                              const chartData = miLabels.map((label: string, idx: number) => {
-                                const mi = Number(miValues[idx] || 0)
-                                const meItem = meMap.get(String(label))
-                                const meV = meItem?.v || 0
-                                const miR = round2(mi)
-                                const meR = round2(meV)
-                                const miFmt = new Intl.NumberFormat("pt-BR", {
-                                  minimumFractionDigits: 2,
-                                  maximumFractionDigits: 2,
-                                }).format(miR)
-                                const meFmt = new Intl.NumberFormat("pt-BR", {
-                                  minimumFractionDigits: 2,
-                                  maximumFractionDigits: 2,
-                                }).format(meR)
-                                // Exibir rótulos apenas quando valor arredondado > 0 (seta será desenhada via SVG)
-                                const miLabel = miR > 0 ? miFmt : ""
-                                const meLabel = meR > 0 ? meFmt : ""
-                                return { mes: label, mi: miR, me: meR, miLabel, meLabel }
+                              const chartData = labels.map((l) => {
+                                const total = totals[labels.indexOf(l)] || 0
+                                const externoRaw = Math.min(extMap[l] || 0, total)
+                                const internoRaw = Math.max(total - externoRaw, 0)
+                                const maior = Math.max(internoRaw, externoRaw)
+                                const menor = Math.min(internoRaw, externoRaw)
+                                const maiorTipo = internoRaw >= externoRaw ? "interno" : "externo"
+                                return { name: l, interno: internoRaw, externo: externoRaw, maior, menor, maiorTipo }
                               })
 
-                              // Utilitários para evitar sobreposição de rótulos
-                              const placedBounds: { x1: number; x2: number; y1: number; y2: number }[] = []
-                              const estimateTextWidth = (s: string, fontSize: number) => s.length * (fontSize * 0.6)
-                              const overlaps = (
-                                a: { x1: number; x2: number; y1: number; y2: number },
-                                b: { x1: number; x2: number; y1: number; y2: number },
-                              ) => {
-                                return !(a.x2 < b.x1 || a.x1 > b.x2 || a.y2 < b.y1 || a.y1 > b.y2)
-                              }
+                              const maxVal = Math.max(...chartData.map((d) => Math.max(d.interno, d.externo)), 0)
+                              const padTop = 50000
+                              const topDomain = Math.max(0, Math.ceil(maxVal + padTop))
+                              const yTicks = [0, topDomain * 0.2, topDomain * 0.4, topDomain * 0.6, topDomain * 0.8, topDomain]
+                              const formatAxisShort = (n: number) =>
+                                n >= 1e6
+                                  ? `${(n / 1e6).toFixed(1)}M`
+                                  : n >= 1e3
+                                  ? `${(n / 1e3).toFixed(1)}k`
+                                  : `${n.toFixed(0)}`
+                              const formatNumberBR = (n: number) =>
+                                Number(n).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
-                              // Renderer customizado: seta pequena saindo do ponto até o texto
-                              const makeArrowLabel = (strokeColor: string, textColor: string) => (props: any) => {
-                                const { x, y, value, index } = props
-                                const valueStr = String(value ?? "").trim()
-                                if (
-                                  !valueStr ||
-                                  valueStr === "" ||
-                                  valueStr === "0,00" ||
-                                  valueStr === "R$ 0,00" ||
-                                  valueStr === "R$\u00a00,00"
-                                )
-                                  return <g key={index} />
-                                let spacing = 7
-                                const fontSize = 8
-                                const pointX = props?.cx ?? x
-                                // desloca o texto um pouco menos para a direita (-1px)
-                                const textShiftRight = 17
-                                let textX = pointX + textShiftRight
-                                let labelY = y - spacing
-                                const textW = estimateTextWidth(valueStr, fontSize)
-                                let bbox = {
-                                  x1: textX - textW / 2,
-                                  x2: textX + textW / 2,
-                                  y1: labelY - fontSize,
-                                  y2: labelY,
-                                }
-
-                                // Se a posição acima sair do topo, inverte para baixo mantendo setas dentro da área
-                                let arrowUp = true
-                                const topClamp = 16
-                                if (labelY < topClamp) {
-                                  labelY = y + spacing
-                                  arrowUp = false
-                                  bbox = {
-                                    x1: textX - textW / 2,
-                                    x2: textX + textW / 2,
-                                    y1: labelY - fontSize,
-                                    y2: labelY,
-                                  }
-                                }
-                                let tries = 0
-                                const hStep = 4
-                                // Elevar o rótulo e ajustar horizontalmente enquanto houver sobreposição
-                                while (placedBounds.some((b) => overlaps(b, bbox)) && tries < 10) {
-                                  spacing += 7
-                                  // alterna pequenos deslocamentos horizontais para espalhar rótulos próximos
-                                  textX += tries % 2 === 0 ? hStep : -hStep
-                                  labelY = arrowUp ? y - spacing : y + spacing
-                                  bbox = {
-                                    x1: textX - textW / 2,
-                                    x2: textX + textW / 2,
-                                    y1: labelY - fontSize,
-                                    y2: labelY,
-                                  }
-                                  tries++
-                                }
-                                placedBounds.push(bbox)
-                                const endX = textX
-                                const endY = arrowUp ? labelY + 1 : labelY - 1
-                                return (
-                                  <g key={index}>
-                                    {/* haste da seta pequena saindo do ponto */}
-                                    <line x1={pointX} y1={y} x2={endX} y2={endY} stroke={strokeColor} strokeWidth={1} />
-                                    {/* cabeça da seta pequena apontando para o texto (reduzida 1px) */}
-                                    <polyline
-                                      points={
-                                        arrowUp
-                                          ? `${endX - 1},${endY + 1} ${endX},${endY} ${endX + 1},${endY + 1}`
-                                          : `${endX - 1},${endY - 1} ${endX},${endY} ${endX + 1},${endY - 1}`
-                                      }
-                                      fill="none"
-                                      stroke={strokeColor}
-                                      strokeWidth={1}
-                                    />
-                                    {/* texto do valor próximo à ponta da seta */}
-                                    <text
-                                      x={textX}
-                                      y={labelY}
-                                      dy={arrowUp ? -1 : 6}
-                                      textAnchor="middle"
-                                      fontSize={fontSize}
-                                      fill={textColor}
-                                      style={{ pointerEvents: "none", paintOrder: "stroke" }}
-                                    >
-                                      {String(valueStr)}
-                                    </text>
-                                  </g>
-                                )
-                              }
-                              // Dot condicional: sempre retorna um elemento válido para satisfazer o tipo do Recharts
-                              const conditionalDot = (color: string) => (props: any) => {
-                                const v = Number(props?.value || 0)
-                                const vr = Math.round(v * 100) / 100
-                                const key = props?.index ?? `${props?.cx}-${props?.cy}-${color}`
-                                if (vr === 0) {
-                                  // elemento "invisível" quando o valor é zero, evitando retorno null
-                                  return (
-                                    <circle
-                                      key={key}
-                                      cx={props.cx}
-                                      cy={props.cy}
-                                      r={0}
-                                      stroke="transparent"
-                                      fill="transparent"
-                                    />
-                                  )
-                                }
-                                return (
-                                  <circle
-                                    key={key}
-                                    cx={props.cx}
-                                    cy={props.cy}
-                                    r={3}
-                                    stroke="#0891b2"
-                                    strokeWidth={1}
-                                    fill={color}
-                                  />
-                                )
-                              }
                               return (
-                                <LineChart data={chartData} margin={{ top: 60, right: 60, left: 72, bottom: 28 }}>
-                                  {/* Grid com linhas horizontais sutis */}
-                                  <CartesianGrid
-                                    strokeDasharray="1 1"
-                                    opacity={0.2}
-                                    horizontal={true}
-                                    vertical={false}
-                                    stroke={darkMode ? "#475569" : "#e2e8f0"}
-                                  />
-
-                                  {/* Eixo X com estilo da imagem de referência */}
-                                  <XAxis
-                                    dataKey="mes"
-                                    tick={{
-                                      fontSize: 12,
-                                      fontWeight: 500,
-                                      fill: darkMode ? "#94a3b8" : "#64748b",
-                                    }}
-                                    tickLine={false}
-                                    axisLine={{
-                                      stroke: darkMode ? "#475569" : "#cbd5e1",
-                                      strokeWidth: 1,
-                                    }}
-                                    tickMargin={10}
-                                  />
-
-                                  {/* Eixo Y esquerdo (MI) - domínio comum */}
+                                <BarChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 10 }} barCategoryGap="30%" barGap={-18}>
+                                  <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? "#334155" : "#e2e8f0"} />
+                                  <XAxis dataKey="name" tick={{ fill: darkMode ? "#cbd5e1" : "#334155", fontSize: 12 }} tickMargin={18} />
                                   <YAxis
-                                    yAxisId="left"
-                                    tick={{
-                                      fontSize: 12,
-                                      fontWeight: 500,
-                                      fill: darkMode ? "#94a3b8" : "#64748b",
-                                    }}
-                                    tickLine={false}
-                                    axisLine={{
-                                      stroke: darkMode ? "#475569" : "#cbd5e1",
-                                      strokeWidth: 1,
-                                    }}
-                                    tickMargin={10}
-                                    domain={leftDomain}
-                                    tickFormatter={(value) =>
-                                      new Intl.NumberFormat("pt-BR", {
-                                        style: "currency",
-                                        currency: "BRL",
-                                        minimumFractionDigits: 2,
-                                        maximumFractionDigits: 2,
-                                      }).format(Number(value))
+                                    tick={{ fill: darkMode ? "#cbd5e1" : "#334155", fontSize: 12 }}
+                                    tickFormatter={formatAxisShort}
+                                    ticks={yTicks}
+                                     domain={[0, topDomain]}
+                                   />
+                                   {(() => {
+                                     const IN_COLOR = "#3b82f6"
+                                     const EX_COLOR = "#7c3aed" // roxo mais intenso para maior contraste
+                                     const CustomTooltip = ({ active, payload, label }: any) => {
+                                       if (!active || !payload || !payload.length) return null
+                                       const p = payload[0]?.payload
+                                       if (!p) return null
+                                       const interno = Number(p.interno) || 0
+                                       const externo = Number(p.externo) || 0
+                                       const shouldShow = (v: number) => v > 0.01
+                                       return (
+                                         <div
+                                           style={{
+                                             background: darkMode ? "#0f172a" : "#ffffff",
+                                             border: `1px solid ${darkMode ? "#334155" : "#e2e8f0"}`,
+                                             borderRadius: 6,
+                                             padding: 8,
+                                             color: darkMode ? "#cbd5e1" : "#334155",
+                                           }}
+                                         >
+                                           <div style={{ marginBottom: 6, fontSize: 12 }}>{String(label)}</div>
+                                           {shouldShow(interno) && (
+                                             <div style={{ fontSize: 12 }}>
+                                               Interno: <span style={{ color: IN_COLOR }}>{formatNumberBR(interno)}</span>
+                                             </div>
+                                           )}
+                                           {shouldShow(externo) && (
+                                             <div style={{ fontSize: 12 }}>
+                                               Externo: <span style={{ color: EX_COLOR }}>{formatNumberBR(externo)}</span>
+                                             </div>
+                                           )}
+                                         </div>
+                                       )
+                                     }
+                                     return <Tooltip content={CustomTooltip as any} />
+                                   })()}
+                                  {(() => {
+                                    const IN_COLOR = "#3b82f6"
+                                    const EX_COLOR = "#7c3aed" // roxo mais intenso para maior contraste
+                                    const labelColor = darkMode ? "#cbd5e1" : "#334155"
+                                    const isZeroish = (n: number) => {
+                                      const val = Number(n) || 0
+                                      return Math.abs(val) < 0.005
                                     }
-                                  />
-                                  {/* Eixo Y direito (ME) oculto para liberar espaço visual */}
-                                  <YAxis
-                                    yAxisId="right"
-                                    orientation="right"
-                                    hide
-                                    domain={rightDomain}
-                                    allowDataOverflow={false}
-                                  />
-
-                                  {/* Tooltip aprimorado */}
-                                  <Tooltip
-                                    formatter={(value, name, item: any) => {
-                                      const labelName = String(name)
-                                      // Garantir que tooltip mostre o valor real (não o epsilon) para ME
-                                      const vReal = labelName.includes("Externo")
-                                        ? Number(item?.payload?.me ?? 0)
-                                        : Number(item?.payload?.mi ?? 0)
-                                      return [formatCurrency(vReal), labelName]
-                                    }}
-                                    labelFormatter={(label) => `Mês: ${label}`}
-                                    contentStyle={{
-                                      borderRadius: "12px",
-                                      backgroundColor: darkMode ? "#1e293b" : "#ffffff",
-                                      border: darkMode ? "1px solid #334155" : "1px solid #e2e8f0",
-                                      boxShadow: "0 10px 25px rgba(0,0,0,0.15)",
-                                      fontSize: "13px",
-                                      fontWeight: "500",
-                                    }}
-                                    labelStyle={{
-                                      fontWeight: "600",
-                                      color: darkMode ? "#f1f5f9" : "#1e293b",
-                                    }}
-                                  />
-                                  <Legend />
-                                  {/* Linhas visíveis sem LabelList para permitir rótulos sobrepostos acima */}
-                                  <Line
-                                    yAxisId="left"
-                                    type="monotone"
-                                    dataKey="mi"
-                                    stroke="#2563eb"
-                                    strokeWidth={3}
-                                    dot={conditionalDot("#06b6d4")}
-                                    activeDot={{ r: 5 }}
-                                    name="Mercado Interno (MI)"
-                                  />
-                                  <Line
-                                    yAxisId="right"
-                                    type="monotone"
-                                    dataKey="me"
-                                    stroke="#06b6d4"
-                                    strokeWidth={3.5}
-                                    dot={conditionalDot("#06b6d4")}
-                                    activeDot={{ r: 5 }}
-                                    name="Mercado Externo (ME)"
-                                  />
-
-                                  {/* Camada de rótulos ao topo: Lines transparentes apenas para LabelList */}
-                                  <Line
-                                    yAxisId="left"
-                                    type="monotone"
-                                    dataKey="mi"
-                                    stroke="transparent"
-                                    strokeWidth={0}
-                                    dot={false}
-                                    activeDot={false}
-                                    name="MI Labels"
-                                  >
-                                    <LabelList
-                                      dataKey="miLabel"
-                                      content={makeArrowLabel(
-                                        darkMode ? "#60a5fa" : "#1e40af",
-                                        darkMode ? "#93c5fd" : "#1e40af",
-                                      )}
-                                    />
-                                  </Line>
-                                  <Line
-                                    yAxisId="right"
-                                    type="monotone"
-                                    dataKey="me"
-                                    stroke="transparent"
-                                    strokeWidth={0}
-                                    dot={false}
-                                    activeDot={false}
-                                    name="ME Labels"
-                                  >
-                                    <LabelList
-                                      dataKey="meLabel"
-                                      content={makeArrowLabel(
-                                        darkMode ? "#22d3ee" : "#0284c7",
-                                        darkMode ? "#22d3ee" : "#0284c7",
-                                      )}
-                                    />
-                                  </Line>
-                                  {/* Mantém os overlays customizados abaixo */}
-                                </LineChart>
+                                    const renderLabelMaior = (props: any) => {
+                                      const { value, x, y, width } = props || {}
+                                      const val = Number(value) || 0
+                                      if (isZeroish(val)) return null
+                                      const cx = (Number(x) || 0) + (Number(width) || 0) / 2
+                                      return (
+                                        <text x={cx} y={y} dy={-10} textAnchor="middle" fill={labelColor} fontSize={11}>
+                                          {formatNumberBR(val)}
+                                        </text>
+                                      )
+                                    }
+                                    const renderLabelMenor = (props: any) => {
+                                      const { value, x, y, width } = props || {}
+                                      const val = Number(value) || 0
+                                      if (isZeroish(val)) return null
+                                      const cx = (Number(x) || 0) + (Number(width) || 0) / 2
+                                      return (
+                                        <text x={cx} y={y} dy={-24} textAnchor="middle" fill={labelColor} fontSize={11}>
+                                          {formatNumberBR(val)}
+                                        </text>
+                                      )
+                                    }
+                                    const renderLegend = () => (
+                                      <div style={{ display: "flex", gap: 12, alignItems: "center", fontSize: 12, justifyContent: "center", width: "100%" }}>
+                                        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                                          <span style={{ width: 12, height: 12, background: IN_COLOR, borderRadius: 2 }} /> Mercado Interno
+                                        </span>
+                                        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                                          <span style={{ width: 12, height: 12, background: EX_COLOR, borderRadius: 2 }} /> Mercado Externo
+                                        </span>
+                                      </div>
+                                    )
+                                    return (
+                                      <>
+                                        <Legend
+                                          align="center"
+                                          verticalAlign="bottom"
+                                          content={renderLegend as any}
+                                          wrapperStyle={{ bottom: -10 }}
+                                        />
+                                        {/* Barra maior (base) */}
+                                        <Bar dataKey="maior" name="Maior" radius={[6, 6, 0, 0]}>
+                                          {chartData.map((entry: any, idx: number) => (
+                                            <Cell key={`maior-${idx}`} fill={entry.maiorTipo === "interno" ? IN_COLOR : EX_COLOR} />
+                                          ))}
+                                          <LabelList dataKey="maior" content={renderLabelMaior as any} />
+                                        </Bar>
+                                        {/* Barra menor (sobreposta dentro da maior) */}
+                                        <Bar
+                                          dataKey="menor"
+                                          name="Menor"
+                                          radius={[6, 6, 0, 0]}
+                                          stroke={darkMode ? "rgba(255,255,255,0.35)" : "rgba(51,65,85,0.35)"}
+                                          strokeWidth={1}
+                                        >
+                                          {chartData.map((entry: any, idx: number) => (
+                                            <Cell key={`menor-${idx}`} fill={entry.maiorTipo === "interno" ? EX_COLOR : IN_COLOR} />
+                                          ))}
+                                          <LabelList dataKey="menor" content={renderLabelMenor as any} />
+                                        </Bar>
+                                      </>
+                                    )
+                                  })()}
+                                </BarChart>
                               )
                             })()}
                           </ResponsiveContainer>
@@ -2536,68 +2404,57 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
                         <h4 className={`font-semibold text-sm ${darkMode ? "text-slate-200" : "text-slate-700"} mb-4`}>
                           Visualização Gráfica
                         </h4>
+                        
                         <div id="chart-das-pie" className="flex-1 flex items-center justify-center">
-                          <div className="h-[270px] print:h-[260px] w-full overflow-visible">
-                            <ResponsiveContainer width="100%" height="100%">
-                              <PieChart margin={{ top: 14, bottom: 8, left: 8, right: 8 }}>
-                                <Pie
-                                  data={[
-                                    { name: "IRPJ", value: data.tributos.IRPJ, color: CHART_COLORS[0] },
-                                    { name: "CSLL", value: data.tributos.CSLL, color: CHART_COLORS[1] },
-                                    { name: "COFINS", value: data.tributos.COFINS, color: CHART_COLORS[2] },
-                                    { name: "PIS/PASEP", value: data.tributos.PIS_Pasep, color: CHART_COLORS[3] },
-                                    { name: "INSS/CPP", value: data.tributos.INSS_CPP, color: CHART_COLORS[4] },
-                                    { name: "ICMS", value: data.tributos.ICMS, color: CHART_COLORS[5] },
-                                    { name: "IPI", value: data.tributos.IPI, color: CHART_COLORS[6] },
-                                    { name: "ISS", value: data.tributos.ISS, color: CHART_COLORS[7] },
-                                  ].filter((item) => item.value > 0)}
-                                  cx="50%"
-                                  cy="52%"
-                                  innerRadius={60}
-                                  outerRadius={116}
-                                  paddingAngle={3}
-                                  dataKey="value"
-                                >
-                                  {[
-                                    { name: "IRPJ", value: data.tributos.IRPJ, color: CHART_COLORS[0] },
-                                    { name: "CSLL", value: data.tributos.CSLL, color: CHART_COLORS[1] },
-                                    { name: "COFINS", value: data.tributos.COFINS, color: CHART_COLORS[2] },
-                                    { name: "PIS/PASEP", value: data.tributos.PIS_Pasep, color: CHART_COLORS[3] },
-                                    { name: "INSS/CPP", value: data.tributos.INSS_CPP, color: CHART_COLORS[4] },
-                                    { name: "ICMS", value: data.tributos.ICMS, color: CHART_COLORS[5] },
-                                    { name: "IPI", value: data.tributos.IPI, color: CHART_COLORS[6] },
-                                    { name: "ISS", value: data.tributos.ISS, color: CHART_COLORS[7] },
-                                  ]
-                                    .filter((item) => item.value > 0)
-                                    .map((entry, index) => (
-                                      <Cell
-                                        key={`cell-${index}`}
-                                        fill={entry.color}
-                                        stroke={darkMode ? "#0f172a" : "#e2e8f0"}
-                                        strokeWidth={3}
+                          <div ref={pieRef} className="h-[300px] print:h-[300px] w-full overflow-visible">
+                            {/* Mostrar sempre o gráfico; usar imagem apenas na impressão */}
+                            <div className="block print:hidden h-[300px] w-full">
+                              <ResponsiveContainer width="100%" height="100%">
+                                {(() => {
+                                  const items = [
+                                    { label: "IRPJ", value: Number(data.tributos.IRPJ || 0) },
+                                    { label: "CSLL", value: Number(data.tributos.CSLL || 0) },
+                                    { label: "COFINS", value: Number(data.tributos.COFINS || 0) },
+                                    { label: "PIS/PASEP", value: Number(data.tributos.PIS_Pasep || 0) },
+                                    { label: "INSS/CPP", value: Number(data.tributos.INSS_CPP || 0) },
+                                    { label: "ICMS", value: Number(data.tributos.ICMS || 0) },
+                                    { label: "IPI", value: Number(data.tributos.IPI || 0) },
+                                    { label: "ISS", value: Number(data.tributos.ISS || 0) },
+                                  ].filter((i) => i.value > 0)
+                                  const chartData = items.map((it, idx) => ({
+                                    name: it.label,
+                                    value: it.value,
+                                    color: CHART_COLORS[idx % CHART_COLORS.length],
+                                  }))
+                                  return (
+                                    <PieChart>
+                                      <Pie
+                                        data={chartData}
+                                        dataKey="value"
+                                        nameKey="name"
+                                        outerRadius={120}
+                                        labelLine
+                                        label={(entry: any) => `${entry.name}: ${formatCurrency(Number(entry.value))}`}
+                                      >
+                                        {chartData.map((entry, idx) => (
+                                          <Cell key={`cell-${idx}`} fill={entry.color} />
+                                        ))}
+                                      </Pie>
+                                      <Tooltip
+                                        formatter={(value, name) => [formatCurrency(Number(value)), String(name)]}
+                                        contentStyle={{
+                                          background: darkMode ? "#0f172a" : "#ffffff",
+                                          borderColor: darkMode ? "#334155" : "#e2e8f0",
+                                        }}
                                       />
-                                    ))}
-                                </Pie>
-                                <Tooltip
-                                  formatter={(value, name) => [
-                                    formatCurrency(Number(value)),
-                                    name,
-                                    `${((Number(value) / data.tributos.Total) * 100).toFixed(5)}%`,
-                                  ]}
-                                  contentStyle={{
-                                    borderRadius: "12px",
-                                    backgroundColor: darkMode ? "#1e293b" : "#ffffff",
-                                    color: darkMode ? "#f8fafc" : "#1e293b",
-                                    border: darkMode ? "1px solid #334155" : "1px solid #e2e8f0",
-                                    boxShadow: "0 10px 25px rgba(0,0,0,0.1)",
-                                    fontSize: "12px",
-                                    fontWeight: "500",
-                                  }}
-                                  labelStyle={{ fontWeight: "600" }}
-                                />
-                                {/* Legenda removida conforme solicitado */}
-                              </PieChart>
-                            </ResponsiveContainer>
+                                    </PieChart>
+                                  )
+                                })()}
+                              </ResponsiveContainer>
+                            </div>
+                            {pieImageUrl && (
+                              <img src={pieImageUrl} alt="Gráfico de Pizza DAS" className="hidden print:block h-[300px] w-full object-contain" />
+                            )}
                           </div>
                         </div>
                       </div>
@@ -2766,10 +2623,16 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
                                     />
                                   ))}
                                   <LabelList
-                                    dataKey={(d: any) => formatCurrency(d.value)}
-                                    position="top"
-                                    fill={darkMode ? "#e2e8f0" : "#1f2937"}
-                                    fontSize={11}
+                                    content={(props: any) => {
+                                      const { x = 0, y = 0, width = 0, value = 0 } = props || {}
+                                      const lx = Number(x) + Number(width) / 2
+                                      const ly = Number(y) - 6
+                                      return (
+                                        <text x={lx} y={ly} fill={darkMode ? "#e2e8f0" : "#1f2937"} fontSize={11} textAnchor="middle">
+                                          {formatCurrency(Number(value))}
+                                        </text>
+                                      )
+                                    }}
                                   />
                                 </Bar>
                               </BarChart>
@@ -2790,63 +2653,39 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
                   id="print-insights"
                   className={`${darkMode ? "bg-slate-800 border-slate-700" : "bg-white border border-slate-200"} shadow`}
                 >
-                  <CardContent className="pt-4 sm:pt-6 space-y-3">
+                  <CardContent className="pt-3 sm:pt-4 space-y-2">
                     {data.insights.comparativoSetorial && (
                       <div className="flex items-start gap-2">
-                        <TrendingUp
-                          className={`h-4 w-4 ${darkMode ? "text-blue-400" : "text-blue-600"} mt-0.5 flex-shrink-0`}
-                        />
-                        <p className={`text-sm ${darkMode ? "text-slate-300" : "text-slate-800"}`}>
-                          {data.insights.comparativoSetorial}
-                        </p>
+                        <TrendingUp className={`h-4 w-4 ${darkMode ? "text-blue-400" : "text-blue-600"} mt-0.5 flex-shrink-0`} />
+                        <p className={`text-xs ${darkMode ? "text-slate-300" : "text-slate-800"}`}>{data.insights.comparativoSetorial}</p>
                       </div>
                     )}
-                    <div className="space-y-2">
-                      {data.insights.pontosAtencao.slice(0, 2).map((ponto, idx) => (
-                        <div key={`atencao-${idx}`} className="flex items-start gap-2">
-                          <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />
-                          <p className={`text-sm ${darkMode ? "text-slate-300" : "text-slate-700"}`}>{ponto}</p>
-                        </div>
-                      ))}
-                      {data.insights.oportunidades.slice(0, 2).map((oportunidade, idx) => (
-                        <div key={`oportunidade-${idx}`} className="flex items-start gap-2">
-                          <TrendingUp className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
-                          <p className={`text-sm ${darkMode ? "text-slate-300" : "text-slate-700"}`}>{oportunidade}</p>
-                        </div>
-                      ))}
-                      {(data.insights.economiaImpostos || []).slice(0, 3).map((eco, idx) => (
-                        <div key={`eco-${idx}`} className="flex items-start gap-2">
-                          <DollarSign className="h-4 w-4 text-emerald-500 mt-0.5 flex-shrink-0" />
-                          <p className={`${darkMode ? "text-slate-300" : "text-slate-700"} text-sm`}>{eco}</p>
-                        </div>
-                      ))}
-                      {data.insights.regimeTributario && (
-                        <div className="flex items-start gap-2">
-                          <Shield className="h-4 w-4 text-indigo-500 mt-0.5 flex-shrink-0" />
-                          <p className={`${darkMode ? "text-slate-300" : "text-slate-700"} text-sm`}>
-                            {data.insights.regimeTributario.adequado
-                              ? "Regime atual adequado: "
-                              : "Sugestão de regime: "}
-                            {data.insights.regimeTributario.sugestao ||
-                              (data.insights.regimeTributario.adequado ? "Simples Nacional" : "")}
-                            {data.insights.regimeTributario.justificativa
-                              ? ` — ${data.insights.regimeTributario.justificativa}`
-                              : ""}
-                          </p>
-                        </div>
-                      )}
-                      {(data.insights.dasObservacoes || []).slice(0, 2).map((obs, idx) => (
-                        <div key={`das-${idx}`} className="flex items-start gap-2">
-                          <FileText className="h-4 w-4 text-sky-500 mt-0.5 flex-shrink-0" />
-                          <p className={`${darkMode ? "text-slate-300" : "text-slate-700"} text-sm`}>{obs}</p>
-                        </div>
-                      ))}
-                      {(data.insights.receitaMensal || []).slice(0, 2).map((rm, idx) => (
-                        <div key={`rm-${idx}`} className="flex items-start gap-2">
-                          <TrendingUp className="h-4 w-4 text-teal-500 mt-0.5 flex-shrink-0" />
-                          <p className={`${darkMode ? "text-slate-300" : "text-slate-700"} text-sm`}>{rm}</p>
-                        </div>
-                      ))}
+                    <div className="space-y-1">
+                      {(() => {
+                        const items: { type: "atencao" | "oportunidade" | "economia" | "regime" | "obs" | "receita"; text: string }[] = []
+                        for (const ponto of (data.insights.pontosAtencao || [])) items.push({ type: "atencao", text: ponto })
+                        for (const op of (data.insights.oportunidades || [])) items.push({ type: "oportunidade", text: op })
+                        for (const eco of (data.insights.economiaImpostos || [])) items.push({ type: "economia", text: eco })
+                        if (data.insights.regimeTributario) {
+                          const rt = data.insights.regimeTributario
+                          const base = rt.adequado ? "Regime atual adequado: " : "Sugestão de regime: "
+                          const texto = `${base}${rt.sugestao || (rt.adequado ? "Simples Nacional" : "")}${rt.justificativa ? ` — ${rt.justificativa}` : ""}`
+                          items.push({ type: "regime", text: texto })
+                        }
+                        for (const obs of (data.insights.dasObservacoes || [])) items.push({ type: "obs", text: obs })
+                        for (const rm of (data.insights.receitaMensal || [])) items.push({ type: "receita", text: rm })
+                        return items.slice(0, 4).map((it, idx) => (
+                          <div key={`ins-${idx}`} className="flex items-start gap-2">
+                            {it.type === "atencao" && (<AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />)}
+                            {it.type === "oportunidade" && (<TrendingUp className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />)}
+                            {it.type === "economia" && (<DollarSign className="h-4 w-4 text-emerald-500 mt-0.5 flex-shrink-0" />)}
+                            {it.type === "regime" && (<Shield className="h-4 w-4 text-indigo-500 mt-0.5 flex-shrink-0" />)}
+                            {it.type === "obs" && (<FileText className="h-4 w-4 text-sky-500 mt-0.5 flex-shrink-0" />)}
+                            {it.type === "receita" && (<TrendingUp className="h-4 w-4 text-teal-500 mt-0.5 flex-shrink-0" />)}
+                            <p className={`${darkMode ? "text-slate-300" : "text-slate-700"} text-xs`}>{it.text}</p>
+                          </div>
+                        ))
+                      })()}
                     </div>
                   </CardContent>
                 </Card>

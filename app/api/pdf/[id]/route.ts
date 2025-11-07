@@ -45,12 +45,12 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
         defaultViewport: { width: 1600, height: 1000, deviceScaleFactor: 1.5 },
       })
     } else {
-      const chromium = await import('chrome-aws-lambda')
+      const chromium = await import('@sparticuz/chromium')
       browser = await puppeteer.launch({
         args: chromium.args,
         defaultViewport: { width: 1600, height: 1000, deviceScaleFactor: 1.5 },
-        executablePath: await chromium.executablePath,
-        headless: true,
+        executablePath: await chromium.executablePath(),
+        headless: chromium.headless,
       })
     }
 
