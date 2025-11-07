@@ -255,6 +255,42 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
     const receitaPA = Number(initialData?.receitas?.receitaPA || 0)
     const totalDAS = Number(initialData?.tributos?.Total || 0)
 
+    // Normaliza campos críticos para evitar exceções em renderizações
+    const safeIdentificacao = {
+      cnpj: String(initialData?.identificacao?.cnpj || ""),
+      razaoSocial: String(initialData?.identificacao?.razaoSocial || ""),
+      periodoApuracao: String(initialData?.identificacao?.periodoApuracao || ""),
+      abertura: initialData?.identificacao?.abertura,
+      municipio: String(initialData?.identificacao?.municipio || ""),
+      uf: String(initialData?.identificacao?.uf || ""),
+    }
+    const safeReceitas = {
+      receitaPA: receitaPA,
+      rbt12: Number(initialData?.receitas?.rbt12 || 0),
+      rba: Number(initialData?.receitas?.rba || 0),
+      rbaa: Number(initialData?.receitas?.rbaa || 0),
+      limite: initialData?.receitas?.limite,
+      receitaPAFormatada: initialData?.receitas?.receitaPAFormatada,
+      mercadoExterno: {
+        rpa: Number(initialData?.receitas?.mercadoExterno?.rpa || 0),
+        rbt12: Number(initialData?.receitas?.mercadoExterno?.rbt12 || 0),
+        rba: Number(initialData?.receitas?.mercadoExterno?.rba || 0),
+        rbaa: Number(initialData?.receitas?.mercadoExterno?.rbaa || 0),
+        limite: initialData?.receitas?.mercadoExterno?.limite,
+      },
+    }
+    const safeTributos = {
+      IRPJ: Number(initialData?.tributos?.IRPJ || 0),
+      CSLL: Number(initialData?.tributos?.CSLL || 0),
+      COFINS: Number(initialData?.tributos?.COFINS || 0),
+      PIS_Pasep: Number(initialData?.tributos?.PIS_Pasep || 0),
+      INSS_CPP: Number(initialData?.tributos?.INSS_CPP || 0),
+      ICMS: Number(initialData?.tributos?.ICMS || 0),
+      IPI: Number(initialData?.tributos?.IPI || 0),
+      ISS: Number(initialData?.tributos?.ISS || 0),
+      Total: Number(initialData?.tributos?.Total || 0),
+    }
+
     const truncateDecimals = (value: number, decimals = 5): number => {
       if (!isFinite(value)) return 0
       const factor = Math.pow(10, decimals)
@@ -269,6 +305,9 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
     const aliquotaEfetivaValue = totalDAS > 0 && receitaPA > 0 ? (totalDAS / receitaPA) * 100 : 0
     const hydrated: DASData = {
       ...initialData,
+      identificacao: safeIdentificacao,
+      receitas: safeReceitas as any,
+      tributos: safeTributos,
       calculos: {
         ...(initialData.calculos || {}),
         aliquotaEfetiva:
@@ -340,15 +379,21 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
   const downloadClientPdf = async () => {
     if (!contentRef.current || !data) return
     const node = contentRef.current as HTMLElement
-    const pieEl = node.querySelector("#print-pie") as HTMLElement | null
+    // Preparar alternância do gráfico de pizza: usar imagem estática com rótulos
+    const chartDasPie = node.querySelector("#chart-das-pie") as HTMLElement | null
+    const livePieBlock = chartDasPie?.querySelector("div.block") as HTMLElement | null
+    const pieFallbackImg = chartDasPie?.querySelector('img[alt="Gráfico de Pizza DAS"]') as HTMLElement | null
+    const prevLivePieDisplay = livePieBlock?.style.display
+    const prevFallbackDisplay = pieFallbackImg?.style.display
     const insightsEl = node.querySelector("#print-insights") as HTMLElement | null
-    const prevPieDisplay = pieEl?.style.display
     const prevInsightsDisplay = insightsEl?.style.display
     const controlsEls = Array.from(node.querySelectorAll("[data-hide-for-client-pdf]")) as HTMLElement[]
     const prevControlsDisplay = controlsEls.map((el) => el.style.display)
     try {
       setDownloadingClientPdf(true)
-      if (pieEl) pieEl.style.display = "none"
+      // Alterna para imagem estática do Pie e oculta o gráfico vivo
+      if (pieFallbackImg) pieFallbackImg.style.display = "block"
+      if (livePieBlock) livePieBlock.style.display = "none"
       if (insightsEl) insightsEl.style.display = "none"
       controlsEls.forEach((el) => (el.style.display = "none"))
       const whatsappAnchor = node.querySelector('a[href^="https://wa.me/"]') as HTMLAnchorElement | null
@@ -418,7 +463,7 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
       }
 
       pdf.save("dashboard-relatorio.pdf")
-      toast({ title: "PDF gerado (fallback)", description: "Download iniciado no cliente." })
+      toast({ title: "PDF gerado (cliente)", description: "Download iniciado." })
     } catch (err) {
       console.error("Erro ao gerar PDF no cliente", err)
       setError("Erro ao gerar PDF no cliente. Tente novamente.")
@@ -428,7 +473,9 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
         variant: "destructive",
       })
     } finally {
-      if (pieEl) pieEl.style.display = prevPieDisplay || ""
+      // Reverte alternâncias aplicadas
+      if (pieFallbackImg) pieFallbackImg.style.display = prevFallbackDisplay || ""
+      if (livePieBlock) livePieBlock.style.display = prevLivePieDisplay || ""
       if (insightsEl) insightsEl.style.display = prevInsightsDisplay || ""
       controlsEls.forEach((el, idx) => (el.style.display = prevControlsDisplay[idx] || ""))
       setDownloadingClientPdf(false)
@@ -1147,7 +1194,7 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
                     )
                   })()}
                   <p className="text-base sm:text-lg font-bold font-sans break-words">
-                    {formatCurrency(data.tributos.Total)}
+                    {formatCurrency(Number(data?.tributos?.Total || 0))}
                   </p>
                   <p className="text-[10px] sm:text-[11px] opacity-75 mt-1">Valor a pagar</p>
                 </CardContent>
@@ -2302,7 +2349,7 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
             </Card>
 
             {/* Gráficos de Pizza - Composição dos Tributos */}
-            {data.graficos && (data.graficos.dasPie || data.graficos.totalTributos) && (
+            {data?.graficos && (data.graficos.dasPie || data.graficos.totalTributos) && data?.tributos && typeof data.tributos === "object" && (
               <div className="grid grid-cols-1 gap-4 sm:gap-6 print:contents">
                 {/* Gráfico de Pizza - Distribuição do DAS */}
                 <Card
@@ -2327,8 +2374,8 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
                   </CardHeader>
                   <CardContent>
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                      {/* Valores numéricos à esquerda */}
-                      <div className="space-y-0.5 print:hidden">
+                      {/* Valores numéricos à esquerda (mostrar também no PDF) */}
+                      <div className="space-y-0.5 print:block">
                         <h4 className={`font-semibold text-sm ${darkMode ? "text-slate-200" : "text-slate-700"} mb-4`}>
                           Valores por Tributo
                         </h4>
@@ -2343,12 +2390,13 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
                           { key: "ISS", label: "ISS", color: CHART_COLORS[7] },
                         ]
                           .filter((item) => {
-                            const value = (data.tributos[item.key as keyof typeof data.tributos] as number) || 0
+                            const value = (((data?.tributos as any) ?? {})[item.key] as number) || 0
                             return value > 0
                           })
                           .map(({ key, label, color }) => {
-                            const value = (data.tributos[key as keyof typeof data.tributos] as number) || 0
-                            const percentage = data.tributos.Total > 0 ? (value / data.tributos.Total) * 100 : 0
+                            const value = (((data?.tributos as any) ?? {})[key] as number) || 0
+                            const total = Number(data?.tributos?.Total || 0)
+                            const percentage = total > 0 ? (value / total) * 100 : 0
 
                             return (
                               <div
@@ -2394,7 +2442,7 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
                             </div>
                           </div>
                           <div className={`font-bold text-lg ${darkMode ? "text-slate-100" : "text-slate-900"}`}>
-                            {formatCurrency(data.tributos.Total)}
+                            {formatCurrency(Number(data?.tributos?.Total || 0))}
                           </div>
                         </div>
                       </div>
@@ -2412,14 +2460,14 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
                               <ResponsiveContainer width="100%" height="100%">
                                 {(() => {
                                   const items = [
-                                    { label: "IRPJ", value: Number(data.tributos.IRPJ || 0) },
-                                    { label: "CSLL", value: Number(data.tributos.CSLL || 0) },
-                                    { label: "COFINS", value: Number(data.tributos.COFINS || 0) },
-                                    { label: "PIS/PASEP", value: Number(data.tributos.PIS_Pasep || 0) },
-                                    { label: "INSS/CPP", value: Number(data.tributos.INSS_CPP || 0) },
-                                    { label: "ICMS", value: Number(data.tributos.ICMS || 0) },
-                                    { label: "IPI", value: Number(data.tributos.IPI || 0) },
-                                    { label: "ISS", value: Number(data.tributos.ISS || 0) },
+                                    { label: "IRPJ", value: Number(data?.tributos?.IRPJ || 0) },
+                                    { label: "CSLL", value: Number(data?.tributos?.CSLL || 0) },
+                                    { label: "COFINS", value: Number(data?.tributos?.COFINS || 0) },
+                                    { label: "PIS/PASEP", value: Number(data?.tributos?.PIS_Pasep || 0) },
+                                    { label: "INSS/CPP", value: Number(data?.tributos?.INSS_CPP || 0) },
+                                    { label: "ICMS", value: Number(data?.tributos?.ICMS || 0) },
+                                    { label: "IPI", value: Number(data?.tributos?.IPI || 0) },
+                                    { label: "ISS", value: Number(data?.tributos?.ISS || 0) },
                                   ].filter((i) => i.value > 0)
                                   const chartData = items.map((it, idx) => ({
                                     name: it.label,
@@ -2503,8 +2551,8 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
                   </CardHeader>
                   <CardContent>
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                      {/* Tabela rápida à esquerda */}
-                      <div className="space-y-0.5 print:hidden">
+                      {/* Tabela rápida à esquerda (mostrar também no PDF) */}
+                      <div className="space-y-0.5 print:block">
                         {[
                           {
                             key: "mercadorias",
