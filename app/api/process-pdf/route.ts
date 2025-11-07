@@ -11,6 +11,7 @@ const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL || ""
 const N8N_WEBHOOK_TOKEN = process.env.N8N_WEBHOOK_TOKEN || ""
 const N8N_BASIC_USER = process.env.N8N_BASIC_USER || ""
 const N8N_BASIC_PASS = process.env.N8N_BASIC_PASS || ""
+const N8N_TIMEOUT_MS = Number(process.env.N8N_TIMEOUT_MS || 15000)
 
 function buildAuthHeader(): Record<string, string> {
   // Prioridade: Basic Auth se definido; caso contrário, Bearer
@@ -51,12 +52,31 @@ export async function POST(request: NextRequest) {
           // Enviar com nome explícito para compatibilidade com parsers de multipart
           forwardForm.append("file", file, (file as File).name || "upload.pdf")
           const headers: Record<string, string> = { ...buildAuthHeader() }
-          const res = await fetch(N8N_WEBHOOK_URL, { method: "POST", body: forwardForm, headers })
+          const controller = new AbortController()
+          const to = setTimeout(() => controller.abort(new Error(`timeout ${N8N_TIMEOUT_MS}ms`)), N8N_TIMEOUT_MS)
+          const res = await fetch(N8N_WEBHOOK_URL, { method: "POST", body: forwardForm, headers, signal: controller.signal })
+          clearTimeout(to)
           const ct = res.headers.get("content-type") || ""
           const bodyText = await res.text()
           if (!res.ok) {
             console.error("[v0-n8n] Erro do n8n:", bodyText.slice(0, 300))
-            return NextResponse.json({ error: "Falha ao processar no n8n", details: bodyText }, { status: res.status || 502 })
+            // Fallback: tenta processamento local
+            const arrayBuffer = await file.arrayBuffer()
+            const buffer = Buffer.from(arrayBuffer)
+            const require = createRequire(import.meta.url)
+            const pdfParse = require("pdf-parse/lib/pdf-parse.js")
+            try {
+              const result = await pdfParse(buffer)
+              const textLocal = (result?.text || "") as string
+              if (!textLocal || textLocal.trim().length === 0) {
+                return NextResponse.json({ error: "Falha no n8n e texto vazio ao ler PDF" }, { status: res.status || 502 })
+              }
+              const parsedLocal = processDasData(textLocal)
+              const shareLocal = await persistShare(parsedLocal)
+              return NextResponse.json({ ...parsedLocal, dashboardUrl: shareLocal.url, dashboardCode: shareLocal.code })
+            } catch (e) {
+              return NextResponse.json({ error: "Falha no n8n e erro ao processar localmente", details: e instanceof Error ? e.message : String(e) }, { status: res.status || 502 })
+            }
           }
           if (ct.includes("application/json")) {
             try {
@@ -77,7 +97,23 @@ export async function POST(request: NextRequest) {
           return NextResponse.json(parsed)
         } catch (e) {
           console.error("[v0-n8n] Erro ao encaminhar ao n8n:", e)
-          return NextResponse.json({ error: "Erro ao contatar n8n", details: e instanceof Error ? e.message : String(e) }, { status: 502 })
+          // Fallback: processamento local quando não foi possível contatar o n8n
+          const arrayBuffer = await file.arrayBuffer()
+          const buffer = Buffer.from(arrayBuffer)
+          try {
+            const require = createRequire(import.meta.url)
+            const pdfParse = require("pdf-parse/lib/pdf-parse.js")
+            const result = await pdfParse(buffer)
+            const textLocal = (result?.text || "") as string
+            if (!textLocal || textLocal.trim().length === 0) {
+              return NextResponse.json({ error: "Erro ao contatar n8n e texto do PDF vazio" }, { status: 502 })
+            }
+            const parsedLocal = processDasData(textLocal)
+            const shareLocal = await persistShare(parsedLocal)
+            return NextResponse.json({ ...parsedLocal, dashboardUrl: shareLocal.url, dashboardCode: shareLocal.code })
+          } catch (err) {
+            return NextResponse.json({ error: "Erro ao contatar n8n e falha ao processar localmente", details: err instanceof Error ? err.message : String(err) }, { status: 502 })
+          }
         }
       }
 
@@ -116,12 +152,18 @@ export async function POST(request: NextRequest) {
     if (useN8N) {
       try {
         const headers: Record<string, string> = { "content-type": "application/json", ...buildAuthHeader() }
-        const res = await fetch(N8N_WEBHOOK_URL, { method: "POST", headers, body: JSON.stringify({ text }) })
+        const controller = new AbortController()
+        const to = setTimeout(() => controller.abort(new Error(`timeout ${N8N_TIMEOUT_MS}ms`)), N8N_TIMEOUT_MS)
+        const res = await fetch(N8N_WEBHOOK_URL, { method: "POST", headers, body: JSON.stringify({ text }), signal: controller.signal })
+        clearTimeout(to)
         const ct = res.headers.get("content-type") || ""
         const bodyText = await res.text()
         if (!res.ok) {
           console.error("[v0-n8n] Erro do n8n:", bodyText.slice(0, 300))
-          return NextResponse.json({ error: "Falha ao processar no n8n", details: bodyText }, { status: res.status || 502 })
+          // Fallback: processar localmente
+          const parsedLocal = processDasData(text)
+          const shareLocal = await persistShare(parsedLocal)
+          return NextResponse.json({ ...parsedLocal, dashboardUrl: shareLocal.url, dashboardCode: shareLocal.code })
         }
         if (ct.includes("application/json")) {
           try {
@@ -139,7 +181,10 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(parsed)
       } catch (e) {
         console.error("[v0-n8n] Erro ao encaminhar ao n8n:", e)
-        return NextResponse.json({ error: "Erro ao contatar n8n", details: e instanceof Error ? e.message : String(e) }, { status: 502 })
+        // Fallback: processamento local
+        const parsedLocal = processDasData(text)
+        const shareLocal = await persistShare(parsedLocal)
+        return NextResponse.json({ ...parsedLocal, dashboardUrl: shareLocal.url, dashboardCode: shareLocal.code })
       }
     }
     const dasData = processDasData(text)

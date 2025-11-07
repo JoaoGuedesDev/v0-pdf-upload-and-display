@@ -705,7 +705,9 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
       const formData = new FormData()
       formData.append("file", file)
 
-      const url = processViaN8n ? "/api/process-pdf?via=n8n" : "/api/upload"
+      // Unificar endpoint: /api/process-pdf decide automaticamente encaminhar ao n8n
+      // quando N8N_WEBHOOK_URL estiver configurado em produção; caso contrário, processa localmente.
+      const url = "/api/process-pdf"
 
       // Enviar para API que processa localmente ou encaminha ao n8n
       const response = await fetch(url, {
