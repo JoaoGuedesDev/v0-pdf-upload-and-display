@@ -13,6 +13,13 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    try {
+      const hasUpstash = !!(process.env.UPSTASH_REDIS_REST_URL || process.env.UPSTASH_REDIS_URL) && !!(process.env.UPSTASH_REDIS_REST_TOKEN || process.env.UPSTASH_REDIS_TOKEN)
+      const hasVercelRest = !!process.env.KV_REST_API_URL && !!process.env.KV_REST_API_TOKEN
+      const hasKvUrl = !!process.env.KV_URL
+      console.log('[upload] env check:', { hasUpstash, hasVercelRest, hasKvUrl })
+    } catch {}
+
     const arrayBuffer = await file.arrayBuffer()
     const buf = Buffer.from(arrayBuffer)
     const require = createRequire(import.meta.url)

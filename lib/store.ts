@@ -1,31 +1,43 @@
 // Import opcional de '@vercel/kv' para evitar erro de build quando o pacote não está instalado
-let kvClient: any | undefined
-async function getKv() {
-  if (kvClient) return kvClient
-  // Tenta cliente do Vercel KV (SDK)
+// Suporte a múltiplos clientes KV/Redis para fallback robusto
+type KvClient = { name: string; get: (key: string) => Promise<any>; set: (key: string, value: any, opts?: { ex?: number }) => Promise<any> }
+let kvClients: KvClient[] | undefined
+
+async function buildClients(): Promise<KvClient[]> {
+  const clients: KvClient[] = []
+  // 1) Upstash Redis via REST (variáveis UPSTASH_*). Em geral é a mais confiável
   try {
-    const mod: any = await import('@vercel/kv')
-    kvClient = mod.kv
-    return kvClient
+    const url = process.env.UPSTASH_REDIS_REST_URL || process.env.UPSTASH_REDIS_URL
+    const token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.UPSTASH_REDIS_TOKEN
+    if (url && token) {
+      const { Redis }: any = await import('@upstash/redis')
+      const redis = new Redis({ url, token })
+      clients.push({ name: 'upstash-rest',
+        async get(key: string) { return await redis.get(key) },
+        async set(key: string, value: any, opts?: { ex?: number }) {
+          if (opts?.ex) return await redis.set(key, value, { ex: opts.ex })
+          return await redis.set(key, value)
+        },
+      })
+    }
   } catch {}
-  // Fallback: Vercel KV via REST (mesmos endpoints do Upstash)
+  // 2) Vercel KV via REST
   try {
     const urlKv = process.env.KV_REST_API_URL
     const tokenKv = process.env.KV_REST_API_TOKEN
     if (urlKv && tokenKv) {
       const { Redis }: any = await import('@upstash/redis')
       const redis = new Redis({ url: urlKv, token: tokenKv })
-      kvClient = {
+      clients.push({ name: 'vercel-kv-rest',
         async get(key: string) { return await redis.get(key) },
         async set(key: string, value: any, opts?: { ex?: number }) {
           if (opts?.ex) return await redis.set(key, value, { ex: opts.ex })
           return await redis.set(key, value)
         },
-      }
-      return kvClient
+      })
     }
   } catch {}
-  // Fallback: derivar de KV_URL (rediss://default:<token>@<host>:<port>)
+  // 3) Derivado de KV_URL (rediss://default:<token>@<host>)
   try {
     const kvUrl = process.env.KV_URL
     if (kvUrl && kvUrl.startsWith('rediss://')) {
@@ -36,36 +48,28 @@ async function getKv() {
         const baseUrl = `https://${host}`
         const { Redis }: any = await import('@upstash/redis')
         const redis = new Redis({ url: baseUrl, token })
-        kvClient = {
+        clients.push({ name: 'kv-url-derived',
           async get(key: string) { return await redis.get(key) },
           async set(key: string, value: any, opts?: { ex?: number }) {
             if (opts?.ex) return await redis.set(key, value, { ex: opts.ex })
             return await redis.set(key, value)
           },
-        }
-        return kvClient
+        })
       }
     }
   } catch {}
-  // Fallback: Upstash Redis via REST (variáveis UPSTASH_*)
+  // 4) SDK '@vercel/kv' (opcional)
   try {
-    const url = process.env.UPSTASH_REDIS_REST_URL || process.env.UPSTASH_REDIS_URL
-    const token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.UPSTASH_REDIS_TOKEN
-    if (url && token) {
-      const { Redis }: any = await import('@upstash/redis')
-      const redis = new Redis({ url, token })
-      kvClient = {
-        async get(key: string) { return await redis.get(key) },
-        async set(key: string, value: any, opts?: { ex?: number }) {
-          // Upstash aceita { ex } em segundos
-          if (opts?.ex) return await redis.set(key, value, { ex: opts.ex })
-          return await redis.set(key, value)
-        },
-      }
-      return kvClient
-    }
+    const mod: any = await import('@vercel/kv')
+    const kv = mod.kv
+    clients.push({ name: '@vercel/kv-sdk', get: kv.get.bind(kv), set: kv.set.bind(kv) })
   } catch {}
-  return undefined
+  return clients
+}
+
+async function getKvClients(): Promise<KvClient[]> {
+  if (!kvClients) kvClients = await buildClients()
+  return kvClients
 }
 import crypto from 'node:crypto'
 import { saveDashboard as saveLocal, getDashboard as getLocal } from './storage'
@@ -81,12 +85,19 @@ function kvReady(): boolean {
 
 export async function saveDashboard(data: DashboardData, ttlDays = 30): Promise<string> {
   if (kvReady()) {
-    const id = crypto.randomUUID().slice(0, 8) // slug curto
+    const id = crypto.randomUUID().slice(0, 8)
     const key = `pgdas:${id}`
-    const kv = await getKv()
-    if (kv) {
-      await kv.set(key, data, { ex: ttlDays * 24 * 60 * 60 })
-      return id
+    const clients = await getKvClients()
+    for (const c of clients) {
+      try {
+        console.log(`[store] set via ${c.name} key=${key}`)
+        await c.set(key, data, { ex: ttlDays * 24 * 60 * 60 })
+        console.log(`[store] set OK via ${c.name} key=${key}`)
+        return id
+      } catch (e) {
+        try { console.error(`[store] set FAIL via ${c.name}:`, (e as any)?.message) } catch {}
+        continue
+      }
     }
   }
   const saved = await saveLocal(data)
@@ -95,20 +106,20 @@ export async function saveDashboard(data: DashboardData, ttlDays = 30): Promise<
 
 export async function getDashboard(id: string): Promise<DashboardData | null> {
   if (kvReady()) {
-    // Tenta primeiro o prefixo novo
-    const keyNew = `pgdas:${id}`
-    const kv = await getKv()
-    if (kv) {
-      const fromKv = await kv.get(keyNew)
-      if (fromKv) return fromKv as DashboardData
+    const clients = await getKvClients()
+    const keys = [`pgdas:${id}`, `dash:${id}`]
+    for (const c of clients) {
+      for (const key of keys) {
+        try {
+          console.log(`[store] get via ${c.name} key=${key}`)
+          const val = await c.get(key)
+          if (val) return val as DashboardData
+        } catch (e) {
+          try { console.error(`[store] get FAIL via ${c.name}:`, (e as any)?.message) } catch {}
+          continue
+        }
+      }
     }
-    // Compatibilidade: tentar prefixo legado
-    const keyLegacy = `dash:${id}`
-    if (kv) {
-      const legacy = await kv.get(keyLegacy)
-      if (legacy) return legacy as DashboardData
-    }
-    // Fallback: tentar arquivo local quando não houver no KV
     const fromLocal = await getLocal(id)
     if (fromLocal) return fromLocal
     return null
