@@ -1,4 +1,4 @@
-// Página de servidor padrão; remover diretiva desnecessária evita comportamentos estranhos em Next 16
+// Página de servidor padrão
 
 import { getDashboard } from '@/lib/store'
 import PGDASDProcessorIA from '@/components/pgdasd-processor-ia'
