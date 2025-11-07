@@ -57,3 +57,14 @@ Continue building your app on:
 2. Deploy your chats from the v0 interface
 3. Changes are automatically pushed to this repository
 4. Vercel deploys the latest version from this repository
+
+## Environment Variables
+
+To enable unique share links and PDF generation on Vercel:
+
+- Configure one of the following KV backends:
+  - Vercel KV: set `KV_REST_API_URL` and `KV_REST_API_TOKEN` (or `KV_URL`).
+  - Upstash Redis: set `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` (or `UPSTASH_REDIS_URL` and `UPSTASH_REDIS_TOKEN`).
+- Optionally set `NEXT_PUBLIC_BASE_URL` to your production domain (e.g., `https://integra-pgdas.vercel.app`) to ensure the PDF API targets the correct origin.
+
+If no KV backend is configured, links will only work locally using the filesystem fallback.

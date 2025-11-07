@@ -2,13 +2,31 @@
 let kvClient: any | undefined
 async function getKv() {
   if (kvClient) return kvClient
+  // Tenta cliente do Vercel KV
   try {
     const mod: any = await import('@vercel/kv')
     kvClient = mod.kv
     return kvClient
-  } catch {
-    return undefined
-  }
+  } catch {}
+  // Fallback: Upstash Redis via REST
+  try {
+    const url = process.env.UPSTASH_REDIS_REST_URL || process.env.UPSTASH_REDIS_URL
+    const token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.UPSTASH_REDIS_TOKEN
+    if (url && token) {
+      const { Redis }: any = await import('@upstash/redis')
+      const redis = new Redis({ url, token })
+      kvClient = {
+        async get(key: string) { return await redis.get(key) },
+        async set(key: string, value: any, opts?: { ex?: number }) {
+          // Upstash aceita { ex } em segundos
+          if (opts?.ex) return await redis.set(key, value, { ex: opts.ex })
+          return await redis.set(key, value)
+        },
+      }
+      return kvClient
+    }
+  } catch {}
+  return undefined
 }
 import crypto from 'node:crypto'
 import { saveDashboard as saveLocal, getDashboard as getLocal } from './storage'
@@ -16,9 +34,10 @@ import { saveDashboard as saveLocal, getDashboard as getLocal } from './storage'
 export type DashboardData = any
 
 function kvReady(): boolean {
-  const hasRest = !!process.env.KV_REST_API_URL && !!process.env.KV_REST_API_TOKEN
-  const hasUrl = !!process.env.KV_URL
-  return hasRest || hasUrl
+  const hasVercelRest = !!process.env.KV_REST_API_URL && !!process.env.KV_REST_API_TOKEN
+  const hasVercelUrl = !!process.env.KV_URL
+  const hasUpstash = !!(process.env.UPSTASH_REDIS_REST_URL || process.env.UPSTASH_REDIS_URL) && !!(process.env.UPSTASH_REDIS_REST_TOKEN || process.env.UPSTASH_REDIS_TOKEN)
+  return hasVercelRest || hasVercelUrl || hasUpstash
 }
 
 export async function saveDashboard(data: DashboardData, ttlDays = 30): Promise<string> {
