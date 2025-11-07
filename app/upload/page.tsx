@@ -23,9 +23,15 @@ export default function UploadPage() {
         // Allow following 303 redirects to the shared page
         redirect: 'follow',
       })
-      // If the API returns a redirect, the final URL should be the shared link
-      // Some environments don’t expose redirected URL reliably; fallback to Location header
-      const redirectedUrl = (res.url && res.url !== window.location.href) ? res.url : res.headers.get('Location')
+      // If the API issued a redirect, navigate to the final URL.
+      // Browsers often follow 303 and set res.redirected=true with res.url=final URL.
+      if (res.redirected && res.url) {
+        window.location.assign(res.url)
+        return
+      }
+      // Fallback: some environments don’t expose redirected URL reliably.
+      // Try the Location header from the original response.
+      const redirectedUrl = res.headers.get('Location') || ((res.url && res.url !== window.location.href) ? res.url : null)
       if (redirectedUrl) {
         window.location.assign(redirectedUrl)
         return
