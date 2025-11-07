@@ -444,7 +444,8 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
       const waUrl =
         whatsappAnchor?.href ||
         "https://wa.me/559481264638?text=Ol%C3%A1%20quero%20uma%20an%C3%A1lise%20mais%20completa%20do%20meu%20DAS"
-      const waLabel = (whatsappAnchor?.textContent || "94 8126-4638").trim()
+      const waLabelRaw = whatsappAnchor?.textContent
+      const waLabel = typeof waLabelRaw === "string" && waLabelRaw.length > 0 ? waLabelRaw.trim() : "94 8126-4638"
 
       // Usa html-to-image para evitar parsing de cores lab()/oklch do html2canvas
       const dataUrl = await toPng(node, {
@@ -772,7 +773,7 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
       const contentType = response.headers.get("content-type")
       const responseText = await response.text()
 
-      if (!responseText || responseText.trim() === "") {
+      if (typeof responseText !== "string" || responseText.length === 0 || responseText.trim() === "") {
         throw new Error("O webhook retornou uma resposta vazia")
       }
 
