@@ -38,6 +38,7 @@ import {
   LabelList,
 } from "recharts"
 import { toPng } from "html-to-image"
+import html2canvas from "html2canvas"
 import { jsPDF } from "jspdf"
 import { toast } from "@/components/ui/use-toast"
 import { DonutTributos } from "@/components/DonutTributos"
@@ -401,18 +402,45 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
     try {
       setIsGeneratingImage(true)
       const node = contentRef.current as HTMLElement
-      const dataUrl = await toPng(node, {
-        cacheBust: true,
-        pixelRatio: 3,
-        backgroundColor: darkMode ? "#0f172a" : "#ffffff",
-      })
-      const a = document.createElement("a")
-      a.href = dataUrl
-      a.download = `DAS_${data.identificacao.cnpj.replace(/[^\d]/g, "")}_${new Date().toISOString().split("T")[0]}.png`
-      a.click()
-    } catch (err) {
-      console.error("Erro ao gerar imagem", err)
-      setError("Erro ao gerar imagem. Tente novamente.")
+      // Tenta via html-to-image primeiro (melhor com cores modernas lab/oklch)
+      try {
+        const dataUrl = await toPng(node, {
+          cacheBust: true,
+          pixelRatio: 3,
+          backgroundColor: darkMode ? "#0f172a" : "#ffffff",
+          // Evita nós problemáticos que podem causar erro de `.trim()` interno
+          filter: (n: HTMLElement) => {
+            const tag = (n.tagName || "").toLowerCase()
+            if (tag === "script" || tag === "style") return false
+            return true
+          },
+        })
+        const a = document.createElement("a")
+        a.href = dataUrl
+        a.download = `DAS_${data.identificacao.cnpj.replace(/[^\d]/g, "")}_${new Date().toISOString().split("T")[0]}.png`
+        a.click()
+      } catch (primaryErr) {
+        console.error("Erro ao gerar imagem via html-to-image", primaryErr)
+        // Fallback robusto: usa html2canvas
+        try {
+          const canvas = await html2canvas(node, {
+            backgroundColor: darkMode ? "#0f172a" : "#ffffff",
+            scale: 2,
+            useCORS: true,
+            logging: false,
+            allowTaint: true,
+          })
+          const dataUrl = canvas.toDataURL("image/png")
+          const a = document.createElement("a")
+          a.href = dataUrl
+          a.download = `DAS_${data.identificacao.cnpj.replace(/[^\d]/g, "")}_${new Date().toISOString().split("T")[0]}.png`
+          a.click()
+          toast({ title: "Imagem gerada (fallback)", description: "Usando html2canvas." })
+        } catch (fallbackErr) {
+          console.error("Erro ao gerar imagem (fallback)", fallbackErr)
+          setError("Erro ao gerar imagem. Tente novamente.")
+        }
+      }
     } finally {
       setIsGeneratingImage(false)
     }
