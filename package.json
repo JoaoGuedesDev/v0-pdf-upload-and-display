@@ -2,6 +2,9 @@
   "name": "my-v0-project",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": "20.x"
+  },
   "scripts": {
     "build": "next build",
     "ci": "npm run lint && npm run test -- --ci && npm run scope:check",
@@ -44,7 +47,7 @@
     "@radix-ui/react-toggle": "1.1.1",
     "@radix-ui/react-toggle-group": "1.1.1",
     "@radix-ui/react-tooltip": "1.1.6",
-    "@sparticuz/chromium": "latest",
+    "@sparticuz/chromium": "^129.0.0",
     "@testing-library/dom": "latest",
     "@types/chroma-js": "^3.1.2",
     "@types/pdfkit": "^0.17.3",
