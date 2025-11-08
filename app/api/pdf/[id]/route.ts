@@ -46,8 +46,9 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       })
     } else {
       const chromium = await import('@sparticuz/chromium')
+      const extraArgs = ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
       browser = await puppeteer.launch({
-        args: chromium.args,
+        args: [...chromium.args, ...extraArgs],
         defaultViewport: { width: 1600, height: 1000, deviceScaleFactor: 1.5 },
         executablePath: await chromium.executablePath(),
         headless: chromium.headless,
@@ -78,7 +79,12 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       },
     })
   } catch (e: any) {
-    console.error('[api/pdf] Erro ao gerar PDF:', e)
+    const msg = e?.message || ''
+    if (msg.includes('libnss3') || msg.includes('Failed to launch the browser process')) {
+      console.error('[api/pdf] Chromium launch falhou (libs ausentes). Verifique @sparticuz/chromium / puppeteer-core versões e flags.', e)
+    } else {
+      console.error('[api/pdf] Erro ao gerar PDF:', e)
+    }
     return new Response(JSON.stringify({ error: e?.message || 'Erro ao gerar PDF' }), {
       status: 500,
       headers: { 'content-type': 'application/json' },
