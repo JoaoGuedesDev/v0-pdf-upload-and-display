@@ -46,7 +46,20 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       })
     } else {
       const chromium = await import('@sparticuz/chromium')
-      const extraArgs = ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+      // Força modos seguros para serverless
+      chromium.setHeadlessMode = true
+      chromium.setGraphicsMode = false
+      const extraArgs = [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--single-process',
+        '--no-zygote',
+        '--disable-extensions',
+        '--disable-gpu',
+        '--disable-software-rasterizer',
+      ]
+      console.log('[api/pdf/[id]] runtime', { node: process.version, headless: chromium.headless })
       browser = await puppeteer.launch({
         args: [...chromium.args, ...extraArgs],
         defaultViewport: { width: 1600, height: 1000, deviceScaleFactor: 1.5 },
