@@ -63,7 +63,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       browser = await puppeteer.launch({
         args: [...chromium.args, ...extraArgs],
         defaultViewport: { width: 1600, height: 1000, deviceScaleFactor: 1.5 },
-        executablePath: await chromium.executablePath(),
+        executablePath: await chromium.executablePath('https://github.com/Sparticuz/chromium/releases/download/v129.0.0/chromium-v129.0.0-pack.tar'),
         headless: chromium.headless,
       })
     }
