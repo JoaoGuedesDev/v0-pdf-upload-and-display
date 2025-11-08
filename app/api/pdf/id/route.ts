@@ -41,7 +41,7 @@ export async function GET(_req: NextRequest) {
         defaultViewport: { width: 1600, height: 1000, deviceScaleFactor: 1.5 },
       })
     } else {
-      const chromium = await import('@sparticuz/chromium')
+      const { default: chromium } = await import('@sparticuz/chromium')
       // Força modos seguros para serverless
       chromium.setHeadlessMode = true
       chromium.setGraphicsMode = false
