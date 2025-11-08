@@ -68,3 +68,20 @@ To enable unique share links and PDF generation on Vercel:
 - Optionally set `NEXT_PUBLIC_BASE_URL` to your production domain (e.g., `https://integra-pgdas.vercel.app`) to ensure the PDF API targets the correct origin.
 
 If no KV backend is configured, links will only work locally using the filesystem fallback.
+
+### PDF em produção (fallback via navegador remoto)
+
+Em ambientes serverless recentes (Node 20/22 em Amazon Linux 2023), o Chromium pode falhar ao iniciar por falta de bibliotecas do sistema (`libnss3.so`). As rotas de PDF deste projeto possuem fallback para conexão remota com um navegador via WebSocket quando a env `BROWSER_WS_ENDPOINT` está definida e o ambiente não é `development`.
+
+Como configurar sem Docker:
+- Crie uma conta no Browserless Cloud ou use um host próprio que ofereça WebSocket de Chrome.
+- Obtenha um token de acesso.
+- No projeto Vercel, adicione `BROWSER_WS_ENDPOINT` com o valor `wss://chrome.browserless.io?token=SEU_TOKEN`.
+- Execute um redeploy com “Clear build cache”.
+- Valide as rotas `GET /api/pdf/id?id=...` e `GET /api/pdf/[id]`.
+
+Alternativa sem serviço remoto:
+- Ajuste a versão do Node para `18` em “Build & Development Settings” no Vercel e redeploy com cache limpo.
+- Garanta que as rotas têm `export const runtime = 'nodejs'` e que as flags serverless do `@sparticuz/chromium` estão ativas.
+
+Observação: o fallback remoto elimina dependências de bibliotecas do host. Se preferir manter o lançamento local no Vercel, a falta de `libnss3.so` pode persistir dependendo da imagem-base da função.

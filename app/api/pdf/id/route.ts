@@ -5,6 +5,18 @@ import type { NextRequest } from 'next/server'
 
 const isDev = process.env.NODE_ENV !== 'production'
 
+function maskWs(ws: string) {
+  try {
+    const u = new URL(ws)
+    if (u.searchParams.has('token')) {
+      u.searchParams.set('token', '***')
+    }
+    return u.toString()
+  } catch {
+    return 'ws://***'
+  }
+}
+
 async function getPuppeteer() {
   if (isDev) {
     const mod = await import('puppeteer')
@@ -38,7 +50,7 @@ export async function GET(_req: NextRequest) {
     const wsEndpoint = process.env.BROWSER_WS_ENDPOINT || process.env.BROWSERLESS_URL || ''
     if (!isDev && wsEndpoint) {
       const puppeteerCore = (await import('puppeteer-core')).default
-      console.log('[api/pdf/id] usando browser remoto via WS')
+      console.log('[api/pdf/id] usando browser remoto via WS', maskWs(wsEndpoint))
       browser = await puppeteerCore.connect({ browserWSEndpoint: wsEndpoint })
     } else if (isDev) {
       browser = await puppeteer.launch({
@@ -95,6 +107,20 @@ export async function GET(_req: NextRequest) {
     })
   } catch (e: any) {
     const msg = e?.message || ''
+    if (msg.includes('Unexpected server response: 403') || msg.includes(' 403')) {
+      console.error('[api/pdf/id] Browserless 403: token inválido, plano ou rate limit.', e)
+      return new Response(JSON.stringify({ error: 'Browserless 403: token inválido, plano ou rate limit.' }), {
+        status: 403,
+        headers: { 'content-type': 'application/json' },
+      })
+    }
+    if (msg.includes(' 401') || msg.toLowerCase().includes('unauthorized')) {
+      console.error('[api/pdf/id] Browserless 401: token ausente ou inválido.', e)
+      return new Response(JSON.stringify({ error: 'Browserless 401: token ausente ou inválido.' }), {
+        status: 401,
+        headers: { 'content-type': 'application/json' },
+      })
+    }
     if (msg.includes('libnss3') || msg.includes('Failed to launch the browser process')) {
       console.error('[api/pdf/id] Chromium launch falhou (libs ausentes). Verifique @sparticuz/chromium / puppeteer-core versões e flags.', e)
     } else {
