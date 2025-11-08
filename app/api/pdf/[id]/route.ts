@@ -39,7 +39,12 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   let browser: any
 
   try {
-    if (isDev) {
+    const wsEndpoint = process.env.BROWSER_WS_ENDPOINT || process.env.BROWSERLESS_URL || ''
+    if (!isDev && wsEndpoint) {
+      const puppeteerCore = (await import('puppeteer-core')).default
+      console.log('[api/pdf/[id]] usando browser remoto via WS')
+      browser = await puppeteerCore.connect({ browserWSEndpoint: wsEndpoint })
+    } else if (isDev) {
       browser = await puppeteer.launch({
         headless: true,
         defaultViewport: { width: 1600, height: 1000, deviceScaleFactor: 1.5 },
