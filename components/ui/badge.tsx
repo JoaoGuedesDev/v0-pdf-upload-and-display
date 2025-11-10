@@ -17,10 +17,11 @@ const badgeVariants = cva(
         outline: "text-foreground",
       },
       size: {
-        // Tamanho padrão anterior (mantido para compatibilidade explícita)
-        default: "px-2.5 py-0.5 text-xs",
-        // Dimensões compactas: altura fixa reduzida e padding menor
-        compact: "h-5 px-2 text-xs leading-tight",
+        // Redução exata de 2px na altura total
+        // default agora força altura fixa para garantir consistência
+        default: "h-[6px] px-[2px] text-[5px] leading-none",
+        // compact também reduzido em 2px a partir do padrão anterior (20px -> 18px)
+        compact: "h-[6px] px-[2px] text-[5px] leading-none",
       },
     },
     defaultVariants: {

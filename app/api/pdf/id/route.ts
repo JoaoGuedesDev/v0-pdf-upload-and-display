@@ -27,12 +27,22 @@ async function getPuppeteer() {
   }
 }
 
-export async function GET(_req: NextRequest) {
-  let id = ''
+function extractId(_req: NextRequest) {
   try {
     const u = new URL(_req.url)
-    id = u.searchParams.get('id') || ''
-  } catch {}
+    const fromQuery = u.searchParams.get('id')
+    if (fromQuery) return fromQuery
+    const parts = u.pathname.split('/').filter(Boolean)
+    const idx = parts.lastIndexOf('pdf')
+    if (idx >= 0 && parts[idx + 1]) return parts[idx + 1]
+    return parts[parts.length - 1] || ''
+  } catch {
+    return ''
+  }
+}
+
+export async function GET(_req: NextRequest) {
+  const id = extractId(_req)
   if (!id) {
     return new Response(JSON.stringify({ error: 'Missing id' }), { status: 400, headers: { 'content-type': 'application/json' } })
   }

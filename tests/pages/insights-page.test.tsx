@@ -6,6 +6,6 @@ describe('Insights Page', () => {
   it('renderiza cabeçalho e botão de chamar API', () => {
     render(<InsightsPage />)
     expect(screen.getByText(/Insights Tributários/i)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Gerar insights de exemplo/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Obter Insights/i })).toBeInTheDocument()
   })
 })

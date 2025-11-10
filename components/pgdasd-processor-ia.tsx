@@ -1,5 +1,4 @@
 "use client"
-
 import type React from "react"
 import { useState, useRef, useEffect } from "react"
 import { useRouter, useParams } from "next/navigation"
@@ -42,6 +41,7 @@ import html2canvas from "html2canvas"
 import { jsPDF } from "jspdf"
 import { toast } from "@/components/ui/use-toast"
 import { DonutTributos } from "@/components/DonutTributos"
+import { composeChartsPage } from "@/lib/pdf-utils/charts-to-pdf"
 
 interface DASData {
   identificacao: {
@@ -143,6 +143,25 @@ const CHART_COLORS = ["#2563eb", "#7c3aed", "#db2777", "#dc2626", "#ea580c", "#c
 const ATIVIDADES_COLORS = {
   servicos: "#10b981", // verde
   mercadorias: "#3b82f6", // azul
+}
+
+// Configuração centralizada de UI para fontes e dimensões
+const UI_CONFIG = {
+  fonts: {
+    titleCls: "text-base sm:text-lg",
+    descCls: "text-xs sm:text-[9]",
+    axis: 9,
+    label: 9,
+    legend: 9,
+  },
+  dims: {
+    receitaMensalHeight:300,
+    dasPieHeight: 300,
+    dasPiePrintHeight: 300,
+  },
+  pie: {
+    outerRadius: 100,
+  },
 }
 
 // Helper: normaliza texto pt-BR (minúsculas, sem acentos, espaços únicos)
@@ -520,10 +539,60 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
         pdf.addImage(dataUrl, "PNG", x, y, renderW, renderH)
       }
 
+      // Página adicional com gráficos (Receita Mensal e Distribuição do DAS)
+      try {
+        const receitaEl = node.querySelector('#chart-receita-mensal') as HTMLElement | null
+        const receitaImgUrl = receitaEl
+          ? await toPng(receitaEl, {
+              cacheBust: true,
+              pixelRatio: Math.max(3, clientPixelRatio),
+              backgroundColor: darkMode ? "#0f172a" : "#ffffff",
+            })
+          : null
+
+        const pieImgUrl = pieImageUrl
+        if (receitaImgUrl || pieImgUrl) {
+          pdf.addPage()
+          const gap = 4
+          const availableW = pageWidth - margin * 2
+          const colW = (availableW - gap) / 2
+
+          const loadDims = async (url: string) => {
+            return await new Promise<{ w: number; h: number }>((resolve, reject) => {
+              const img = new Image()
+              img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight })
+              img.onerror = reject
+              img.src = url
+            })
+          }
+
+          const leftX = margin
+          const rightX = margin + colW + gap
+          const yTop = margin
+
+          if (receitaImgUrl) {
+            const d = await loadDims(receitaImgUrl)
+            const scale = Math.min(colW / d.w, (pageHeight - margin * 2) / d.h)
+            const w = d.w * scale
+            const h = d.h * scale
+            pdf.addImage(receitaImgUrl, 'PNG', leftX, yTop, w, h)
+          }
+          if (pieImgUrl) {
+            const d = await loadDims(pieImgUrl)
+            const scale = Math.min(colW / d.w, (pageHeight - margin * 2) / d.h)
+            const w = d.w * scale
+            const h = d.h * scale
+            pdf.addImage(pieImgUrl, 'PNG', rightX, yTop, w, h)
+          }
+        }
+      } catch (err) {
+        console.warn('Falha ao compor página adicional de gráficos no PDF', err)
+      }
+
       // Adiciona link clicável do WhatsApp na primeira página (sobreposição)
       try {
         pdf.setTextColor(darkMode ? "#10b981" : "#0f766e")
-        pdf.setFontSize(12)
+        pdf.setFontSize(10)
         const label = `WhatsApp: ${waLabel}`
         const textWidth = pdf.getTextWidth(label)
         const textX = (pageWidth - textWidth) / 2
@@ -541,13 +610,13 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
       console.error("Erro ao gerar PDF no cliente", err)
       setError("Erro ao gerar PDF no cliente. Tente novamente.")
       // Fallback automático: abre o PDF gerado no servidor quando houver shareId
-      try {
-        const base = (process.env.NEXT_PUBLIC_BASE_URL as string | undefined) || window.location.origin
-        const id = shareId
-        if (id && typeof id === 'string' && id.length > 0) {
-          window.open(`${base}/api/pdf/id?id=${id}`, "_blank", "noopener,noreferrer")
-        }
-      } catch (_) {}
+          try {
+            const base = (process.env.NEXT_PUBLIC_BASE_URL as string | undefined) || window.location.origin
+            const id = shareId
+            if (id && typeof id === 'string' && id.length > 0) {
+              window.open(`${base}/api/pdf/${id}`, "_blank", "noopener,noreferrer")
+            }
+          } catch (_) {}
       toast({
         title: "Erro ao gerar PDF (cliente)",
         description: (err as Error)?.message || "Falha ao gerar PDF no cliente",
@@ -1134,11 +1203,11 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
             ref={contentRef}
             className="space-y-4 sm:space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 relative"
             style={{
-              backgroundImage: darkMode ? "none" : "url(/integra-watermark.svg)",
-              backgroundRepeat: darkMode ? "initial" : "repeat",
-              backgroundSize: darkMode ? "initial" : "300px 90px",
-              backgroundPosition: darkMode ? "initial" : "center",
-              backgroundAttachment: darkMode ? "initial" : "fixed",
+              backgroundImage: 'none',
+              backgroundRepeat: 'initial',
+              backgroundSize: 'initial',
+              backgroundPosition: 'initial',
+              backgroundAttachment: 'initial',
             }}
           >
             <Card className="bg-gradient-to-br from-slate-900 to-slate-800 text-white border-0 shadow-xl py-2">
@@ -1708,15 +1777,15 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
                       <div>
                         <CardTitle
-                          className={`text-base sm:text-lg flex items-center gap-2 ${darkMode ? "text-white" : "text-slate-800"}`}
+                          className={`${UI_CONFIG.fonts.titleCls} flex items-center gap-2 ${darkMode ? "text-white" : "text-slate-800"}`}
                         >
                           <TrendingUp className={`h-5 w-5 ${darkMode ? "text-blue-400" : "text-blue-600"}`} />
                           Receita Mensal (R$)
                         </CardTitle>
                         <CardDescription
-                          className={`text-xs sm:text-sm ${darkMode ? "text-slate-400" : "text-slate-500"}`}
+                          className={`${UI_CONFIG.fonts.descCls} ${darkMode ? "text-slate-400" : "text-slate-500"}`}
                         >
-                          Evolução de Receitas - Histórico mensal simplificado
+                          Evolução de Receitas
                         </CardDescription>
                       </div>
                       {/* Botão de exportação movido para o final do relatório */}
@@ -1727,7 +1796,7 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
                         <div
                           className={`absolute inset-0 rounded-xl ${darkMode ? "bg-slate-700/15" : "bg-slate-100/30"} pointer-events-none`}
                         />
-                        <div className="h-[300px] w-full">
+                        <div id="chart-receita-mensal" className="w-full" style={{ height: UI_CONFIG.dims.receitaMensalHeight }}>
                           <ResponsiveContainer width="100%" height="100%">
                             {(() => {
                               const base = (data.graficos!.receitaLine || data.graficos!.receitaMensal)!
@@ -1768,9 +1837,9 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
                               return (
                                 <BarChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 10 }} barCategoryGap="30%" barGap={-18}>
                                   <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? "#334155" : "#e2e8f0"} />
-                                  <XAxis dataKey="name" tick={{ fill: darkMode ? "#cbd5e1" : "#334155", fontSize: 12 }} tickMargin={18} />
+                                  <XAxis dataKey="name" tick={{ fill: darkMode ? "#cbd5e1" : "#334155", fontSize: UI_CONFIG.fonts.axis }} tickMargin={18} />
                                   <YAxis
-                                    tick={{ fill: darkMode ? "#cbd5e1" : "#334155", fontSize: 12 }}
+                                    tick={{ fill: darkMode ? "#cbd5e1" : "#334155", fontSize: UI_CONFIG.fonts.axis }}
                                     tickFormatter={formatAxisShort}
                                     ticks={yTicks}
                                      domain={[0, topDomain]}
@@ -1795,14 +1864,14 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
                                              color: darkMode ? "#cbd5e1" : "#334155",
                                            }}
                                          >
-                                           <div style={{ marginBottom: 6, fontSize: 12 }}>{String(label)}</div>
+                                           <div style={{ marginBottom: 6, fontSize: UI_CONFIG.fonts.label }}>{String(label)}</div>
                                            {shouldShow(interno) && (
-                                             <div style={{ fontSize: 12 }}>
+                                             <div style={{ fontSize: UI_CONFIG.fonts.label }}>
                                                Interno: <span style={{ color: IN_COLOR }}>{formatNumberBR(interno)}</span>
                                              </div>
                                            )}
                                            {shouldShow(externo) && (
-                                             <div style={{ fontSize: 12 }}>
+                                             <div style={{ fontSize: UI_CONFIG.fonts.label }}>
                                                Externo: <span style={{ color: EX_COLOR }}>{formatNumberBR(externo)}</span>
                                              </div>
                                            )}
@@ -1825,7 +1894,7 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
                                       if (isZeroish(val)) return null
                                       const cx = (Number(x) || 0) + (Number(width) || 0) / 2
                                       return (
-                                        <text x={cx} y={y} dy={-10} textAnchor="middle" fill={labelColor} fontSize={11}>
+                                        <text x={cx} y={y} dy={-10} textAnchor="middle" fill={labelColor} fontSize={UI_CONFIG.fonts.label}>
                                           {formatNumberBR(val)}
                                         </text>
                                       )
@@ -1836,18 +1905,18 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
                                       if (isZeroish(val)) return null
                                       const cx = (Number(x) || 0) + (Number(width) || 0) / 2
                                       return (
-                                        <text x={cx} y={y} dy={-24} textAnchor="middle" fill={labelColor} fontSize={11}>
+                                        <text x={cx} y={y} dy={-24} textAnchor="middle" fill={labelColor} fontSize={UI_CONFIG.fonts.label}>
                                           {formatNumberBR(val)}
                                         </text>
                                       )
                                     }
                                     const renderLegend = () => (
-                                      <div style={{ display: "flex", gap: 12, alignItems: "center", fontSize: 12, justifyContent: "center", width: "100%" }}>
+                                      <div style={{ display: "flex", gap: 12, alignItems: "center", fontSize: UI_CONFIG.fonts.legend, justifyContent: "center", width: "100%" }}>
                                         <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                                          <span style={{ width: 12, height: 12, background: IN_COLOR, borderRadius: 2 }} /> Mercado Interno
+                                          <span style={{ width: 10, height: 10, background: IN_COLOR, borderRadius: 2 }} /> Mercado Interno
                                         </span>
                                         <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                                          <span style={{ width: 12, height: 12, background: EX_COLOR, borderRadius: 2 }} /> Mercado Externo
+                                          <span style={{ width: 10, height: 10, background: EX_COLOR, borderRadius: 2 }} /> Mercado Externo
                                         </span>
                                       </div>
                                     )
@@ -1902,12 +1971,12 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <div>
                   <CardTitle
-                    className={`text-base sm:text-lg flex items-center gap-2 ${darkMode ? "text-white" : "text-slate-800"}`}
+                    className={`${UI_CONFIG.fonts.titleCls} flex items-center gap-2 ${darkMode ? "text-white" : "text-slate-800"}`}
                   >
                     <TrendingUp className={`h-5 w-5 ${darkMode ? "text-blue-400" : "text-blue-600"}`} />
                     Detalhamento dos Tributos
                   </CardTitle>
-                  <CardDescription className={`text-xs sm:text-sm ${darkMode ? "text-slate-400" : "text-slate-500"}`}>
+                  <CardDescription className={`${UI_CONFIG.fonts.descCls} ${darkMode ? "text-slate-400" : "text-slate-500"}`}>
                     Composição do DAS por categoria e tributo
                   </CardDescription>
                 </div>
@@ -2442,13 +2511,13 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
                   <CardHeader className="flex flex-row items-center justify-between pb-2">
                     <div>
                       <CardTitle
-                        className={`text-base sm:text-lg flex items-center gap-2 ${darkMode ? "text-white" : "text-slate-800"}`}
+                        className={`${UI_CONFIG.fonts.titleCls} flex items-center gap-2 ${darkMode ? "text-white" : "text-slate-800"}`}
                       >
                         <TrendingUp className={`h-5 w-5 ${darkMode ? "text-purple-400" : "text-purple-500"}`} />
                         Distribuição do DAS
                       </CardTitle>
                       <CardDescription
-                        className={`text-xs sm:text-sm ${darkMode ? "text-slate-400" : "text-slate-500"}`}
+                        className={`${UI_CONFIG.fonts.descCls} ${darkMode ? "text-slate-400" : "text-slate-500"}`}
                       >
                         Composição percentual dos tributos
                       </CardDescription>
@@ -2459,7 +2528,7 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                       {/* Valores numéricos à esquerda (mostrar também no PDF) */}
                       <div className="space-y-0.5 print:block">
-                        <h4 className={`font-semibold text-sm ${darkMode ? "text-slate-200" : "text-slate-700"} mb-4`}>
+                        <h4 className={`font-semibold text-[9]${darkMode ? "text-slate-200" : "text-slate-700"} mb-4`}>
                           Valores por Tributo
                         </h4>
                         {[
@@ -2493,16 +2562,16 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
                                   />
                                   <div>
                                     <div
-                                      className={`font-medium text-sm ${darkMode ? "text-slate-200" : "text-slate-800"}`}
+                                      className={`font-medium text-[9] ${darkMode ? "text-slate-200" : "text-slate-800"}`}
                                     >
                                       {label}
                                     </div>
-                                    <div className={`text-xs ${darkMode ? "text-slate-400" : "text-slate-500"}`}>
+                                    <div className={`text- [9] ${darkMode ? "text-slate-400" : "text-slate-500"}`}>
                                       {percentage.toFixed(5)}%
                                     </div>
                                   </div>
                                 </div>
-                                <div className={`font-bold text-sm ${darkMode ? "text-slate-100" : "text-slate-900"}`}>
+                                <div className={`font-bold text-[9] ${darkMode ? "text-slate-100" : "text-slate-900"}`}>
                                   {formatCurrency(value)}
                                 </div>
                               </div>
@@ -2516,7 +2585,7 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
                           <div className="flex items-center gap-2">
                             <div className={`w-4 h-4 rounded-full ${darkMode ? "bg-slate-300" : "bg-slate-600"}`} />
                             <div>
-                              <div className={`font-bold text-sm ${darkMode ? "text-slate-100" : "text-slate-800"}`}>
+                              <div className={`font-bold text-[9] ${darkMode ? "text-slate-100" : "text-slate-800"}`}>
                                 TOTAL DAS
                               </div>
                               <div className={`text-xs ${darkMode ? "text-slate-300" : "text-slate-600"}`}>
@@ -2532,14 +2601,14 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
 
                       {/* Gráfico de Pizza à direita */}
                       <div className="flex flex-col">
-                        <h4 className={`font-semibold text-sm ${darkMode ? "text-slate-200" : "text-slate-700"} mb-4`}>
+                        <h4 className={`font-semibold text-[9] ${darkMode ? "text-slate-200" : "text-slate-700"} mb-4`}>
                           Visualização Gráfica
                         </h4>
                         
                         <div id="chart-das-pie" className="flex-1 flex items-center justify-center">
-                          <div ref={pieRef} className="h-[300px] print:h-[300px] w-full overflow-visible">
+                          <div ref={pieRef} className="w-full overflow-visible print:h-[200px]" style={{ height: UI_CONFIG.dims.dasPieHeight }}>
                             {/* Mostrar sempre o gráfico; usar imagem apenas na impressão */}
-                            <div className="block print:hidden h-[300px] w-full">
+                            <div className="block print:hidden w-full" style={{ height: UI_CONFIG.dims.dasPieHeight }}>
                               <ResponsiveContainer width="100%" height="100%">
                                 {(() => {
                                   const items = [
@@ -2563,7 +2632,7 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
                                         data={chartData}
                                         dataKey="value"
                                         nameKey="name"
-                                        outerRadius={120}
+                                        outerRadius={UI_CONFIG.pie.outerRadius}
                                         labelLine
                                         label={(entry: any) => `${entry.name}: ${formatCurrency(Number(entry.value))}`}
                                       >
@@ -2584,7 +2653,7 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
                               </ResponsiveContainer>
                             </div>
                             {pieImageUrl && (
-                              <img src={pieImageUrl} alt="Gráfico de Pizza DAS" className="hidden print:block h-[300px] w-full object-contain" />
+                              <img src={pieImageUrl} alt="Gráfico de Pizza DAS" className="hidden print:block w-full object-contain" style={{ height: UI_CONFIG.dims.dasPiePrintHeight }} />
                             )}
                           </div>
                         </div>
@@ -2617,18 +2686,18 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
                   <CardHeader className="flex flex-row items-center justify-between pb-2">
                     <div>
                       <CardTitle
-                        className={`text-base sm:text-lg flex items-center gap-2 ${darkMode ? "text-white" : "text-slate-800"}`}
+                        className={`text-base sm:text-[9] flex items-center gap-2 ${darkMode ? "text-white" : "text-slate-800"}`}
                       >
                         <BarChart className={`h-5 w-5 ${darkMode ? "text-blue-400" : "text-blue-600"}`} />
                         Comparativo por Atividade (DAS)
                       </CardTitle>
                       <CardDescription
-                        className={`text-xs sm:text-sm ${darkMode ? "text-slate-400" : "text-slate-500"}`}
+                        className={`text-xs sm:text-[9] ${darkMode ? "text-slate-400" : "text-slate-500"}`}
                       >
                         Distribuição do DAS entre Mercadorias e Serviços
                       </CardDescription>
                     </div>
-                    <div className={`text-sm font-semibold ${darkMode ? "text-slate-200" : "text-slate-700"}`}>
+                    <div className={`text-[9] font-semibold ${darkMode ? "text-slate-200" : "text-slate-700"}`}>
                       Total: {formatCurrency(total)}
                     </div>
                   </CardHeader>
@@ -2702,11 +2771,11 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
 
                       {/* Gráfico de barras à direita */}
                       <div className="flex flex-col">
-                        <h4 className={`font-semibold text-sm ${darkMode ? "text-slate-200" : "text-slate-700"} mb-4`}>
+                        <h4 className={`font-semibold text-[10] ${darkMode ? "text-slate-200" : "text-slate-700"} mb-4`}>
                           Visualização Gráfica
                         </h4>
                         <div id="chart-atividades-bar" className="flex-1 flex items-center justify-center">
-                          <div className="h-[300px] print:h-[260px] w-full">
+                          <div className="h-[260px] print:h-[230px] w-full">
                             <ResponsiveContainer width="100%" height="100%">
                               <BarChart data={chartData} margin={{ top: 20, right: 20, left: 20, bottom: 20 }}>
                                 <CartesianGrid
@@ -2717,12 +2786,12 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
                                 />
                                 <XAxis
                                   dataKey="name"
-                                  tick={{ fontSize: 12, fontWeight: 500, fill: darkMode ? "#94a3b8" : "#64748b" }}
+                                  tick={{ fontSize: 7, fontWeight: 400, fill: darkMode ? "#94a3b8" : "#64748b" }}
                                   tickLine={false}
                                   axisLine={{ stroke: darkMode ? "#475569" : "#cbd5e1", strokeWidth: 1 }}
                                 />
                                 <YAxis
-                                  tick={{ fontSize: 12, fontWeight: 500, fill: darkMode ? "#94a3b8" : "#64748b" }}
+                                  tick={{ fontSize: 7, fontWeight: 400, fill: darkMode ? "#94a3b8" : "#64748b" }}
                                   tickLine={false}
                                   axisLine={{ stroke: darkMode ? "#475569" : "#cbd5e1", strokeWidth: 1 }}
                                   tickFormatter={(v: number) =>
@@ -2734,10 +2803,10 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
                                 <Tooltip
                                   formatter={(value: number | string, name: string) => [formatCurrency(Number(value)), String(name)]}
                                   contentStyle={{
-                                    borderRadius: "12px",
+                                    borderRadius: "10px",
                                     backgroundColor: darkMode ? "#1e293b" : "#ffffff",
                                     border: darkMode ? "1px solid #334155" : "1px solid #e2e8f0",
-                                    boxShadow: "0 10px 25px rgba(0,0,0,0.1)",
+                                    boxShadow: "0 10px 20px rgba(0,0,0,0.1)",
                                     fontSize: "12px",
                                     fontWeight: "500",
                                   }}
@@ -2759,7 +2828,7 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
                                       const lx = Number(x) + Number(width) / 2
                                       const ly = Number(y) - 6
                                       return (
-                                        <text x={lx} y={ly} fill={darkMode ? "#e2e8f0" : "#1f2937"} fontSize={11} textAnchor="middle">
+                                        <text x={lx} y={ly} fill={darkMode ? "#e2e8f0" : "#1f2937"} fontSize={10} textAnchor="middle">
                                           {formatCurrency(Number(value))}
                                         </text>
                                       )
@@ -2829,46 +2898,54 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
             >
               <CardHeader>
                 <CardTitle className={`${darkMode ? "text-slate-100" : "text-slate-900"} text-base sm:text-lg`}>
-                  Caso queira uma análise mais completa e personalizada, mostrando:
+                  Caso queira uma análise mais completa e personalizada
                 </CardTitle>
-                <CardDescription className={`${darkMode ? "text-slate-300" : "text-slate-700"} text-xs sm:text-sm`}>
-                  <ul className="list-disc pl-4 space-y-1">
-                    <li>Cenários comparativos entre regimes tributários (Simples, Presumido e Real)</li>
-                    <li>Simulações de economia fiscal</li>
-                    <li>Recomendações exclusivas para o seu ramo</li>
-                  </ul>
-                </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-3">
-                <div
-                  className={`${darkMode ? "bg-slate-900/40 border-slate-700" : "bg-white/60 border-blue-200"} border rounded-md p-3`}
-                >
-                  <p className={`${darkMode ? "text-slate-200" : "text-slate-800"} font-medium mb-1`}>
-                    Fale com a Integra:
-                  </p>
-                  <p className={`${darkMode ? "text-slate-300" : "text-slate-700"}`}>
-                    WhatsApp:{" "}
-                    <a
-                      href="https://wa.me/559481264638?text=Ol%C3%A1%20quero%20uma%20an%C3%A1lise%20mais%20completa%20do%20meu%20DAS"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className={`${darkMode ? "text-green-300" : "text-green-700"} underline hover:opacity-80`}
-                    >
-                      94 8126-4638
-                    </a>
-                  </p>
-                  <p className={`${darkMode ? "text-slate-300" : "text-slate-700"}`}>
-                    E-mail:{" "}
-                    <a
-                      href="mailto:atendimento@integratecnologia.inf.br"
-                      className={`${darkMode ? "text-blue-300" : "text-blue-700"} underline hover:opacity-80`}
-                    >
-                      atendimento@integratecnologia.inf.br
-                    </a>
-                  </p>
-                  <p className={`${darkMode ? "text-slate-400" : "text-slate-500"} text-xs mt-2`}>
-                    Integra Soluções Empresariais
-                  </p>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 items-start">
+                  {/* Coluna esquerda: frases descritivas */}
+                  <div>
+                    <CardDescription className={`${darkMode ? "text-slate-300" : "text-slate-700"} text-xs sm:text-[10]`}>
+                      <ul className="list-disc pl-4 space-y-1">
+                        <li>Cenários comparativos entre regimes tributários (Simples, Presumido e Real)</li>
+                        <li>Simulações de economia fiscal</li>
+                        <li>Recomendações exclusivas para o seu ramo</li>
+                      </ul>
+                    </CardDescription>
+                  </div>
+                  {/* Coluna direita: bloco de contato */}
+                  <div
+                    className={`${darkMode ? "bg-slate-900/40 border-slate-700" : "bg-white/60 border-blue-200"} border rounded-md p-3`}
+                  >
+                    <p className={`${darkMode ? "text-slate-200" : "text-slate-800"} font-medium mb-1 text-xs sm:text-[10]`}>
+                      Fale com a Integra:
+                    </p>
+                    <div className="flex flex-col gap-1">
+                      <p className={`${darkMode ? "text-slate-300" : "text-slate-700"} text-xs sm:text-[10]`}> 
+                        WhatsApp:{" "}
+                        <a
+                          href="https://wa.me/559481264638?text=Ol%C3%A1%20quero%20uma%20an%C3%A1lise%20mais%20completa%20do%20meu%20DAS"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={`${darkMode ? "text-green-300" : "text-green-700"} underline hover:opacity-80`}
+                        >
+                          94 8126-4638
+                        </a>
+                      </p>
+                      <p className={`${darkMode ? "text-slate-300" : "text-slate-700"} text-xs sm:text-sm`}> 
+                        E-mail:{" "}
+                        <a
+                          href="mailto:atendimento@integratecnologia.inf.br"
+                          className={`${darkMode ? "text-blue-300" : "text-blue-700"} underline hover:opacity-80`}
+                        >
+                          atendimento@integratecnologia.inf.br
+                        </a>
+                      </p>
+                    </div>
+                    <p className={`${darkMode ? "text-slate-400" : "text-slate-500"} text-[14] mt-2`}>
+                      Integra Soluções Empresariais
+                    </p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -2908,7 +2985,7 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
                       const idToUse = resolvedShareId
                       if (idToUse) {
                         const base = (process.env.NEXT_PUBLIC_BASE_URL as string | undefined) || window.location.origin
-                        const url = `${base}/api/pdf/id?id=${idToUse}`
+                        const url = `${base}/api/pdf/${idToUse}`
                         window.open(url, '_blank', 'noopener')
                         return
                       }

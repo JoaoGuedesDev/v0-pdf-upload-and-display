@@ -27,17 +27,27 @@ async function getPuppeteer() {
   }
 }
 
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
-  const idFromParam = params?.id
-  let id = idFromParam
-  if (!id) {
-    try {
-      const u = new URL(_req.url)
-      id = u.searchParams.get('id') || ''
-    } catch {
-      id = ''
-    }
+function extractId(_req: NextRequest, params?: { id?: string }) {
+  // 1) Preferir params do Next (rota dinâmica)
+  if (params?.id) return params.id
+  try {
+    const u = new URL(_req.url)
+    // 2) Query string como fallback
+    const fromQuery = u.searchParams.get('id')
+    if (fromQuery) return fromQuery
+    // 3) Extrair último segmento do pathname
+    const parts = u.pathname.split('/').filter(Boolean)
+    // Encontrar após 'pdf' se existir
+    const idx = parts.lastIndexOf('pdf')
+    if (idx >= 0 && parts[idx + 1]) return parts[idx + 1]
+    return parts[parts.length - 1] || ''
+  } catch {
+    return ''
   }
+}
+
+export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+  const id = extractId(_req, params)
   if (!id) {
     return new Response(JSON.stringify({ error: 'Missing id' }), { status: 400, headers: { 'content-type': 'application/json' } })
   }
