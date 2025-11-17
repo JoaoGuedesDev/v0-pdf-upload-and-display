@@ -84,12 +84,6 @@ function fmtBRL(n: number) {
 }
 
 export default function DonutTributos({ tributos, variant, darkMode = false, width = 360, height = 360, cx = 360, cy = 180, innerRadius = 100, outerRadius = 140, showCenter = false }: Props) {
-  const data = normalize(tributos)
-  if (!data.length) return <div style={{ height }} />
-  const total = data.reduce((s, i) => s + i.value, 0)
-  let lastYLeft = -Infinity
-  let lastYRight = -Infinity
-
   const wrapRef = useRef<HTMLDivElement | null>(null)
   const [dims, setDims] = useState<{ w: number; h: number }>({ w: 0, h: 0 })
   const [ttPos, setTtPos] = useState<{ x: number; y: number } | undefined>(undefined)
@@ -106,6 +100,12 @@ export default function DonutTributos({ tributos, variant, darkMode = false, wid
     window.addEventListener("resize", update)
     return () => window.removeEventListener("resize", update)
   }, [variant])
+
+  const data = normalize(tributos)
+  const total = data.reduce((s, i) => s + i.value, 0)
+  let lastYLeft = -Infinity
+  let lastYRight = -Infinity
+  if (!data.length) return <div style={{ height }} />
 
   const renderArrowLabel = (props: any) => {
     const { cx, cy, midAngle, outerRadius: or, value, index, payload, fill } = props || {}

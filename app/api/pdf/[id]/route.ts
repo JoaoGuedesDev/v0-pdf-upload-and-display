@@ -46,16 +46,17 @@ function extractId(_req: NextRequest, params?: { id?: string }) {
   }
 }
 
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
-  const id = extractId(_req, params)
-  if (!id) {
+export async function GET(_req: NextRequest, context: { params: Promise<{ id: string }> }) {
+  const { id } = await context.params
+  const idFinal = extractId(_req, { id })
+  if (!idFinal) {
     return new Response(JSON.stringify({ error: 'Missing id' }), { status: 400, headers: { 'content-type': 'application/json' } })
   }
   const originFromReq = (() => {
     try { return new URL(_req.url).origin } catch { return '' }
   })()
   const base = process.env.NEXT_PUBLIC_BASE_URL || originFromReq || 'http://localhost:3000'
-  const targetUrl = `${base}/d/${id}`
+  const targetUrl = `${base}/d/${idFinal}`
 
   const puppeteer = await getPuppeteer()
   let browser: any

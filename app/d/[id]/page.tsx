@@ -23,7 +23,7 @@ export default async function Page({ params }: any) {
   let data = await getDashboard(id)
   if (!data) {
     try {
-      const hs = headers()
+      const hs = await headers()
       const host = hs.get('host') || 'localhost:3000'
       const proto = hs.get('x-forwarded-proto') || 'https'
       const origin = `${proto}://${host}`

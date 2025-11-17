@@ -20,9 +20,9 @@ export interface LogoOptions {
 }
 
 export class IntegraLogoComponent {
-  private doc: jsPDF;
+  private doc: any;
   
-  constructor(doc: jsPDF) {
+  constructor(doc: any) {
     this.doc = doc;
   }
   

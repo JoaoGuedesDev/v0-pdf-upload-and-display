@@ -462,9 +462,13 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
 
   const generateImage = async () => {
     if (!contentRef.current || !data) return
+    let nodeRef: HTMLElement | null = null
+    let prevOverflow = ""
+    let prevTransform = ""
     try {
       setIsGeneratingImage(true)
       const node = contentRef.current as HTMLElement
+      nodeRef = node
       
       // Aguarda gráficos renderizados antes de capturar para garantir que labels e elementos estejam visíveis
       await waitForChartsReady(node)
@@ -472,8 +476,8 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
       // Calcula pixel ratio para 300 DPI em A4 paisagem (largura útil ~277mm)
       const targetWidthMm = 277
       const pixelRatio = computePixelRatioForDPI(node, targetWidthMm, 300)
-      const prevOverflow = node.style.overflow
-      const prevTransform = node.style.transform
+      prevOverflow = node.style.overflow
+      prevTransform = node.style.transform
       node.style.overflow = "visible"
       node.style.transform = "none"
       const __els = Array.from(node.querySelectorAll('*')) as HTMLElement[]
@@ -539,8 +543,10 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
             else el.setAttribute('style', prev)
             el.removeAttribute('__prev_style__')
           }
-          node.style.overflow = prevOverflow
-          node.style.transform = prevTransform
+          if (nodeRef) {
+            nodeRef.style.overflow = prevOverflow
+            nodeRef.style.transform = prevTransform
+          }
         }
       } catch {}
       setIsGeneratingImage(false)
@@ -552,6 +558,8 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
   const downloadClientPdf = async () => {
     if (!contentRef.current || !data) return
     const node = contentRef.current as HTMLElement
+    let prevOverflowPdf = node.style.overflow
+    let prevTransformPdf = node.style.transform
     // Utilitários de DPI e sincronização de gráficos
     // Calcula o pixel ratio necessário para atingir o DPI desejado na largura real da imagem no PDF
     const mmToInches = (mm: number) => mm / 25.4
@@ -597,8 +605,8 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
         if (cs && cs.color) el.style.color = cs.color
         if (cs && cs.borderColor) el.style.borderColor = cs.borderColor
       }
-      const prevOverflowPdf = node.style.overflow
-      const prevTransformPdf = node.style.transform
+      prevOverflowPdf = node.style.overflow
+      prevTransformPdf = node.style.transform
       node.style.overflow = "visible"
       node.style.transform = "none"
       let dataUrl = ""

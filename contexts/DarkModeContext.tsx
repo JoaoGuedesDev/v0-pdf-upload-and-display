@@ -20,14 +20,14 @@ interface DarkModeProviderProps {
 }
 
 export const DarkModeProvider: React.FC<DarkModeProviderProps> = ({ children }) => {
-  const [isDarkMode, setIsDarkMode] = useState(false);
-
-  useEffect(() => {
-    const saved = localStorage.getItem('darkMode');
-    if (saved !== null) {
-      setIsDarkMode(JSON.parse(saved));
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('darkMode');
+      return saved !== null ? JSON.parse(saved) : false;
+    } catch {
+      return false;
     }
-  }, []);
+  });
 
   useEffect(() => {
     localStorage.setItem('darkMode', JSON.stringify(isDarkMode));

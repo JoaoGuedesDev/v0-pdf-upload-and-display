@@ -9,20 +9,6 @@ declare module '@vercel/analytics/react' {
   export const Analytics: any
 }
 
-declare module 'lucide-react' {
-  export const Upload: any
-  export const FileText: any
-  export const TrendingUp: any
-  export const AlertCircle: any
-  export const AlertTriangle: any
-  export const Loader2: any
-  export const DollarSign: any
-  export const Sun: any
-  export const Moon: any
-  export const Download: any
-  export const Clock: any
-  export const Shield: any
-}
 
 declare module 'recharts' {
   export const BarChart: any
@@ -47,6 +33,10 @@ declare module 'html-to-image' {
 
 declare module 'jspdf' {
   export const jsPDF: any
+}
+
+declare module 'vaul' {
+  export const Drawer: any
 }
 
 declare module 'pdf-lib' {
