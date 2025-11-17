@@ -40,8 +40,43 @@ import { toPng } from "html-to-image"
 import html2canvas from "html2canvas"
 import { jsPDF } from "jspdf"
 import { toast } from "@/components/ui/use-toast"
-import { DonutTributos } from "@/components/DonutTributos"
+import DonutTributos from "@/components/charts/DonutTributos"
+import DistribuicaoDASCard from "@/components/cards/DistribuicaoDASCard"
 import { composeChartsPage } from "@/lib/pdf-utils/charts-to-pdf"
+import ReceitaMensalCard from "@/components/cards/ReceitaMensalCard"
+
+function computePixelRatioForDPI(targetDPI: number, baseDPI?: number): number
+function computePixelRatioForDPI(el: HTMLElement, targetWidthMm: number, targetDPI: number): number
+function computePixelRatioForDPI(a: number | HTMLElement, b?: number, c?: number): number {
+  if (typeof a === "number") {
+    const targetDPI = a
+    const base = typeof b === "number" ? b : 96
+    const ratio = targetDPI / base
+    return Number.isFinite(ratio) && ratio > 0 ? ratio : 1
+  }
+  const el = a as HTMLElement
+  const widthPx = el?.getBoundingClientRect?.().width || 0
+  const targetWidthMm = b || 0
+  const targetDPI = c || 96
+  const desiredWidthPx = (targetWidthMm / 25.4) * targetDPI
+  const ratio = widthPx > 0 ? desiredWidthPx / widthPx : 1
+  return Number.isFinite(ratio) && ratio > 0 ? ratio : 1
+}
+
+async function waitForChartsReady(root: HTMLElement, timeoutMs = 200) {
+  const start = Date.now()
+  const readyCheck = () => {
+    const svgs = Array.from(root.querySelectorAll("svg"))
+    if (svgs.length === 0) return false
+    return svgs.every((s) => {
+      const r = s.getBoundingClientRect()
+      return r.width > 0 && r.height > 0
+    })
+  }
+  while (!readyCheck() && Date.now() - start < timeoutMs) {
+    await new Promise((r) => setTimeout(r, 100))
+  }
+}
 
 interface DASData {
   identificacao: {
@@ -138,7 +173,16 @@ interface DASData {
   debug?: any
 }
 
-const CHART_COLORS = ["#2563eb", "#7c3aed", "#db2777", "#dc2626", "#ea580c", "#ca8a04", "#16a34a", "#0891b2"]
+const CHART_COLORS = [
+  "#6366f1",
+  "#22c55e",
+  "#ef4444",
+  "#f59e0b",
+  "#14b8a6",
+  "#8b5cf6",
+  "#3b82f6",
+  "#e11d48",
+]
 
 const ATIVIDADES_COLORS = {
   servicos: "#10b981", // verde
@@ -146,23 +190,23 @@ const ATIVIDADES_COLORS = {
 }
 
 // Configuração centralizada de UI para fontes e dimensões
-const UI_CONFIG = {
-  fonts: {
-    titleCls: "text-base sm:text-lg",
-    descCls: "text-xs sm:text-[9]",
-    axis: 9,
-    label: 9,
-    legend: 9,
-  },
-  dims: {
-    receitaMensalHeight:300,
-    dasPieHeight: 300,
-    dasPiePrintHeight: 300,
-  },
-  pie: {
-    outerRadius: 100,
-  },
-}
+  const UI_CONFIG = {
+    fonts: {
+      titleCls: "text-base sm:text-lg",
+      descCls: "text-xs sm:text-[9]",
+      axis: 9,
+      label: 11,
+      legend: 9,
+    },
+    dims: {
+      receitaMensalHeight: 280,
+      dasPieHeight: 280,
+      dasPiePrintHeight: 320,
+    },
+    pie: {
+      outerRadius: 100,
+    },
+  }
 
 // Helper: normaliza texto pt-BR (minúsculas, sem acentos, espaços únicos)
 function normalizeTextPTBR(s: string): string {
@@ -421,11 +465,19 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
     try {
       setIsGeneratingImage(true)
       const node = contentRef.current as HTMLElement
+      
+      // Aguarda gráficos renderizados antes de capturar para garantir que labels e elementos estejam visíveis
+      await waitForChartsReady(node)
+      
+      // Calcula pixel ratio para 300 DPI em A4 paisagem (largura útil ~277mm)
+      const targetWidthMm = 277 // Largura A4 paisagem - margens
+      const pixelRatio = computePixelRatioForDPI(node, targetWidthMm, 300)
+      
       // Tenta via html-to-image primeiro (melhor com cores modernas lab/oklch)
       try {
         const dataUrl = await toPng(node, {
           cacheBust: true,
-          pixelRatio: 3,
+          pixelRatio: pixelRatio,
           backgroundColor: darkMode ? "#0f172a" : "#ffffff",
           // Evita nós problemáticos que podem causar erro de `.trim()` interno
           filter: (n: HTMLElement) => {
@@ -444,7 +496,7 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
         try {
           const canvas = await html2canvas(node, {
             backgroundColor: darkMode ? "#0f172a" : "#ffffff",
-            scale: 2,
+            scale: Math.max(2, pixelRatio), // Usa o mesmo pixel ratio calculado
             useCORS: true,
             logging: false,
             allowTaint: true,
@@ -470,6 +522,9 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
   const downloadClientPdf = async () => {
     if (!contentRef.current || !data) return
     const node = contentRef.current as HTMLElement
+    // Utilitários de DPI e sincronização de gráficos
+    // Calcula o pixel ratio necessário para atingir o DPI desejado na largura real da imagem no PDF
+    const mmToInches = (mm: number) => mm / 25.4
     // Preparar alternância do gráfico de pizza: usar imagem estática com rótulos
     const chartDasPie = node.querySelector("#chart-das-pie") as HTMLElement | null
     const livePieBlock = chartDasPie?.querySelector("div.block") as HTMLElement | null
@@ -494,10 +549,20 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
       const waLabelRaw = whatsappAnchor?.textContent
       const waLabel = typeof waLabelRaw === "string" && waLabelRaw.length > 0 ? waLabelRaw.trim() : "94 8126-4638"
 
+      // Aguarda gráficos renderizados antes de capturar a página
+      await waitForChartsReady(node)
+
+      // Prepara PDF para calcular pixelRatio mirando 300 DPI na largura renderizada
+      const pdf = new jsPDF(pdfOrientation === "landscape" ? "l" : "p", "mm", "a4")
+      const pageWidth = pdf.internal.pageSize.getWidth()
+      const pageHeight = pdf.internal.pageSize.getHeight()
+      const margin = 6
+      const targetWidthMm = pageWidth - margin * 2
+
       // Usa html-to-image para evitar parsing de cores lab()/oklch do html2canvas
       const dataUrl = await toPng(node, {
         cacheBust: true,
-        pixelRatio: clientPixelRatio,
+        pixelRatio: computePixelRatioForDPI(node, targetWidthMm, 300),
         backgroundColor: darkMode ? "#0f172a" : "#ffffff",
       })
 
@@ -509,22 +574,18 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
         img.src = dataUrl
       })
 
-      const pdf = new jsPDF(pdfOrientation === "landscape" ? "l" : "p", "mm", "a4")
-      const pageWidth = pdf.internal.pageSize.getWidth()
-      const pageHeight = pdf.internal.pageSize.getHeight()
-      const margin = 6
-
       if (pdfFitMode === "multipage") {
         const imgWidth = pageWidth - margin * 2
         const imgHeight = (dims.h * imgWidth) / dims.w
         let heightLeft = imgHeight
         let position = margin
-        pdf.addImage(dataUrl, "PNG", margin, position, imgWidth, imgHeight)
+        // Usa compressão FAST para minimizar tamanho do arquivo e tempo de carregamento
+        pdf.addImage(dataUrl, "PNG", margin, position, imgWidth, imgHeight, undefined, "FAST")
         heightLeft -= pageHeight
         while (heightLeft > 0) {
           pdf.addPage()
-          position = heightLeft - imgHeight
-          pdf.addImage(dataUrl, "PNG", margin, position, imgWidth, imgHeight)
+          position = -heightLeft
+          pdf.addImage(dataUrl, "PNG", margin, position, imgWidth, imgHeight, undefined, "FAST")
           heightLeft -= pageHeight
         }
       } else {
@@ -536,21 +597,57 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
         const renderH = dims.h * scale
         const x = (pageWidth - renderW) / 2
         const y = (pageHeight - renderH) / 2
-        pdf.addImage(dataUrl, "PNG", x, y, renderW, renderH)
+        // Usa compressão FAST para minimizar tamanho do arquivo e tempo de carregamento
+        pdf.addImage(dataUrl, "PNG", x, y, renderW, renderH, undefined, "FAST")
       }
 
       // Página adicional com gráficos (Receita Mensal e Distribuição do DAS)
       try {
         const receitaEl = node.querySelector('#chart-receita-mensal') as HTMLElement | null
         const receitaImgUrl = receitaEl
-          ? await toPng(receitaEl, {
-              cacheBust: true,
-              pixelRatio: Math.max(3, clientPixelRatio),
-              backgroundColor: darkMode ? "#0f172a" : "#ffffff",
-            })
+          ? await (async () => {
+              const isReady = () => {
+                const svg = receitaEl.querySelector('svg')
+                const rect = receitaEl.getBoundingClientRect()
+                return !!svg && rect.width > 0 && rect.height > 0
+              }
+              let attempts = 0
+              while (!isReady() && attempts < 8) {
+                await new Promise((r) => setTimeout(r, 100))
+                attempts++
+              }
+              const targetColWidthMm = (pageWidth - margin * 2 - 4) / 2
+              return await toPng(receitaEl, {
+                cacheBust: true,
+                pixelRatio: computePixelRatioForDPI(receitaEl, targetColWidthMm, 300),
+                backgroundColor: darkMode ? "#0f172a" : "#ffffff",
+              })
+            })()
           : null
-
-        const pieImgUrl = pieImageUrl
+        // Recaptura o Pie em 300 DPI se possível (sempre recaptura para garantir atualizações)
+        let pieImgUrl = pieImageUrl
+        const pieRoot = (chartDasPie as HTMLElement | null) || (pieRef.current as HTMLElement | null)
+        if (pieRoot) {
+          const svg = pieRoot.querySelector('svg')
+          const rect = pieRoot.getBoundingClientRect()
+          if (svg && rect.width > 0 && rect.height > 0) {
+            const targetColWidthMm = (pageWidth - margin * 2 - 4) / 2
+            try {
+              console.log('[PDF] Recapturando gráfico de pizza com novos labels...')
+              pieImgUrl = await toPng(pieRoot, {
+                cacheBust: true,
+                pixelRatio: computePixelRatioForDPI(pieRoot, targetColWidthMm, 300),
+                backgroundColor: darkMode ? "#0f172a" : "#ffffff",
+              })
+              console.log('[PDF] Gráfico de pizza recapturado com sucesso')
+            } catch (err) {
+              console.warn('[PDF] Erro ao recapturar gráfico de pizza, mantendo imagem anterior:', err)
+              // mantém pieImgUrl existente se falhar
+            }
+          } else {
+            console.warn('[PDF] SVG do gráfico de pizza não está pronto para captura')
+          }
+        }
         if (receitaImgUrl || pieImgUrl) {
           pdf.addPage()
           const gap = 4
@@ -570,19 +667,23 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
           const rightX = margin + colW + gap
           const yTop = margin
 
+          console.log(`[PDF] Página adicional - Posições: leftX=${leftX}, rightX=${rightX}, colW=${colW}`)
+
           if (receitaImgUrl) {
             const d = await loadDims(receitaImgUrl)
             const scale = Math.min(colW / d.w, (pageHeight - margin * 2) / d.h)
             const w = d.w * scale
             const h = d.h * scale
-            pdf.addImage(receitaImgUrl, 'PNG', leftX, yTop, w, h)
+            console.log(`[PDF] Adicionando gráfico de receita: x=${leftX}, y=${yTop}, w=${w}, h=${h}`)
+            pdf.addImage(receitaImgUrl, 'PNG', leftX, yTop, w, h, undefined, 'FAST')
           }
           if (pieImgUrl) {
             const d = await loadDims(pieImgUrl)
             const scale = Math.min(colW / d.w, (pageHeight - margin * 2) / d.h)
             const w = d.w * scale
             const h = d.h * scale
-            pdf.addImage(pieImgUrl, 'PNG', rightX, yTop, w, h)
+            console.log(`[PDF] Adicionando gráfico de pizza: x=${rightX}, y=${yTop}, w=${w}, h=${h}`)
+            pdf.addImage(pieImgUrl, 'PNG', rightX, yTop, w, h, undefined, 'FAST')
           }
         }
       } catch (err) {
@@ -1083,11 +1184,15 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
       const rect = root.getBoundingClientRect()
       const ready = !!svg && rect.width > 0 && rect.height > 0
       if (!ready) {
-        timeoutId = setTimeout(tryCapture, 250)
+        timeoutId = setTimeout(tryCapture, 150)
         return
       }
+      // Calcula pixel ratio para 300 DPI (assumindo largura de ~400px para gráfico)
+      const targetWidthMm = 105 // Largura aproximada do gráfico em mm (metade de A4)
+      const pixelRatio = computePixelRatioForDPI(root, targetWidthMm, 300)
+      
       toPng(root, {
-        pixelRatio: clientPixelRatio,
+        pixelRatio: pixelRatio,
         cacheBust: true,
         backgroundColor: darkMode ? "#0b1220" : "#ffffff",
       })
@@ -1095,7 +1200,7 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
         .catch(() => {})
     }
 
-    timeoutId = setTimeout(tryCapture, 150)
+    timeoutId = setTimeout(tryCapture, 100)
     return () => {
       if (timeoutId) clearTimeout(timeoutId)
     }
@@ -1766,13 +1871,14 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
               </CardContent>
             </Card>
 
+
             {/* Bloco "Operação Mista" removido conforme solicitação */}
 
             {data.graficos && (data.graficos.tributosBar || data.graficos.totalTributos) && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 print:contents">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 print:grid-cols-1">
                 {(data.graficos.receitaLine || data.graficos.receitaMensal) && (
                   <Card
-                    className={`${darkMode ? "bg-slate-800 border-slate-700" : "bg-white border border-slate-200"} shadow-lg hover:shadow-xl transition-all duration-200 md:col-span-2 print:inline-block print:w-1/3 print:align-top print:break-inside-avoid`}
+                    className={`${darkMode ? "bg-slate-800 border-slate-700" : "bg-white border border-slate-200"} shadow-lg hover:shadow-xl transition-all duration-200 md:col-span-2 print:block print:w-full print:break-inside-avoid`}
                   >
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
                       <div>
@@ -1929,7 +2035,7 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
                                           wrapperStyle={{ bottom: -10 }}
                                         />
                                         {/* Barra maior (base) */}
-                                        <Bar dataKey="maior" name="Maior" radius={[6, 6, 0, 0]}>
+                                        <Bar dataKey="maior" name="Maior" radius={[6, 6, 0, 0]} isAnimationActive={false}>
                                           {chartData.map((entry: any, idx: number) => (
                                             <Cell key={`maior-${idx}`} fill={entry.maiorTipo === "interno" ? IN_COLOR : EX_COLOR} />
                                           ))}
@@ -1942,6 +2048,7 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
                                           radius={[6, 6, 0, 0]}
                                           stroke={darkMode ? "rgba(255,255,255,0.35)" : "rgba(51,65,85,0.35)"}
                                           strokeWidth={1}
+                                          isAnimationActive={false}
                                         >
                                           {chartData.map((entry: any, idx: number) => (
                                             <Cell key={`menor-${idx}`} fill={entry.maiorTipo === "interno" ? EX_COLOR : IN_COLOR} />
@@ -1966,7 +2073,7 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
             {/* Relatório de Debug (n8n / Parsing) removido */}
 
             <Card
-              className={`${darkMode ? "bg-slate-800 border-slate-700" : "bg-white border border-slate-200"} shadow-lg hover:shadow-xl transition-all duration-200 print:inline-block print:w-1/3 print:align-top print:break-inside-avoid`}
+              className={`${darkMode ? "bg-slate-800 border-slate-700" : "bg-white border border-slate-200"} shadow-lg hover:shadow-xl transition-all duration-200 print:block print:w-full print:break-inside-avoid`}
             >
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <div>
@@ -2504,163 +2611,7 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
             {data?.graficos && (data.graficos.dasPie || data.graficos.totalTributos) && data?.tributos && typeof data.tributos === "object" && (
               <div className="grid grid-cols-1 gap-4 sm:gap-6 print:contents">
                 {/* Gráfico de Pizza - Distribuição do DAS */}
-                <Card
-                  id="print-pie"
-                  className={`${darkMode ? "bg-slate-800 border-slate-700" : "bg-white border border-slate-200"} shadow-lg hover:shadow-xl transition-all duration-200 print:inline-block print:w-1/3 print:align-top print:break-inside-avoid`}
-                >
-                  <CardHeader className="flex flex-row items-center justify-between pb-2">
-                    <div>
-                      <CardTitle
-                        className={`${UI_CONFIG.fonts.titleCls} flex items-center gap-2 ${darkMode ? "text-white" : "text-slate-800"}`}
-                      >
-                        <TrendingUp className={`h-5 w-5 ${darkMode ? "text-purple-400" : "text-purple-500"}`} />
-                        Distribuição do DAS
-                      </CardTitle>
-                      <CardDescription
-                        className={`${UI_CONFIG.fonts.descCls} ${darkMode ? "text-slate-400" : "text-slate-500"}`}
-                      >
-                        Composição percentual dos tributos
-                      </CardDescription>
-                    </div>
-                    {/* Botão de exportação removido conforme solicitado */}
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                      {/* Valores numéricos à esquerda (mostrar também no PDF) */}
-                      <div className="space-y-0.5 print:block">
-                        <h4 className={`font-semibold text-[9]${darkMode ? "text-slate-200" : "text-slate-700"} mb-4`}>
-                          Valores por Tributo
-                        </h4>
-                        {[
-                          { key: "IRPJ", label: "IRPJ", color: CHART_COLORS[0] },
-                          { key: "CSLL", label: "CSLL", color: CHART_COLORS[1] },
-                          { key: "COFINS", label: "COFINS", color: CHART_COLORS[2] },
-                          { key: "PIS_Pasep", label: "PIS/PASEP", color: CHART_COLORS[3] },
-                          { key: "INSS_CPP", label: "INSS/CPP", color: CHART_COLORS[4] },
-                          { key: "ICMS", label: "ICMS", color: CHART_COLORS[5] },
-                          { key: "IPI", label: "IPI", color: CHART_COLORS[6] },
-                          { key: "ISS", label: "ISS", color: CHART_COLORS[7] },
-                        ]
-                          .filter((item) => {
-                            const value = (((data?.tributos as any) ?? {})[item.key] as number) || 0
-                            return value > 0
-                          })
-                          .map(({ key, label, color }) => {
-                            const value = (((data?.tributos as any) ?? {})[key] as number) || 0
-                            const total = Number(data?.tributos?.Total || 0)
-                            const percentage = total > 0 ? (value / total) * 100 : 0
-
-                            return (
-                              <div
-                                key={key}
-                                className={`flex items-center justify-between p-2 rounded-lg ${darkMode ? "bg-slate-700/50" : "bg-slate-50"} hover:shadow-md transition-all duration-200`}
-                              >
-                                <div className="flex items-center gap-2">
-                                  <div
-                                    className="w-4 h-4 rounded-full flex-shrink-0 shadow-sm"
-                                    style={{ backgroundColor: color }}
-                                  />
-                                  <div>
-                                    <div
-                                      className={`font-medium text-[9] ${darkMode ? "text-slate-200" : "text-slate-800"}`}
-                                    >
-                                      {label}
-                                    </div>
-                                    <div className={`text- [9] ${darkMode ? "text-slate-400" : "text-slate-500"}`}>
-                                      {percentage.toFixed(5)}%
-                                    </div>
-                                  </div>
-                                </div>
-                                <div className={`font-bold text-[9] ${darkMode ? "text-slate-100" : "text-slate-900"}`}>
-                                  {formatCurrency(value)}
-                                </div>
-                              </div>
-                            )
-                          })}
-
-                        {/* Total */}
-                        <div
-                          className={`flex items-center justify-between p-2 rounded-lg border-2 ${darkMode ? "bg-slate-600 border-slate-500" : "bg-slate-100 border-slate-300"} font-bold`}
-                        >
-                          <div className="flex items-center gap-2">
-                            <div className={`w-4 h-4 rounded-full ${darkMode ? "bg-slate-300" : "bg-slate-600"}`} />
-                            <div>
-                              <div className={`font-bold text-[9] ${darkMode ? "text-slate-100" : "text-slate-800"}`}>
-                                TOTAL DAS
-                              </div>
-                              <div className={`text-xs ${darkMode ? "text-slate-300" : "text-slate-600"}`}>
-                                100.00000%
-                              </div>
-                            </div>
-                          </div>
-                          <div className={`font-bold text-lg ${darkMode ? "text-slate-100" : "text-slate-900"}`}>
-                            {formatCurrency(Number(data?.tributos?.Total || 0))}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Gráfico de Pizza à direita */}
-                      <div className="flex flex-col">
-                        <h4 className={`font-semibold text-[9] ${darkMode ? "text-slate-200" : "text-slate-700"} mb-4`}>
-                          Visualização Gráfica
-                        </h4>
-                        
-                        <div id="chart-das-pie" className="flex-1 flex items-center justify-center">
-                          <div ref={pieRef} className="w-full overflow-visible print:h-[200px]" style={{ height: UI_CONFIG.dims.dasPieHeight }}>
-                            {/* Mostrar sempre o gráfico; usar imagem apenas na impressão */}
-                            <div className="block print:hidden w-full" style={{ height: UI_CONFIG.dims.dasPieHeight }}>
-                              <ResponsiveContainer width="100%" height="100%">
-                                {(() => {
-                                  const items = [
-                                    { label: "IRPJ", value: Number(data?.tributos?.IRPJ || 0) },
-                                    { label: "CSLL", value: Number(data?.tributos?.CSLL || 0) },
-                                    { label: "COFINS", value: Number(data?.tributos?.COFINS || 0) },
-                                    { label: "PIS/PASEP", value: Number(data?.tributos?.PIS_Pasep || 0) },
-                                    { label: "INSS/CPP", value: Number(data?.tributos?.INSS_CPP || 0) },
-                                    { label: "ICMS", value: Number(data?.tributos?.ICMS || 0) },
-                                    { label: "IPI", value: Number(data?.tributos?.IPI || 0) },
-                                    { label: "ISS", value: Number(data?.tributos?.ISS || 0) },
-                                  ].filter((i) => i.value > 0)
-                                  const chartData = items.map((it, idx) => ({
-                                    name: it.label,
-                                    value: it.value,
-                                    color: CHART_COLORS[idx % CHART_COLORS.length],
-                                  }))
-                                  return (
-                                    <PieChart>
-                                      <Pie
-                                        data={chartData}
-                                        dataKey="value"
-                                        nameKey="name"
-                                        outerRadius={UI_CONFIG.pie.outerRadius}
-                                        labelLine
-                                        label={(entry: any) => `${entry.name}: ${formatCurrency(Number(entry.value))}`}
-                                      >
-                                        {chartData.map((entry, idx) => (
-                                          <Cell key={`cell-${idx}`} fill={entry.color} />
-                                        ))}
-                                      </Pie>
-                                      <Tooltip
-                                        formatter={(value: number | string, name: string) => [formatCurrency(Number(value)), String(name)]}
-                                        contentStyle={{
-                                          background: darkMode ? "#0f172a" : "#ffffff",
-                                          borderColor: darkMode ? "#334155" : "#e2e8f0",
-                                        }}
-                                      />
-                                    </PieChart>
-                                  )
-                                })()}
-                              </ResponsiveContainer>
-                            </div>
-                            {pieImageUrl && (
-                              <img src={pieImageUrl} alt="Gráfico de Pizza DAS" className="hidden print:block w-full object-contain" style={{ height: UI_CONFIG.dims.dasPiePrintHeight }} />
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                <DistribuicaoDASCard tributos={data?.tributos} darkMode={darkMode} config={{ pieHeight: UI_CONFIG.dims.dasPieHeight, pieOuterRadius: UI_CONFIG.pie.outerRadius, gridGap: 16 }} />
               </div>
             )}
 
@@ -2681,7 +2632,7 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
               const total = mercadorias + servicos
               return (
                 <Card
-                  className={`${darkMode ? "bg-slate-800 border-slate-700" : "bg-white border border-slate-200"} shadow-lg hover:shadow-xl transition-all duration-200 print:inline-block print:w-1/3 print:align-top print:break-inside-avoid`}
+                  className={`${darkMode ? "bg-slate-800 border-slate-700" : "bg-white border border-slate-200"} shadow-lg hover:shadow-xl transition-all duration-200 print:block print:w-full print:break-inside-avoid`}
                 >
                   <CardHeader className="flex flex-row items-center justify-between pb-2">
                     <div>
@@ -2813,7 +2764,7 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
                                   labelStyle={{ fontWeight: "600" }}
                                 />
                                 <Legend />
-                                <Bar dataKey="value" name="DAS" barSize={40}>
+                                <Bar dataKey="value" name="DAS" barSize={40} isAnimationActive={false}>
                                   {chartData.map((entry, index) => (
                                     <Cell
                                       key={`cell-${index}`}

@@ -1,90 +1,86 @@
 "use client"
 
-import { useRef, useMemo } from "react"
-import { Chart, ArcElement, Tooltip, Legend } from "chart.js"
-import ChartDataLabels from "chartjs-plugin-datalabels"
-import { Doughnut } from "react-chartjs-2"
+import { useMemo, useRef } from "react"
+import { PieChart, Pie, Tooltip, Legend, ResponsiveContainer, Cell } from "recharts"
 import { fmtBRL, fmtPct } from "@/utils/format"
-
-Chart.register(ArcElement, Tooltip, Legend, ChartDataLabels)
 
 type Item = { label: string; value: number }
 
-export function DonutTributos({ data }: { data: Item[] }) {
-  const ref = useRef<any>(null)
+const COLORS = [
+  "#F59E0B",
+  "#EF4444",
+  "#10B981",
+  "#3B82F6",
+  "#8B5CF6",
+  "#F97316",
+  "#22C55E",
+  "#06B6D4",
+]
 
-  // Ordena desc e agrupa em "Outros" se tiver muita fatia
-  const { labels, values } = useMemo(() => {
+export function DonutTributos({ data }: { data: Item[] }) {
+  const containerRef = useRef<HTMLDivElement | null>(null)
+
+  const items = useMemo(() => {
     const ordered = [...data].sort((a, b) => b.value - a.value)
     const top = ordered.slice(0, 6)
-    const rest = ordered.slice(6)
-    const outros = rest.reduce((s, i) => s + i.value, 0)
-    const L = [...top.map(t => t.label), ...(outros > 0 ? ["Outros"] : [])]
-    const V = [...top.map(t => t.value), ...(outros > 0 ? [outros] : [])]
-    return { labels: L, values: V }
+    const restVal = ordered.slice(6).reduce((s, i) => s + i.value, 0)
+    return restVal > 0 ? [...top, { label: "Outros", value: restVal }] : top
   }, [data])
 
-  const total = values.reduce((a, b) => a + b, 0)
+  const total = items.reduce((a, b) => a + b.value, 0)
 
-  const chartData = {
-    labels,
-    datasets: [
-      {
-        data: values,
-        // deixe Chart.js escolher as cores padrão ou defina as suas paletas
-      },
-    ],
-  }
-
-  const options: any = {
-    responsive: true,
-    cutout: "60%", // donut
-    plugins: {
-      legend: {
-        position: "right",
-        labels: { color: "#cbd5e1" }, // bom para tema escuro
-      },
-      tooltip: {
-        callbacks: {
-          label: (ctx: any) => {
-            const v = ctx.raw as number
-            return `${fmtBRL(v)} (${fmtPct(v, total)})`
-          },
-        },
-      },
-      datalabels: {
-        color: "#fff",
-        font: { weight: "600" },
-        formatter: (v: number) => fmtBRL(v),
-        // exibir sempre os valores em R$
-        display: true,
-      },
-    },
-  }
-
-  const exportPng = () => {
-    const url = ref.current?.toBase64Image?.()
-    if (!url) return
+  const exportSVG = () => {
+    const svg = containerRef.current?.querySelector("svg")
+    if (!svg) return
+    const serialized = new XMLSerializer().serializeToString(svg)
+    const blob = new Blob([serialized], { type: "image/svg+xml;charset=utf-8" })
+    const url = URL.createObjectURL(blob)
     const a = document.createElement("a")
     a.href = url
-    a.download = "donut-tributos.png"
+    a.download = "donut-tributos.svg"
     a.click()
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
   }
 
   return (
-    <div className="rounded-2xl p-4 bg-slate-800">
+    <div ref={containerRef} className="rounded-2xl p-4 bg-slate-800">
       <div className="flex items-center justify-between mb-2">
         <h3 className="text-slate-100 font-semibold">Distribuição de Tributos</h3>
-        <button onClick={exportPng} className="px-3 py-1 rounded bg-emerald-600 text-white">Exportar PNG</button>
+        <button onClick={exportSVG} className="px-3 py-1 rounded bg-emerald-600 text-white">Exportar SVG</button>
       </div>
 
-      {/* total ao centro, via overlay simples */}
-      <div className="relative">
-        <Doughnut ref={ref} data={chartData} options={options} />
+      <div className="relative w-full h-[280px]">
+        <ResponsiveContainer>
+          <PieChart>
+          <Pie
+            data={items}
+            dataKey="value"
+            nameKey="label"
+            innerRadius={40}
+            outerRadius={30}
+            stroke="none"
+            strokeWidth={0}
+            labelLine
+            label={(entry: any) => `${entry.label}: ${fmtBRL(Number(entry.value))} (${fmtPct(Number(entry.value), total)})`}
+          >
+            {items.map((entry, i) => (
+              <Cell key={`cell-${i}`} fill={COLORS[i % COLORS.length]} />
+            ))}
+          </Pie>
+            <Legend verticalAlign="middle" align="right" wrapperStyle={{ color: "#cbd5e1" }} />
+            <Tooltip
+              contentStyle={{ background: "#0f172a", border: "10px solid #334155", color: "#e2e8f0" }}
+              formatter={(value: any, name: any) => [
+                `${fmtBRL(Number(value))} (${fmtPct(Number(value), total)})`,
+                name,
+              ]}
+            />
+          </PieChart>
+        </ResponsiveContainer>
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="text-center">
-            <div className="text-slate-300 text-xs uppercase">Total</div>
-            <div className="text-slate-100 text-lg font-bold">{fmtBRL(total)}</div>
+            <div className="text-slate-300" style={{ fontSize: 10 }}>Total</div>
+            <div className="text-slate-50 font-bold" style={{ fontSize: 10 }}>{fmtBRL(total)}</div>
           </div>
         </div>
       </div>

@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { DonutTributos } from "@/components/DonutTributos"
+import PieTributosClassic from "@/components/charts/PieTributosClassic"
 import { BarrasReceita } from "@/components/BarrasReceita"
 
 export default function DemoChartsPage() {
@@ -23,6 +24,21 @@ export default function DemoChartsPage() {
             { label: "IRPJ", value: 2750 },
           ]}
         />
+
+        <div className="rounded-2xl p-4 bg-white border border-slate-200">
+          <h3 className="text-slate-800 font-semibold mb-2">Pizza clássica (rótulos internos)</h3>
+          <PieTributosClassic
+            data={[
+              { label: "Smart TV 65 polegadas", value: 9600 },
+              { label: "Notebook", value: 8400 },
+              { label: "Smartphone", value: 9104.7 },
+              { label: "Geladeira", value: 5000 },
+              { label: "Sofá", value: 2210.9 },
+              { label: "Cafeteiras", value: 449.5 },
+            ]}
+            height={300}
+          />
+        </div>
 
         <BarrasReceita
           labels={[

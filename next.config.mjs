@@ -6,6 +6,10 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  // Define explicit root para o Turbopack e evitar seleção incorreta
+  turbopack: {
+    root: process.cwd(),
+  },
   // Garante que os binários do @sparticuz/chromium sejam incluídos
   // no bundle das rotas de geração de PDF (serverless / Node.js).
   outputFileTracingIncludes: {

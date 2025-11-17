@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Teste Gráfico Pizza</title>
+    <script src="https://unpkg.com/recharts@2.8.0/umd/Recharts.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .chart-container { width: 600px; height: 400px; margin: 20px auto; border: 1px solid #ccc; }
+        .test-info { background: #f0f0f0; padding: 10px; margin: 10px 0; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Teste de Visualização do Gráfico de Pizza</h1>
+    
+    <div class="test-info">
+        <h3>Configurações do Teste:</h3>
+        <ul>
+            <li>Width: 450px, Height: 320px</li>
+            <li>cx: 225, cy: 160</li>
+            <li>innerRadius: 80, outerRadius: 120</li>
+            <li>Labels posicionados 70px acima da borda externa</li>
+        </ul>
+    </div>
+
+    <div id="root"></div>
+
+    <script>
+        const { PieChart, Pie, Cell, LabelList } = Recharts;
+
+        // Dados de teste simulando tributos
+        const chartData = [
+            { name: "IRPJ", value: 1250.50, color: "#6366f1" },
+            { name: "CSLL", value: 890.25, color: "#22c55e" },
+            { name: "COFINS", value: 1560.75, color: "#ef4444" },
+            { name: "PIS/PASEP", value: 340.20, color: "#f59e0b" },
+            { name: "INSS/CPP", value: 2100.00, color: "#14b8a6" },
+            { name: "ICMS", value: 2340.15, color: "#8b5cf6" },
+            { name: "ISS", value: 450.30, color: "#3b82f6" }
+        ];
+
+        const total = chartData.reduce((sum, item) => sum + item.value, 0);
+
+        function formatCurrency(value) {
+            return new Intl.NumberFormat("pt-BR", {
+                style: "currency",
+                currency: "BRL",
+            }).format(value);
+        }
+
+        function renderLabel(props) {
+            console.log('renderLabel chamado com props:', props);
+            
+            const { x, y, name, value, payload, cx, cy, midAngle, innerRadius, outerRadius } = props;
+            const val = Number(value);
+            const lbl = name;
+            
+            if (!lbl) return null;
+            
+            // Calcula posição acima da fatia
+            const angle = Number(midAngle || 0);
+            const rad = (angle * Math.PI) / 180;
+            const radius = Number(outerRadius || 0) + 70; // 70px acima da borda externa
+            
+            const labelX = cx + radius * Math.cos(rad);
+            const labelY = cy + radius * Math.sin(rad);
+            
+            const anchor = labelX < cx ? "end" : "start";
+            const dx = anchor === "start" ? 8 : -8;
+            
+            const percentage = total > 0 ? ((val / total) * 100).toFixed(1) : "0.0";
+            
+            console.log(`Posição calculada: labelX=${labelX.toFixed(2)}, labelY=${labelY.toFixed(2)}, anchor=${anchor}`);
+            
+            return React.createElement('g', {}, [
+                React.createElement('rect', {
+                    key: 'bg',
+                    x: anchor === "start" ? labelX - 5 : labelX - 80,
+                    y: labelY - 16,
+                    width: 85,
+                    height: 24,
+                    fill: "white",
+                    stroke: "#e2e8f0",
+                    strokeWidth: 1,
+                    rx: 4
+                }),
+                React.createElement('text', {
+                    key: 'value',
+                    x: labelX,
+                    y: labelY - 4,
+                    dy: 0,
+                    dx: dx,
+                    textAnchor: anchor,
+                    fill: "#1e293b",
+                    style: { fontSize: 12, fontWeight: 700 }
+                }, formatCurrency(val)),
+                React.createElement('text', {
+                    key: 'percentage',
+                    x: labelX,
+                    y: labelY + 8,
+                    dy: 0,
+                    dx: dx,
+                    textAnchor: anchor,
+                    fill: "#64748b",
+                    style: { fontSize: 10, fontWeight: 600 }
+                }, `${percentage}%`)
+            ]);
+        }
+
+        function App() {
+            return React.createElement('div', { className: "chart-container" },
+                React.createElement(PieChart, { width: 450, height: 320 },
+                    React.createElement(Pie, {
+                        data: chartData,
+                        dataKey: "value",
+                        nameKey: "name",
+                        cx: 225,
+                        cy: 160,
+                        innerRadius: 80,
+                        outerRadius: 120,
+                        paddingAngle: 0,
+                        isAnimationActive: false,
+                        stroke: "none",
+                        strokeWidth: 0,
+                        labelLine: false
+                    },
+                        chartData.map((entry, idx) => 
+                            React.createElement(Cell, { key: `cell-${idx}`, fill: entry.color })
+                        ),
+                        React.createElement(LabelList, { content: renderLabel, position: "outside" })
+                    )
+                ),
+                React.createElement('div', { 
+                    style: { 
+                        position: 'absolute', 
+                        left: 225, 
+                        top: 160, 
+                        transform: 'translate(-50%, -50%)',
+                        textAlign: 'center',
+                        pointerEvents: 'none'
+                    } 
+                }, [
+                    React.createElement('div', { key: 'total-label', style: { fontSize: 10, color: '#64748b' } }, 'Total Tributos'),
+                    React.createElement('div', { key: 'total-value', style: { fontSize: 14, color: '#1e293b', fontWeight: 'bold' } }, formatCurrency(total)),
+                    React.createElement('div', { key: 'total-count', style: { fontSize: 9, color: '#94a3b8', marginTop: 4 } }, `${chartData.length} impostos`)
+                ])
+            );
+        }
+
+        // Renderiza o componente
+        ReactDOM.render(React.createElement(App), document.getElementById('root'));
+        
+        console.log('Gráfico de teste renderizado com sucesso!');
+    </script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+</body>
+</html>

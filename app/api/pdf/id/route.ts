@@ -93,7 +93,7 @@ export async function GET(_req: NextRequest) {
     }
 
     const page = await browser.newPage()
-    await page.emulateMediaType('screen')
+    await page.emulateMediaType('print')
     await page.goto(targetUrl, { waitUntil: 'networkidle0', timeout: 120000 })
 
     try {
