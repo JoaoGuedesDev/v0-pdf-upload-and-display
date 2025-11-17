@@ -87,7 +87,7 @@ export async function GET(_req: NextRequest) {
       browser = await puppeteer.launch({
         args: [...chromium.args, ...extraArgs],
         defaultViewport: { width: 1600, height: 1000, deviceScaleFactor: 1.5 },
-        executablePath: await chromium.executablePath('https://github.com/Sparticuz/chromium/releases/download/v129.0.0/chromium-v129.0.0-pack.tar'),
+        executablePath: await chromium.executablePath(),
         headless: chromium.headless,
       })
     }
@@ -95,6 +95,8 @@ export async function GET(_req: NextRequest) {
     const page = await browser.newPage()
     await page.emulateMediaType('print')
     await page.goto(targetUrl, { waitUntil: 'networkidle0', timeout: 120000 })
+    try { await page.waitForFunction('document.fonts && document.fonts.ready', { timeout: 20000 }) } catch {}
+    try { await page.waitForSelector('svg', { timeout: 20000 }) } catch {}
 
     try {
       await page.waitForFunction('window.__dashReady === true', { timeout: 20000 })
