@@ -123,3 +123,59 @@
     @apply bg-background text-foreground;
   }
 }
+
+@media print {
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  :root {
+    --background: #ffffff;
+    --foreground: #111827;
+    --card: #ffffff;
+    --card-foreground: #111827;
+    --popover: #ffffff;
+    --popover-foreground: #111827;
+    --primary: #111827;
+    --primary-foreground: #f9fafb;
+    --secondary: #f1f5f9;
+    --secondary-foreground: #111827;
+    --muted: #f1f5f9;
+    --muted-foreground: #64748b;
+    --accent: #f1f5f9;
+    --accent-foreground: #111827;
+    --destructive: #ef4444;
+    --destructive-foreground: #ffffff;
+    --border: #e2e8f0;
+    --input: #e2e8f0;
+    --ring: #cbd5e1;
+    --chart-1: #3b82f6;
+    --chart-2: #22c55e;
+    --chart-3: #a78bfa;
+    --chart-4: #f59e0b;
+    --chart-5: #ec4899;
+    --sidebar: #ffffff;
+    --sidebar-foreground: #111827;
+    --sidebar-primary: #111827;
+    --sidebar-primary-foreground: #f9fafb;
+    --sidebar-accent: #f1f5f9;
+    --sidebar-accent-foreground: #111827;
+    --sidebar-border: #e2e8f0;
+    --sidebar-ring: #cbd5e1;
+  }
+  .dark {
+    --background: #ffffff;
+    --foreground: #111827;
+    --card: #ffffff;
+    --card-foreground: #111827;
+  }
+  body {
+    background: #ffffff !important;
+    color: #111827 !important;
+    -webkit-font-smoothing: antialiased;
+    font-smoothing: antialiased;
+  }
+  svg {
+    overflow: visible;
+  }
+}

@@ -504,8 +504,8 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
         // Fallback robusto: usa html2canvas
         try {
           const canvas = await html2canvas(node, {
-            backgroundColor: darkMode ? "#0f172a" : "#ffffff",
-            scale: Math.max(2, pixelRatio), // Usa o mesmo pixel ratio calculado
+            backgroundColor: "#ffffff",
+            scale: 2,
             useCORS: true,
             logging: false,
             allowTaint: true,
@@ -589,18 +589,29 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
         if (cs && cs.color) el.style.color = cs.color
         if (cs && cs.borderColor) el.style.borderColor = cs.borderColor
       }
-      // Usa html-to-image para evitar parsing de cores lab()/oklch do html2canvas
-      const dataUrl = await toPng(node, {
-        cacheBust: true,
-        pixelRatio: computePixelRatioForDPI(node, targetWidthMm, 300),
-        backgroundColor: darkMode ? "#0f172a" : "#ffffff",
-        skipFonts: true,
-        filter: (n: HTMLElement) => {
-          const tag = (n.tagName || "").toLowerCase()
-          if (tag === "script" || tag === "style") return false
-          return true
-        },
-      })
+      let dataUrl = ""
+      try {
+        dataUrl = await toPng(node, {
+          cacheBust: true,
+          pixelRatio: computePixelRatioForDPI(node, targetWidthMm, 300),
+          backgroundColor: "#ffffff",
+          skipFonts: true,
+          filter: (n: HTMLElement) => {
+            const tag = (n.tagName || "").toLowerCase()
+            if (tag === "script" || tag === "style") return false
+            return true
+          },
+        })
+      } catch (_) {
+        const canvas = await html2canvas(node, {
+          backgroundColor: "#ffffff",
+          scale: 2,
+          useCORS: true,
+          logging: false,
+          allowTaint: true,
+        })
+        dataUrl = canvas.toDataURL("image/png")
+      }
 
       // Descobre dimensões naturais da imagem
       const dims = await new Promise<{ w: number; h: number }>((resolve, reject) => {

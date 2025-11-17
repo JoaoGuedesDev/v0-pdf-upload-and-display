@@ -1,6 +1,7 @@
 // Página de servidor padrão
 
 import { getDashboard } from '@/lib/store'
+import { headers } from 'next/headers'
 import PGDASDProcessorIA from '@/components/pgdasd-processor-ia'
 export const dynamic = 'force-dynamic'
 
@@ -19,7 +20,21 @@ export default async function Page({ params }: any) {
     )
   }
 
-  const data = await getDashboard(id)
+  let data = await getDashboard(id)
+  if (!data) {
+    try {
+      const hs = headers()
+      const host = hs.get('host') || 'localhost:3000'
+      const proto = hs.get('x-forwarded-proto') || 'https'
+      const origin = `${proto}://${host}`
+      const respA = await fetch(`${origin}/shared/dash-${id}.json`, { cache: 'no-store' })
+      if (respA.ok) data = await respA.json()
+      if (!data) {
+        const respB = await fetch(`${origin}/shared/${id}.json`, { cache: 'no-store' })
+        if (respB.ok) data = await respB.json()
+      }
+    } catch {}
+  }
   if (!data) {
     return (
       <div style={{ padding: 24 }}>
