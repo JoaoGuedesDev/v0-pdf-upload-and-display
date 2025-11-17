@@ -55,8 +55,8 @@ export default function DistribuicaoDASCard({ tributos, darkMode = false, config
                   <div className="flex items-center gap-1.5">
                     <div className="w-3 h-3 rounded-full" style={{ backgroundColor: color }} />
                     <div>
-                      <div className={`font-small text-[11px] ${darkMode ? "text-slate-200" : "text-slate-800"}`}>{it.label}</div>
-                      <div className={`text-[11px] ${darkMode ? "text-slate-400" : "text-slate-500"}`}>{fmt(value)} ({pct.toFixed(2)}%)</div>
+                      <div className={`font-small text-[10px] ${darkMode ? "text-slate-200" : "text-slate-800"}`}>{it.label}</div>
+                      <div className={`text-[10px] ${darkMode ? "text-slate-400" : "text-slate-500"}`}>{fmt(value)} ({pct.toFixed(2)}%)</div>
                     </div>
                   </div>
                 </div>
@@ -66,11 +66,11 @@ export default function DistribuicaoDASCard({ tributos, darkMode = false, config
             <div className="flex items-center gap-2">
               <div className={`w-4 h-4 rounded-full ${darkMode ? "bg-slate-300" : "bg-slate-600"}`} />
               <div>
-                <div className={`font-bold text-[11px] ${darkMode ? "text-slate-100" : "text-slate-800"}`}>TOTAL DAS</div>
-                <div className={`text-[11px] ${darkMode ? "text-slate-300" : "text-slate-600"}`}>100%</div>
+                <div className={`font-bold text-[10px] ${darkMode ? "text-slate-100" : "text-slate-800"}`}>TOTAL DAS</div>
+                <div className={`text-[10px] ${darkMode ? "text-slate-300" : "text-slate-600"}`}>100%</div>
               </div>
             </div>
-            <div className={`font-bold text-[11px] ${darkMode ? "text-slate-100" : "text-slate-900"}`}>{fmt(total)}</div>
+            <div className={`font-bold text-[10px] ${darkMode ? "text-slate-100" : "text-slate-900"}`}>{fmt(total)}</div>
           </div>
           
         </div>

@@ -141,7 +141,7 @@ export default function DonutTributos({ tributos, variant, darkMode = false, wid
       <g>
         <line x1={bx} y1={by} x2={mx} y2={my} stroke={color} strokeWidth={STROKE_WIDTH} />
         <line x1={mx} y1={my} x2={labelX - dx} y2={labelY} stroke={color} strokeWidth={STROKE_WIDTH} />
-        <text x={labelX} y={labelY} dx={0} textAnchor={anchor as any} fill={textColor} style={{ fontSize: 11, fontWeight: 700 }}>
+        <text x={labelX} y={labelY} dx={0} textAnchor={anchor as any} fill={textColor} style={{ fontSize: 10, fontWeight: 700 }}>
           {fmtBRL(Number(value))}
         </text>
       </g>
@@ -173,7 +173,7 @@ export default function DonutTributos({ tributos, variant, darkMode = false, wid
                 p?.textAnchor === "end" || p?.textAnchor === "middle" || p?.textAnchor === "inherit"
                   ? (p.textAnchor as any)
                   : "start"
-              return <text x={x} y={y} textAnchor={anchor} style={{ fontSize: 11 }}>{`${name}: ${fmtBRL(v)} (${pct}%)`}</text>
+              return <text x={x} y={y} textAnchor={anchor} style={{ fontSize: 10 }}>{`${name}: ${fmtBRL(v)} (${pct}%)`}</text>
             }}
             labelLine={(p: any) => {
               const pts = p?.points || []
@@ -188,7 +188,7 @@ export default function DonutTributos({ tributos, variant, darkMode = false, wid
             ))}
           </Pie>
           {showCenter && (
-            <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fontSize={11}>
+            <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fontSize={10}>
               <tspan fill={darkMode ? "#cbd5e1" : "#334155"} x={cx} dy={-4}>Total Tributos</tspan>
               <tspan fill={darkMode ? "#f1f5f9" : "#111827"} x={cx} dy={13} fontWeight={700}>{fmtBRL(total)}</tspan>
             </text>
@@ -251,12 +251,12 @@ export default function DonutTributos({ tributos, variant, darkMode = false, wid
             ))}
           </Pie>
           {showCenter && (
-            <text x="50%" y="50%" textAnchor="middle" dominantBaseline="middle" fontSize={11}>
+            <text x="50%" y="50%" textAnchor="middle" dominantBaseline="middle" fontSize={10}>
               <tspan fill={darkMode ? "#cbd5e1" : "#334155"} x="50%" dy={-4}>Total Tributos</tspan>
               <tspan fill={darkMode ? "#f1f5f9" : "#111827"} x="50%" dy={13} fontWeight={700}>{fmtBRL(total)}</tspan>
             </text>
           )}
-          <Tooltip cursor={false} position={ttPos} allowEscapeViewBox={{ x: true, y: true }} offset={8} formatter={(v: number, n: string) => [fmtBRL(Number(v)), String(n)]} labelFormatter={(l: string | number) => `Tributo: ${String(l)}`} contentStyle={{ backgroundColor: darkMode ? "#0f172a" : "#ffffff", border: `1px solid ${darkMode ? "#334155" : "#e2e8f0"}`, borderRadius: 8, color: darkMode ? "#e2e8f0" : "#111827", fontSize: 11 }} itemStyle={{ color: darkMode ? "#e2e8f0" : "#111827" }} />
+          <Tooltip cursor={false} position={ttPos} allowEscapeViewBox={{ x: true, y: true }} offset={8} formatter={(v: number, n: string) => [fmtBRL(Number(v)), String(n)]} labelFormatter={(l: string | number) => `Tributo: ${String(l)}`} contentStyle={{ backgroundColor: darkMode ? "#0f172a" : "#ffffff", border: `1px solid ${darkMode ? "#334155" : "#e2e8f0"}`, borderRadius: 8, color: darkMode ? "#e2e8f0" : "#111827", fontSize: 10 }} itemStyle={{ color: darkMode ? "#e2e8f0" : "#111827" }} />
         </PieChart>
       </ResponsiveContainer>
       

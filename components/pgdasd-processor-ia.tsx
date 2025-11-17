@@ -195,7 +195,7 @@ const ATIVIDADES_COLORS = {
       titleCls: "text-base sm:text-lg",
       descCls: "text-xs sm:text-[9]",
       axis: 9,
-      label: 11,
+      label: 10,
       legend: 9,
     },
     dims: {
@@ -470,8 +470,16 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
       await waitForChartsReady(node)
       
       // Calcula pixel ratio para 300 DPI em A4 paisagem (largura útil ~277mm)
-      const targetWidthMm = 277 // Largura A4 paisagem - margens
+      const targetWidthMm = 277
       const pixelRatio = computePixelRatioForDPI(node, targetWidthMm, 300)
+      const __els = Array.from(node.querySelectorAll('*')) as HTMLElement[]
+      for (const el of __els) {
+        el.setAttribute('__prev_style__', el.getAttribute('style') || '')
+        const cs = getComputedStyle(el)
+        if (cs && cs.backgroundColor) el.style.backgroundColor = cs.backgroundColor
+        if (cs && cs.color) el.style.color = cs.color
+        if (cs && cs.borderColor) el.style.borderColor = cs.borderColor
+      }
       
       // Tenta via html-to-image primeiro (melhor com cores modernas lab/oklch)
       try {
@@ -479,6 +487,7 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
           cacheBust: true,
           pixelRatio: pixelRatio,
           backgroundColor: darkMode ? "#0f172a" : "#ffffff",
+          skipFonts: true,
           // Evita nós problemáticos que podem causar erro de `.trim()` interno
           filter: (n: HTMLElement) => {
             const tag = (n.tagName || "").toLowerCase()
@@ -513,6 +522,19 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
         }
       }
     } finally {
+      try {
+        const root = contentRef.current as HTMLElement | null
+        if (root) {
+          const els = Array.from(root.querySelectorAll('*')) as HTMLElement[]
+          for (const el of els) {
+            const prev = el.getAttribute('__prev_style__')
+            if (prev === null) continue
+            if (prev === '') el.removeAttribute('style')
+            else el.setAttribute('style', prev)
+            el.removeAttribute('__prev_style__')
+          }
+        }
+      } catch {}
       setIsGeneratingImage(false)
     }
   }
@@ -559,11 +581,25 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
       const margin = 6
       const targetWidthMm = pageWidth - margin * 2
 
+      const __elsPdf = Array.from(node.querySelectorAll('*')) as HTMLElement[]
+      for (const el of __elsPdf) {
+        el.setAttribute('__prev_style__', el.getAttribute('style') || '')
+        const cs = getComputedStyle(el)
+        if (cs && cs.backgroundColor) el.style.backgroundColor = cs.backgroundColor
+        if (cs && cs.color) el.style.color = cs.color
+        if (cs && cs.borderColor) el.style.borderColor = cs.borderColor
+      }
       // Usa html-to-image para evitar parsing de cores lab()/oklch do html2canvas
       const dataUrl = await toPng(node, {
         cacheBust: true,
         pixelRatio: computePixelRatioForDPI(node, targetWidthMm, 300),
         backgroundColor: darkMode ? "#0f172a" : "#ffffff",
+        skipFonts: true,
+        filter: (n: HTMLElement) => {
+          const tag = (n.tagName || "").toLowerCase()
+          if (tag === "script" || tag === "style") return false
+          return true
+        },
       })
 
       // Descobre dimensões naturais da imagem
@@ -621,6 +657,7 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
                 cacheBust: true,
                 pixelRatio: computePixelRatioForDPI(receitaEl, targetColWidthMm, 300),
                 backgroundColor: darkMode ? "#0f172a" : "#ffffff",
+                skipFonts: true,
               })
             })()
           : null
@@ -638,6 +675,7 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
                 cacheBust: true,
                 pixelRatio: computePixelRatioForDPI(pieRoot, targetColWidthMm, 300),
                 backgroundColor: darkMode ? "#0f172a" : "#ffffff",
+                skipFonts: true,
               })
               console.log('[PDF] Gráfico de pizza recapturado com sucesso')
             } catch (err) {
@@ -724,6 +762,16 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
         variant: "destructive",
       })
     } finally {
+      try {
+        const els = Array.from(node.querySelectorAll('*')) as HTMLElement[]
+        for (const el of els) {
+          const prev = el.getAttribute('__prev_style__')
+          if (prev === null) continue
+          if (prev === '') el.removeAttribute('style')
+          else el.setAttribute('style', prev)
+          el.removeAttribute('__prev_style__')
+        }
+      } catch {}
       // Reverte alternâncias aplicadas
       if (pieFallbackImg) pieFallbackImg.style.display = prevFallbackDisplay || ""
       if (livePieBlock) livePieBlock.style.display = prevLivePieDisplay || ""
