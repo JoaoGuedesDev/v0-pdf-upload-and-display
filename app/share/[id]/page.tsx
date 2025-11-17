@@ -7,7 +7,9 @@ type Props = { params: { id: string } }
 
 export default async function SharePage({ params }: Props) {
   const id = params.id
-  const filePath = path.resolve('public', 'shared', `${id}.json`)
+  const direct = path.resolve('public', 'shared', `${id}.json`)
+  const dashed = path.resolve('public', 'shared', `dash-${id}.json`)
+  const filePath = fs.existsSync(direct) ? direct : dashed
   if (!fs.existsSync(filePath)) {
     return (
       <div style={{ padding: 24 }}>

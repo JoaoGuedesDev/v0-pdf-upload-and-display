@@ -102,10 +102,20 @@ export async function GET(_req: NextRequest) {
       await page.waitForFunction('window.__dashReady === true', { timeout: 20000 })
     } catch {}
 
+    const isInvalid = await page.evaluate(() => {
+      const t = document.body?.textContent || ''
+      return /Link inválido|inválido|expirado/i.test(t)
+    })
+    if (isInvalid) {
+      try { await page.goto(`${base}/share/${id}`, { waitUntil: 'networkidle0', timeout: 60000 }) } catch {}
+      try { await page.goto(`${base}/share/dash-${id}`, { waitUntil: 'networkidle0', timeout: 60000 }) } catch {}
+    }
+
     const pdf = await page.pdf({
       printBackground: true,
       landscape: true,
       format: 'A4',
+      preferCSSPageSize: true,
       margin: { top: '10mm', right: '10mm', bottom: '12mm', left: '10mm' },
     })
 
