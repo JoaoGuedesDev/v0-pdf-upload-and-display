@@ -472,6 +472,10 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
       // Calcula pixel ratio para 300 DPI em A4 paisagem (largura útil ~277mm)
       const targetWidthMm = 277
       const pixelRatio = computePixelRatioForDPI(node, targetWidthMm, 300)
+      const prevOverflow = node.style.overflow
+      const prevTransform = node.style.transform
+      node.style.overflow = "visible"
+      node.style.transform = "none"
       const __els = Array.from(node.querySelectorAll('*')) as HTMLElement[]
       for (const el of __els) {
         el.setAttribute('__prev_style__', el.getAttribute('style') || '')
@@ -509,6 +513,8 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
             useCORS: true,
             logging: false,
             allowTaint: true,
+            scrollY: 0,
+            windowWidth: typeof document !== 'undefined' ? (document.documentElement?.offsetWidth || window.innerWidth) : undefined,
           })
           const dataUrl = canvas.toDataURL("image/png")
           const a = document.createElement("a")
@@ -533,6 +539,8 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
             else el.setAttribute('style', prev)
             el.removeAttribute('__prev_style__')
           }
+          node.style.overflow = prevOverflow
+          node.style.transform = prevTransform
         }
       } catch {}
       setIsGeneratingImage(false)
@@ -589,6 +597,10 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
         if (cs && cs.color) el.style.color = cs.color
         if (cs && cs.borderColor) el.style.borderColor = cs.borderColor
       }
+      const prevOverflowPdf = node.style.overflow
+      const prevTransformPdf = node.style.transform
+      node.style.overflow = "visible"
+      node.style.transform = "none"
       let dataUrl = ""
       try {
         dataUrl = await toPng(node, {
@@ -609,6 +621,8 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
           useCORS: true,
           logging: false,
           allowTaint: true,
+          scrollY: 0,
+          windowWidth: typeof document !== 'undefined' ? (document.documentElement?.offsetWidth || window.innerWidth) : undefined,
         })
         dataUrl = canvas.toDataURL("image/png")
       }
@@ -772,24 +786,26 @@ export function PGDASDProcessorIA({ initialData, shareId, hideDownloadButton }: 
         description: (err as Error)?.message || "Falha ao gerar PDF no cliente",
         variant: "destructive",
       })
-    } finally {
-      try {
-        const els = Array.from(node.querySelectorAll('*')) as HTMLElement[]
-        for (const el of els) {
-          const prev = el.getAttribute('__prev_style__')
-          if (prev === null) continue
-          if (prev === '') el.removeAttribute('style')
-          else el.setAttribute('style', prev)
-          el.removeAttribute('__prev_style__')
-        }
-      } catch {}
-      // Reverte alternâncias aplicadas
-      if (pieFallbackImg) pieFallbackImg.style.display = prevFallbackDisplay || ""
-      if (livePieBlock) livePieBlock.style.display = prevLivePieDisplay || ""
-      if (insightsEl) insightsEl.style.display = prevInsightsDisplay || ""
-      controlsEls.forEach((el, idx) => (el.style.display = prevControlsDisplay[idx] || ""))
-      setDownloadingClientPdf(false)
-    }
+      } finally {
+        try {
+          const els = Array.from(node.querySelectorAll('*')) as HTMLElement[]
+          for (const el of els) {
+            const prev = el.getAttribute('__prev_style__')
+            if (prev === null) continue
+            if (prev === '') el.removeAttribute('style')
+            else el.setAttribute('style', prev)
+            el.removeAttribute('__prev_style__')
+          }
+          node.style.overflow = prevOverflowPdf
+          node.style.transform = prevTransformPdf
+        } catch {}
+        // Reverte alternâncias aplicadas
+        if (pieFallbackImg) pieFallbackImg.style.display = prevFallbackDisplay || ""
+        if (livePieBlock) livePieBlock.style.display = prevLivePieDisplay || ""
+        if (insightsEl) insightsEl.style.display = prevInsightsDisplay || ""
+        controlsEls.forEach((el, idx) => (el.style.display = prevControlsDisplay[idx] || ""))
+        setDownloadingClientPdf(false)
+      }
   }
 
   const generateInsights = (dasData: DASData) => {

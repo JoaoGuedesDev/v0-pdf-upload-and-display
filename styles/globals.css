@@ -129,6 +129,9 @@
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
+  html, body {
+    zoom: 0.85;
+  }
   :root {
     --background: #ffffff;
     --foreground: #111827;
@@ -175,7 +178,7 @@
     -webkit-font-smoothing: antialiased;
     font-smoothing: antialiased;
   }
-  svg {
+  svg, canvas {
     overflow: visible;
   }
 }
