@@ -13,6 +13,26 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    const type = (file as any).type || ''
+    const allowed = ['application/pdf']
+    if (type && !allowed.includes(type)) {
+      return NextResponse.json({ error: 'Tipo de arquivo não suportado' }, { status: 415 })
+    }
+    const maxBytes = (() => {
+      const v = Number(process.env.UPLOAD_MAX_BYTES || '')
+      return Number.isFinite(v) && v > 0 ? v : 10 * 1024 * 1024
+    })()
+    if (typeof (file as any).size === 'number' && (file as any).size > maxBytes) {
+      return NextResponse.json({ error: 'Arquivo excede o tamanho máximo' }, { status: 413 })
+    }
+    try {
+      const head = await file.slice(0, 1024).arrayBuffer()
+      const headBuf = Buffer.from(head)
+      const headStr = headBuf.toString('latin1')
+      if (!headStr.includes('%PDF-')) {
+        return NextResponse.json({ error: 'Arquivo não parece ser um PDF válido' }, { status: 400 })
+      }
+    } catch {}
     try {
       const hasUpstash = !!(process.env.UPSTASH_REDIS_REST_URL || process.env.UPSTASH_REDIS_URL) && !!(process.env.UPSTASH_REDIS_REST_TOKEN || process.env.UPSTASH_REDIS_TOKEN)
       const hasVercelRest = !!process.env.KV_REST_API_URL && !!process.env.KV_REST_API_TOKEN

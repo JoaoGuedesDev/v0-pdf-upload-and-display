@@ -47,10 +47,13 @@ export async function GET(_req: NextRequest) {
     return new Response(JSON.stringify({ error: 'Missing id' }), { status: 400, headers: { 'content-type': 'application/json' } })
   }
 
+  const envBase = process.env.NEXT_PUBLIC_BASE_URL?.trim()
   const originFromReq = (() => {
     try { return new URL(_req.url).origin } catch { return '' }
   })()
-  const base = process.env.NEXT_PUBLIC_BASE_URL || originFromReq || 'http://localhost:3000'
+  const baseRaw = envBase || originFromReq || 'http://localhost:3000'
+  let base = baseRaw
+  try { new URL(base) } catch { base = originFromReq || 'http://localhost:3000' }
   const targetUrl = `${base}/d/${id}`
 
   const puppeteer = await getPuppeteer()
@@ -87,7 +90,7 @@ export async function GET(_req: NextRequest) {
       browser = await puppeteer.launch({
         args: [...chromium.args, ...extraArgs],
         defaultViewport: { width: 1600, height: 1000, deviceScaleFactor: 1.5 },
-        executablePath: await chromium.executablePath(),
+        executablePath: await chromium.executablePath('https://github.com/Sparticuz/chromium/releases/download/v129.0.0/chromium-v129.0.0-pack.tar'),
         headless: chromium.headless,
       })
     }
@@ -95,27 +98,41 @@ export async function GET(_req: NextRequest) {
     const page = await browser.newPage()
     await page.emulateMediaType('print')
     await page.goto(targetUrl, { waitUntil: 'networkidle0', timeout: 120000 })
-    try { await page.waitForFunction('document.fonts && document.fonts.ready', { timeout: 20000 }) } catch {}
-    try { await page.waitForSelector('svg', { timeout: 20000 }) } catch {}
+    await page.evaluate(() => { (window as any).__pdfMode = true })
 
+    await page.addStyleTag({ content: '*{animation:none !important; transition:none !important} canvas{opacity:1 !important; height:320px !important; max-height:320px !important} .chartjs-container{opacity:1 !important} .grid{grid-template-columns:minmax(0,1fr)!important; gap:16px!important} .flex{flex-direction:column!important; gap:16px!important}'} )
+    
+    // Wait for Chart.js charts to render
     try {
-      await page.waitForFunction('window.__dashReady === true', { timeout: 20000 })
-    } catch {}
-
-    const isInvalid = await page.evaluate(() => {
-      const t = document.body?.textContent || ''
-      return /Link inválido|inválido|expirado/i.test(t)
-    })
-    if (isInvalid) {
-      try { await page.goto(`${base}/share/${id}`, { waitUntil: 'networkidle0', timeout: 60000 }) } catch {}
-      try { await page.goto(`${base}/share/dash-${id}`, { waitUntil: 'networkidle0', timeout: 60000 }) } catch {}
+      await page.waitForFunction(() => {
+        const canvases = Array.from(document.querySelectorAll('canvas'))
+        return canvases.length > 0 && canvases.some(canvas => {
+          const chart = (window as any).Chart?.getChart?.(canvas)
+          return chart && chart.data && chart.data.datasets
+        })
+      }, { timeout: 20000 })
+    } catch {
+      // Fallback: just wait for any canvas elements
+      try {
+        await page.waitForSelector('canvas', { timeout: 5000 })
+      } catch {}
     }
+
+    try { await page.waitForFunction('window.__dashReady === true', { timeout: 20000 }) } catch {}
+    try {
+      await page.evaluate(() => {
+        const canvases = Array.from(document.querySelectorAll('canvas'))
+        canvases.forEach((canvas) => {
+          const chart = (window as any).Chart?.getChart?.(canvas)
+          chart?.update?.()
+        })
+      })
+    } catch {}
 
     const pdf = await page.pdf({
       printBackground: true,
       landscape: true,
       format: 'A4',
-      preferCSSPageSize: true,
       margin: { top: '10mm', right: '10mm', bottom: '12mm', left: '10mm' },
     })
 

@@ -1,6 +1,7 @@
 export function fmtBRL(value: number): string {
   const n = Number(value)
-  if (!Number.isFinite(n)) return "R$ 0,00"
+  if (!Number.isFinite(n)) return ""
+  if (n === 0) return ""
   return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
 }
 
