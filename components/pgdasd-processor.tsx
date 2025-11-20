@@ -354,11 +354,11 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
 
         {data?.receitas && (
           <Card className="bg-white border-slate-200">
-            <CardHeader>
+            <CardHeader className="py-2">
               <CardTitle className="text-slate-800">Discriminativo de Receitas</CardTitle>
               <CardDescription>Detalhamento completo das receitas conforme PGDASD</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-3 py-2">
               {(() => {
                 const r = data?.receitas || ({} as any)
                 const me = r?.mercadoExterno || ({} as any)
@@ -366,6 +366,8 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                 const miRbt12 = Number(r?.rbt12 || 0) - Number(me?.rbt12 || 0)
                 const miRba = Number(r?.rba || 0) - Number(me?.rba || 0)
                 const miRbaa = Number(r?.rbaa || 0) - Number(me?.rbaa || 0)
+                const extVals = [Number(me?.rpa || 0), Number(me?.rbt12 || 0), Number(me?.rba || 0), Number(me?.rbaa || 0)]
+                const showExternal = extVals.some(v => v > 0)
                 return (
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
@@ -373,7 +375,9 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                         <tr className="text-slate-700">
                           <th className="text-left py-2 px-3">Local de Receitas (R$)</th>
                           <th className="text-right py-2 px-3">Mercado Interno</th>
-                          <th className="text-right py-2 px-3">Mercado Externo</th>
+                          {showExternal && (
+                            <th className="text-right py-2 px-3">Mercado Externo</th>
+                          )}
                           <th className="text-right py-2 px-3">Total</th>
                         </tr>
                       </thead>
@@ -381,25 +385,33 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                         <tr className="border-slate-200">
                           <td className="py-2 px-3">Receita Bruta do PA (RPA) - Competência</td>
                           <td className="text-right py-2 px-3">{formatCurrency(miRpa)}</td>
-                          <td className="text-right py-2 px-3">{formatCurrency(Number(me?.rpa || 0))}</td>
+                          {showExternal && (
+                            <td className="text-right py-2 px-3">{formatCurrency(Number(me?.rpa || 0))}</td>
+                          )}
                           <td className="text-right py-2 px-3">{formatCurrency(Number(r?.receitaPA || 0))}</td>
                         </tr>
                         <tr className="border-slate-200">
                           <td className="py-2 px-3">Receita bruta acumulada dos 12 meses anteriores ao PA (RBT12)</td>
                           <td className="text-right py-2 px-3">{formatCurrency(miRbt12)}</td>
-                          <td className="text-right py-2 px-3">{formatCurrency(Number(me?.rbt12 || 0))}</td>
+                          {showExternal && (
+                            <td className="text-right py-2 px-3">{formatCurrency(Number(me?.rbt12 || 0))}</td>
+                          )}
                           <td className="text-right py-2 px-3">{formatCurrency(Number(r?.rbt12 || 0))}</td>
                         </tr>
                         <tr className="border-slate-200">
                           <td className="py-2 px-3">Receita bruta acumulada no ano-calendário corrente (RBA)</td>
                           <td className="text-right py-2 px-3">{formatCurrency(miRba)}</td>
-                          <td className="text-right py-2 px-3">{formatCurrency(Number(me?.rba || 0))}</td>
+                          {showExternal && (
+                            <td className="text-right py-2 px-3">{formatCurrency(Number(me?.rba || 0))}</td>
+                          )}
                           <td className="text-right py-2 px-3">{formatCurrency(Number(r?.rba || 0))}</td>
                         </tr>
                         <tr className="border-slate-200">
                           <td className="py-2 px-3">Receita bruta acumulada no ano-calendário anterior (RBAA)</td>
                           <td className="text-right py-2 px-3">{formatCurrency(miRbaa)}</td>
-                          <td className="text-right py-2 px-3">{formatCurrency(Number(me?.rbaa || 0))}</td>
+                          {showExternal && (
+                            <td className="text-right py-2 px-3">{formatCurrency(Number(me?.rbaa || 0))}</td>
+                          )}
                           <td className="text-right py-2 px-3">{formatCurrency(Number(r?.rbaa || 0))}</td>
                         </tr>
                       </tbody>
@@ -437,26 +449,26 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                 return (
                   <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-3">
                     <Card className="bg-emerald-50 border-0">
-                      <CardContent className="p-4">
+                      <CardContent className="p-3">
                         <p className="text-xs text-emerald-700">Utilização do Limite</p>
                         <p className="text-lg font-semibold text-emerald-800">{pct(utilizacaoLimite)}</p>
                       </CardContent>
                     </Card>
                     <Card className="bg-blue-50 border-0">
-                      <CardContent className="p-4">
+                      <CardContent className="p-3">
                         <p className="text-xs text-blue-700">Comparativo de Crescimento</p>
                         <p className="text-lg font-semibold text-blue-800">{pct(growth)}</p>
                         <p className="text-[11px] text-blue-700/80">3 últimos vs 3 primeiros</p>
                       </CardContent>
                     </Card>
                     <Card className="bg-violet-50 border-0">
-                      <CardContent className="p-4">
+                      <CardContent className="p-3">
                         <p className="text-xs text-violet-700">Média no último trimestre</p>
                         <p className="text-lg font-semibold text-violet-800">{formatCurrency(avgLast)}</p>
                       </CardContent>
                     </Card>
                     <Card className="bg-orange-50 border-0">
-                      <CardContent className="p-4">
+                      <CardContent className="p-3">
                         <p className="text-xs text-orange-700">Consistência</p>
                         <p className="text-lg font-semibold text-orange-800">{pct(consistency)}</p>
                       </CardContent>
@@ -477,11 +489,11 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
         )}
         {((data?.graficos?.receitaMensal) || (data?.graficos?.receitaLine) || (data as any)?.historico) && (
           <Card className="bg-white border-slate-200" style={{ breakInside: 'avoid' }}>
-            <CardHeader>
+            <CardHeader className="py-1">
               <CardTitle className="text-slate-800">Receita Mensal (R$)</CardTitle>
               <CardDescription>Mercado Interno e Externo</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="py-1">
               {(() => {
                 const serieA = data.graficos?.receitaMensal
                 const serieMI = data.graficos?.receitaLine
@@ -562,11 +574,11 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
         )}
         {data?.tributos && (
           <Card className="bg-white border-slate-200" style={{ breakInside: 'avoid' }}>
-            <CardHeader>
+            <CardHeader className="py-2">
               <CardTitle className="text-slate-800">Detalhamento dos Tributos</CardTitle>
               <CardDescription>Composição do DAS por categoria e tributo</CardDescription>
             </CardHeader>
-            <CardContent className="overflow-x-auto">
+            <CardContent className="overflow-x-auto py-2">
               {(() => {
                 const t = (data?.tributos || {}) as Record<string, number>
                 const tmI = ((data as any)?.tributosMercadoriasInterno || {}) as Record<string, number>
@@ -684,6 +696,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
           const options = {
             ...CHART_CONFIG,
             layout: { padding: { top: 8, bottom: 0, left: 0, right: 0 } },
+            animation: false,
             plugins: {
               ...CHART_CONFIG.plugins,
               datalabels: { display: false },
@@ -773,10 +786,10 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
           }
           return (
             <Card className="bg-white border-slate-200" style={{ breakInside: 'avoid' }}>
-              <CardHeader>
+              <CardHeader className="py-2">
                 <CardTitle className="text-slate-800">Distribuição de Tributos (DAS)</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="py-2">
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
                   <div className="md:col-span-3 lg:col-span-3 space-y-3">
                     {items.map((it, i) => {
@@ -827,12 +840,12 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
         {/* Insights */}
         {data?.insights && (
           <Card className="bg-white border-slate-200">
-            <CardHeader>
+            <CardHeader className="py-2">
               <CardTitle className="text-slate-800">
                 Insights e Recomendações
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-3 p-3">
               {data?.insights?.comparativoSetorial && (
                 <div className="p-4 bg-blue-50 rounded-lg">
                   <p className="text-sm text-blue-800">
@@ -890,11 +903,11 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
         )}
 
         <Card className="bg-white border-slate-200" style={{ breakInside: 'avoid' }}>
-          <CardHeader>
+          <CardHeader className="py-2">
             <CardTitle className="text-slate-800">Contato e Ações</CardTitle>
             <CardDescription>Caso queira uma análise mais completa e personalizada</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="py-2">
             <div className="grid md:grid-cols-2 gap-4">
               <div>
                 <ul className="text-slate-700">
