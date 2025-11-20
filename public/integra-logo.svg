@@ -1,11 +1,9 @@
-<svg width="400" height="80" viewBox="0 0 400 80" xmlns="http://www.w3.org/2000/svg">
-  <!-- Texto INTEGRA -->
-  <g transform="translate(10, 20)">
-    <text x="0" y="35" font-family="Arial, sans-serif" font-size="48" font-weight="bold" fill="#4a4a4a">INTEGRA</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="48" viewBox="0 0 160 48" role="img" aria-label="Integra">
+  <rect width="160" height="48" fill="none" />
+  <g transform="translate(8,8)">
+    <rect x="0" y="0" width="32" height="32" rx="8" fill="#2563eb"/>
+    <rect x="8" y="8" width="16" height="16" rx="4" fill="#ffffff"/>
+    <rect x="12" y="12" width="8" height="8" rx="2" fill="#2563eb"/>
   </g>
-  
-  <!-- Texto SOLUÇÕES EMPRESARIAIS -->
-  <g transform="translate(10, 55)">
-    <text x="0" y="20" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#6a6a6a" letter-spacing="2px">SOLUÇÕES EMPRESARIAIS</text>
-  </g>
+  <text x="52" y="30" font-size="20" font-weight="700" fill="#0f172a">INTEGRA</text>
 </svg>

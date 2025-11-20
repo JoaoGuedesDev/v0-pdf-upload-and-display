@@ -1,6 +1,5 @@
 import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
-import { Analytics } from '@vercel/analytics/react'
 import './globals.css'
 import { Toaster as AppToaster } from '@/components/ui/toaster'
 
@@ -21,14 +20,13 @@ export default function RootLayout({
   // Carrega o script de Web Analytics somente quando habilitado explicitamente.
   // Isso evita possíveis exceções de cliente em ambientes de produção (Vercel)
   // caso o pacote tenha incompatibilidades com a versão do React/Next.
-  const enableAnalytics = process.env.NEXT_PUBLIC_ENABLE_VERCEL_ANALYTICS === 'true'
 
   return (
     <html lang="pt-BR" suppressHydrationWarning>
       <body className={`font-sans antialiased bg-background text-foreground`}>
         {children}
         <AppToaster />
-        {enableAnalytics && <Analytics />}
+        
       </body>
     </html>
   )

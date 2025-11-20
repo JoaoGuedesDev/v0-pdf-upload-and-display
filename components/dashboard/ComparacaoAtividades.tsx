@@ -1,7 +1,6 @@
 import { memo, useMemo } from "react"
 import { BarChartHorizontal } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { BarrasReceita } from "@/components/BarrasReceita"
 import { UI_CONFIG, ATIVIDADES_COLORS } from "@/lib/constants"
 import { formatCurrency } from "@/lib/utils"
 
@@ -136,28 +135,7 @@ export const ComparacaoAtividades = memo(function ComparacaoAtividades({ ativida
               </div>
             </div>
           </div>
-          {/* Gráfico de barras à direita */}
-          <div className="flex flex-col">
-            <h4
-              className={`font-semibold text-[10px] text-slate-700 mb-4`}
-            >
-              Visualização Gráfica
-            </h4>
-            <div id="chart-atividades-bar" className="flex-1 flex items-center justify-center">
-              <div className="h-[260px] print:h-[230px] w-full overflow-visible rounded-xl">
-                {typeof window !== "undefined" && (window as any).ResizeObserver ? (
-                  <BarrasReceita
-                    labels={chartData.map((d) => d.name)}
-                    values={chartData.map((d) => d.value)}
-                  />
-                ) : (
-                  <div className={`text-slate-500 text-xs text-center p-4`}>
-                    Visualização gráfica indisponível no ambiente de teste
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
+          
         </div>
       </CardContent>
     </Card>

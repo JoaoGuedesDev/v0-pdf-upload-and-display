@@ -563,6 +563,34 @@ export function processDasData(textRaw: string) {
     return blocks
   })()
 
+  const toKey = (s: string) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+  const isExt = (nome: string) => /(para\s+o\s+exterior|para\s+exterior|mercado\s+externo|exterior|externo)/.test(toKey(nome))
+  const isServ = (nome: string) => /(servico|servicos|prestacao)/.test(toKey(nome))
+  const baseMap = () => ({ IRPJ: 0, CSLL: 0, COFINS: 0, PIS_PASEP: 0, INSS_CPP: 0, ICMS: 0, IPI: 0, ISS: 0 })
+  const addTrib = (map: any, t: any) => {
+    map.IRPJ += Number(t?.irpj || 0)
+    map.CSLL += Number(t?.csll || 0)
+    map.COFINS += Number(t?.cofins || 0)
+    map.PIS_PASEP += Number(t?.pis || 0)
+    map.INSS_CPP += Number(t?.inss_cpp || 0)
+    map.ICMS += Number(t?.icms || 0)
+    map.IPI += Number(t?.ipi || 0)
+    map.ISS += Number(t?.iss || 0)
+  }
+  const mInt = baseMap()
+  const mExt = baseMap()
+  const sInt = baseMap()
+  const sExt = baseMap()
+  for (const b of atividadesFromTexto) {
+    const nome = String(b?.nome || '')
+    const ext = isExt(nome)
+    const serv = isServ(nome)
+    if (serv && ext) addTrib(sExt, b?.tributos)
+    else if (serv && !ext) addTrib(sInt, b?.tributos)
+    else if (!serv && ext) addTrib(mExt, b?.tributos)
+    else addTrib(mInt, b?.tributos)
+  }
+
   return {
     success: true,
     dados: {
@@ -584,6 +612,10 @@ export function processDasData(textRaw: string) {
         },
       },
       tributos,
+      tributosMercadoriasInterno: mInt,
+      tributosMercadoriasExterno: mExt,
+      tributosServicosInterno: sInt,
+      tributosServicosExterno: sExt,
       cenario: cenarioTexto,
       valorTotalDAS: valorDAS,
       valorTotalDASFormatado: moneyBR(valorDAS),

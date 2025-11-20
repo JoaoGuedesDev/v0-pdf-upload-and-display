@@ -1,17 +1,15 @@
 "use client"
 import { useState, useEffect, memo, useMemo, useCallback } from "react"
 import { Button } from "@/components/ui/button"
-import Image from "next/image"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { toast } from "@/components/ui/use-toast"
 import { ConfiguracaoProcessamento } from "@/components/dashboard/ConfiguracaoProcessamento"
 import { IndicadoresReceita } from "@/components/dashboard/IndicadoresReceita"
 import { GraficoReceitaMensal } from "@/components/dashboard/GraficoReceitaMensal"
-import { DistribuicaoDAS } from "@/components/dashboard/DistribuicaoDAS"
 import { ComparacaoAtividades } from "@/components/dashboard/ComparacaoAtividades"
 import { formatCurrency, computeTotalDAS } from "@/lib/utils"
-
+            <Image src="/integra-logo.svg" alt="Integra" width={160} height={48} className="h-10 sm:h-12 w-auto object-contain" />
 interface DASData {
   identificacao: {
     cnpj: string
@@ -92,6 +90,10 @@ interface DASData {
     totalDAS?: number
     totalDASFormatado?: string
   }
+  tributosMercadoriasInterno?: Record<string, number>
+  tributosMercadoriasExterno?: Record<string, number>
+  tributosServicosInterno?: Record<string, number>
+  tributosServicosExterno?: Record<string, number>
   insights?: {
     comparativoSetorial: string
     pontosAtencao: string[]
@@ -192,6 +194,11 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
           totalDAS,
           totalDASFormatado: formatCurrency(totalDAS),
         }
+        ,
+        tributosMercadoriasInterno: dados?.tributosMercadoriasInterno,
+        tributosMercadoriasExterno: dados?.tributosMercadoriasExterno,
+        tributosServicosInterno: dados?.tributosServicosInterno,
+        tributosServicosExterno: dados?.tributosServicosExterno,
       }
       
       setData(processedData)
@@ -290,23 +297,21 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="flex justify-between items-center">
           <div className="space-y-1">
-            <Image src="/integra-logo.svg" alt="Integra Soluções Empresariais" width={160} height={48} className="h-10 sm:h-12 w-auto object-contain" />
+            
           </div>
           <div className="flex items-center gap-2">
             {!hideDownloadButton && data && (
-              <Button variant="outline" size="sm">
+              <Button variant="outline" size="sm" onClick={() => {
+                const url = `/api/pdf?path=${encodeURIComponent('/dashboard-das')}`
+                window.open(url, '_blank')
+              }}>
                 Exportar
               </Button>
             )}
           </div>
         </div>
 
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">Análise PGDAS-D</h1>
-          <p className="text-slate-600">
-            {data?.identificacao?.razaoSocial} - {data?.identificacao?.cnpj}
-          </p>
-        </div>
+        
 
         <Card className="bg-gradient-to-br from-slate-900 to-slate-800 text-white border-0 shadow-xl py-2">
           <CardContent className="grid sm:grid-cols-2 md:grid-cols-3 gap-2">
@@ -532,130 +537,9 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
             </CardContent>
           </Card>
         )}
-        {data?.tributos && (
-          <Card className="bg-white border-slate-200" style={{ breakInside: 'avoid' }}>
-            <CardHeader>
-              <CardTitle className="text-slate-800">Detalhamento dos Tributos</CardTitle>
-              <CardDescription>Composição do DAS por categoria e tributo</CardDescription>
-            </CardHeader>
-            <CardContent className="overflow-x-auto">
-              {(() => {
-                const t = (data?.tributos || {}) as Record<string, number>
-                const tmI = ((data as any)?.tributosMercadoriasInterno || {}) as Record<string, number>
-                const tmE = ((data as any)?.tributosMercadoriasExterno || {}) as Record<string, number>
-                const rows = [
-                  ['IRPJ', t.IRPJ],
-                  ['CSLL', t.CSLL],
-                  ['COFINS', t.COFINS],
-                  ['PIS/PASEP', t.PIS_Pasep],
-                  ['INSS/CPP', t.INSS_CPP],
-                  ['ICMS', t.ICMS],
-                ] as [string, number][]
-                const getVal = (o: Record<string, number>, label: string) => Number(o[label.replace('/','_')] ?? o[label] ?? 0)
-                const total = Number(t.Total || rows.reduce((acc, [,v]) => acc + (Number(v)||0), 0))
-                const totMercInt = rows.reduce((acc, [lbl]) => acc + getVal(tmI, lbl), 0)
-                const totMercExt = rows.reduce((acc, [lbl]) => acc + getVal(tmE, lbl), 0)
-                const headerCols = ['Mercadorias (interno)','Mercadorias (externo)','Total']
-                return (
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-slate-700">
-                        <th className="text-left py-2 px-3">Tributo</th>
-                        {headerCols.map((h, i) => (
-                          <th key={i} className="text-right py-2 px-3">{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="text-slate-900">
-                      {rows.map(([label, val], idx) => {
-                        const v = Number(val || 0)
-                        const mI = getVal(tmI, label)
-                        const mE = getVal(tmE, label)
-                        const cells: (number | null)[] = [
-                          mI > 0 ? mI : null,
-                          mE > 0 ? mE : null,
-                          v,
-                        ]
-                        return (
-                          <tr key={idx} className="border-slate-200">
-                            <td className="py-2 px-3">{label}</td>
-                            {cells.map((cv, ci) => (
-                              <td key={ci} className={`text-right py-2 px-3 text-violet-700`}>{cv && cv > 0 ? formatCurrency(cv) : ''}</td>
-                            ))}
-                          </tr>
-                        )
-                      })}
-                      <tr className="border-slate-200 font-semibold">
-                        <td className="py-2 px-3">Total</td>
-                        <td className={`text-right py-2 px-3 text-violet-700`}>{totMercInt > 0 ? formatCurrency(totMercInt) : ''}</td>
-                        <td className={`text-right py-2 px-3 text-violet-700`}>{totMercExt > 0 ? formatCurrency(totMercExt) : ''}</td>
-                        <td className={`text-right py-2 px-3 text-violet-700`}>{formatCurrency(total)}</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                )
-              })()}
-              <div className="text-slate-600" style={{ fontSize: 12 }}>
-                Moeda: BRL (R$). Fonte: PGDAS-D {data?.identificacao?.periodoApuracao ? `• Período: ${data.identificacao.periodoApuracao}` : ''}
-              </div>
-              {(() => {
-                const tmI = ((data as any)?.tributosMercadoriasInterno || {}) as Record<string, number>
-                const tmE = ((data as any)?.tributosMercadoriasExterno || {}) as Record<string, number>
-                const tsI = ((data as any)?.tributosServicosInterno || {}) as Record<string, number>
-                const tsE = ((data as any)?.tributosServicosExterno || {}) as Record<string, number>
-                const blocks = [
-                  { title: 'Serviços Internos', map: tsI },
-                  { title: 'Serviços Externos', map: tsE },
-                  { title: 'Mercadorias Internas', map: tmI },
-                  { title: 'Mercadorias Externas', map: tmE },
-                ]
-                const get = (o: Record<string, number>, k: string) => Number(o[k] ?? o[k.replace('/','_')] ?? 0)
-                const tribs = ['IRPJ','CSLL','COFINS','PIS/PASEP','INSS/CPP','ICMS','IPI','ISS']
-                const cards = blocks.map((b, i) => {
-                  const lines = tribs.map((lbl) => ({ lbl, val: get(b.map, lbl) })).filter((l) => Number(l.val || 0) > 0)
-                  const total = tribs.reduce((acc, lbl) => acc + Number(get(b.map, lbl) || 0), 0)
-                  if (!lines.length && total <= 0) return null
-                  return (
-                    <div key={i} className={`rounded-lg bg-slate-50 p-3`}> 
-                      <div className={`font-semibold mb-2 text-slate-800`}>{b.title}</div>
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className='text-slate-600'>
-                            <th className="text-left py-1 px-2">Tributo</th>
-                            <th className="text-right py-1 px-2">Valor (R$)</th>
-                          </tr>
-                        </thead>
-                        <tbody className='text-slate-900'>
-                          {lines.map((ln, idx) => (
-                            <tr key={idx} className='border-slate-200'>
-                              <td className="py-1 px-2">{ln.lbl}</td>
-                              <td className="py-1 px-2 text-right">{formatCurrency(Number(ln.val || 0))}</td>
-                            </tr>
-                          ))}
-                          <tr className='border-slate-200 font-semibold'>
-                            <td className="py-1 px-2">Total</td>
-                            <td className="py-1 px-2 text-right">{formatCurrency(total)}</td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
-                  )
-                }).filter(Boolean)
-                if (!cards.length) return null
-                return (
-                  <div className="grid md:grid-cols-2 gap-3 mt-4">
-                    {cards}
-                  </div>
-                )
-              })()}
-            </CardContent>
-          </Card>
-        )}
+        
 
-        {/* DAS Distribution */}
-        <DistribuicaoDAS 
-          tributos={data?.tributos}
-        />
+        
 
         {/* Activity Comparison */}
         <ComparacaoAtividades 
@@ -761,3 +645,4 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
     </div>
   )
 })
+import Image from "next/image"

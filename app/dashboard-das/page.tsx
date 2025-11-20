@@ -1,4 +1,5 @@
 'use client';
+import Image from 'next/image'
 
 import React, { useRef } from 'react';
 import {
@@ -214,7 +215,9 @@ export default function DashboardDAS() {
           {/* Cabeçalho */}
           <div className="border-b border-gray-200 pb-6 mb-6">
             <div className="flex justify-between items-center">
-              <div className="text-gray-500 font-medium">LOGO ESCRITÓRIO</div>
+              <div className="text-gray-500 font-medium">
+                <Image src="/integra-logo.svg" alt="Integra" width={160} height={48} className="h-10 sm:h-12 w-auto object-contain" />
+              </div>
               <div className="text-center">
                 <h1 className="text-2xl font-bold text-gray-900 mb-2">
                   Dashboard da DAS – Resumo Tributário
@@ -223,7 +226,7 @@ export default function DashboardDAS() {
                   Visualização simplificada dos impostos e do faturamento com base na DAS do Simples Nacional.
                 </p>
               </div>
-              <div className="text-gray-500 font-medium">LOGO CLIENTE</div>
+              <div className="text-gray-500 font-medium"></div>
             </div>
           </div>
 
