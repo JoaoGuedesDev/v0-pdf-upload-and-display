@@ -661,25 +661,16 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
               backgroundColor: items.map(i => i.color),
               borderColor: '#ffffff',
               borderWidth: 1,
-              cutout: '70%',
+              cutout: '65%',
+              radius: '85%',
             }]
           }
           const options = {
             ...CHART_CONFIG,
+            layout: { padding: { top: 24, bottom: 12, left: 12, right: 12 } },
             plugins: {
               ...CHART_CONFIG.plugins,
-              datalabels: {
-                color: '#111827',
-                formatter: (v: number, ctx: any) => {
-                  const label = String(ctx?.chart?.data?.labels?.[ctx?.dataIndex] || '')
-                  const pct = totalDAS > 0 ? ((Number(v) / totalDAS) * 100) : 0
-                  return `${label}: ${formatCurrency(Number(v))} (${pct.toFixed(2)}%)`
-                },
-                align: 'end',
-                anchor: 'end',
-                clamp: true,
-                font: { size: 10, weight: '650' },
-              },
+              datalabels: { display: false },
               legend: { display: false },
               tooltip: { enabled: true },
             },
@@ -701,6 +692,68 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
               ctx.restore()
             }
           }
+          const labelLeaders = {
+            id: 'labelLeaders',
+            afterDatasetsDraw: (chart: any) => {
+              const meta = chart.getDatasetMeta(0)
+              const arcs = meta?.data || []
+              const labels: string[] = chart?.data?.labels || []
+              const ds = chart?.data?.datasets?.[0] || {}
+              const values: number[] = ds?.data || []
+              const colors: string[] = ds?.backgroundColor || []
+              const area = chart.chartArea
+              const cx = (area.left + area.right) / 2
+              const cy = (area.top + area.bottom) / 2
+              const ctx = chart.ctx
+              const nodes: any[] = []
+              for (let i = 0; i < arcs.length; i++) {
+                const v = Number(values[i] || 0)
+                if (!(v > 0)) continue
+                const el = arcs[i]
+                const p = el && el.getProps ? el.getProps(['startAngle','endAngle','outerRadius'], true) : el
+                const start = Number(p.startAngle || 0)
+                const end = Number(p.endAngle || 0)
+                const r = Number(p.outerRadius || 0)
+                const ang = start + (end - start) / 2
+                const ax = cx + Math.cos(ang) * r
+                const ay = cy + Math.sin(ang) * r
+                const ex = cx + Math.cos(ang) * (r + 14)
+                const ey = cy + Math.sin(ang) * (r + 14)
+                const right = Math.cos(ang) >= 0
+                const lx = right ? ex + 56 : ex - 56
+                const ly = ey
+                const pct = totalDAS > 0 ? (v / totalDAS) * 100 : 0
+                nodes.push({ i, label: labels[i], value: v, color: colors[i], ax, ay, ex, ey, lx, ly, right, pct })
+              }
+              const resolveSide = (side: 'left' | 'right') => {
+                const arr = nodes.filter(n => (side === 'right' ? n.right : !n.right)).sort((a, b) => a.ly - b.ly)
+                const gap = 16
+                for (let i = 1; i < arr.length; i++) {
+                  const prev = arr[i - 1]
+                  const cur = arr[i]
+                  if (cur.ly - prev.ly < gap) arr[i].ly = prev.ly + gap
+                }
+              }
+              resolveSide('left')
+              resolveSide('right')
+              ctx.save()
+              for (const n of nodes) {
+                ctx.strokeStyle = String(n.color || '#475569')
+                ctx.lineWidth = 1
+                ctx.beginPath()
+                ctx.moveTo(n.ax, n.ay)
+                ctx.lineTo(n.ex, n.ey)
+                ctx.lineTo(n.lx, n.ly)
+                ctx.stroke()
+                ctx.textAlign = n.right ? 'left' : 'right'
+                ctx.fillStyle = String(n.color || '#111827')
+                ctx.font = '500 11px system-ui'
+                const txt = `${n.label}: ${formatCurrency(Number(n.value || 0))} (${n.pct.toFixed(2)}%)`
+                ctx.fillText(txt, n.lx, n.ly - 2)
+              }
+              ctx.restore()
+            }
+          }
           return (
             <Card className="bg-white border-slate-200" style={{ breakInside: 'avoid' }}>
               <CardHeader>
@@ -712,14 +765,16 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                     {items.map((it, i) => {
                       const pct = totalDAS > 0 ? ((it.value / totalDAS) * 100) : 0
                       return (
-                        <div key={i} className="flex items-center justify-between bg-slate-50 rounded-lg px-2 py-1">
+                        <div key={i} className="flex items-center justify-between rounded-lg px-2 py-1">
                           <div className="flex items-center gap-2">
                             <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: it.color }} />
                             <div className="text-slate-600 text-xs font-medium">{it.label}</div>
                           </div>
-                          <div className="text-right text-slate-900 text-xs">
-                            <div>{formatCurrency(it.value)}</div>
+                          <div className="flex items-center gap-2">
                             <div className="text-slate-500 text-[10px]">{pct.toFixed(2)}%</div>
+                            <span className="rounded-full text-white text-[11px] px-2 py-0.5" style={{ backgroundColor: it.color }}>
+                              {formatCurrency(it.value)}
+                            </span>
                           </div>
                         </div>
                       )
@@ -736,7 +791,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                     </div>
                   </div>
                   <div className="md:col-span-9 lg:col-span-9 min-h-[300px] flex items-center justify-center">
-                    <Doughnut data={dataChart} options={options} plugins={[centerText]} />
+                    <Doughnut data={dataChart} options={options} plugins={[centerText, labelLeaders]} />
                   </div>
                 </div>
               </CardContent>
