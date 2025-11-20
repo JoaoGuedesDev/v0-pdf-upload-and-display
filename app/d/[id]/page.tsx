@@ -63,7 +63,7 @@ export default async function Page({ params }: any) {
   return (
     <main className="px-6 py-4">
       <div className="mt-4">
-        <PGDASDProcessor initialData={initialData as any} shareId={id} hideDownloadButton={true} />
+        <PGDASDProcessor initialData={initialData as any} shareId={id} />
       </div>
     </main>
   )

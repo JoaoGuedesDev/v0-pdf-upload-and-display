@@ -119,6 +119,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
   const [data, setData] = useState<DASData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [shareCode, setShareCode] = useState<string | null>(null)
 
   // Hydrate initial data if provided
   useEffect(() => {
@@ -208,6 +209,8 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
       }
       
       setData(processedData)
+      const code = (result?.dashboardCode || result?.code || null) as string | null
+      if (code) setShareCode(code)
       toast({ 
         title: "PDF processado com sucesso!", 
         description: "Dados carregados e prontos para análise." 
@@ -225,6 +228,19 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
       setLoading(false)
     }
   }, [])
+
+  const handleDownloadPDF = useCallback(() => {
+    const origin = typeof window !== 'undefined' ? window.location.origin : ''
+    const code = shareId || shareCode || ''
+    const path = code ? `/d/${code}` : `/dashboard-das`
+    const w = typeof window !== 'undefined' ? window.innerWidth : 1280
+    const url = `${origin}/api/pdf?path=${encodeURIComponent(path)}&type=screen&w=${w}&scale=1`
+    try {
+      window.open(url, '_blank')
+    } catch {
+      window.location.assign(url)
+    }
+  }, [shareId, shareCode])
 
   if (error) {
     return (
@@ -650,7 +666,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
             { key: 'PIS_Pasep', label: 'PIS/PASEP', color: '#f59e0b' },
             { key: 'INSS_CPP', label: 'INSS/CPP', color: '#10b981' },
             { key: 'ICMS', label: 'ICMS', color: '#06b6d4' },
-          ].map(it => ({ ...it, value: Number(trib?.[it.key] || 0) }))
+          ].map(it => ({ ...it, value: Number((trib as any)?.[it.key] || 0) }))
             .filter(it => it.value > 0)
             .sort((a, b) => b.value - a.value)
           if (!items.length || totalDAS <= 0) return null
@@ -896,11 +912,12 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                 </div>
               </div>
             </div>
-            <div className="flex flex-wrap gap-2 justify-center mt-4">
-              <Button variant="secondary" onClick={() => window.location.assign('/')}>Processar Novo PDF</Button>
-              <Button onClick={() => alert('Geração de imagem desativada')}>Gerar Imagem (PNG)</Button>
-              <Button onClick={() => alert('Geração de PDF desativada')}>Baixar PDF</Button>
-            </div>
+            {!hideDownloadButton && (
+              <div className="flex flex-wrap gap-2 justify-center mt-4">
+                <Button variant="secondary" onClick={() => window.location.assign('/')}>Processar Novo PDF</Button>
+                <Button onClick={handleDownloadPDF}>Baixar PDF</Button>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
