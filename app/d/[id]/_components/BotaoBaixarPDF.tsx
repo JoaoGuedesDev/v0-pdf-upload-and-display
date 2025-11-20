@@ -1,17 +1,9 @@
 "use client"
+import { toast } from "@/components/ui/use-toast"
 
 export function BotaoBaixarPDF({ id }: { id: string }) {
   const abrirPdf = () => {
-    if (!id) return
-    const envBase = (process.env.NEXT_PUBLIC_BASE_URL as string | undefined)?.trim()
-    const base = (() => {
-      try {
-        return envBase ? new URL(envBase).origin : ''
-      } catch {
-        return ''
-      }
-    })() || window.location.origin
-    window.open(`${base}/api/pdf/id?id=${id}`, "_blank", "noopener,noreferrer")
+    toast({ title: "Baixar PDF", description: "Geração de PDF desativada." })
   }
 
   return (

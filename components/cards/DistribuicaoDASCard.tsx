@@ -20,7 +20,7 @@ type Config = {
   pieHeight?: number
 }
 
-export default function DistribuicaoDASCard({ tributos, darkMode = false, config }: { tributos: Tributos | undefined; darkMode?: boolean; config?: Config }) {
+export default function DistribuicaoDASCard({ tributos, config }: { tributos: Tributos | undefined; config?: Config }) {
   const CHART_COLORS = chartColors.primary
   const total = Number(tributos?.Total || 0)
   const fmt = (n: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(n)
@@ -40,8 +40,8 @@ export default function DistribuicaoDASCard({ tributos, darkMode = false, config
   const gap = config?.gridGap ?? spacing.card.gap
 
   return (
-    <div className={`${darkMode ? "bg-slate-800 border-slate-700" : "bg-white border border-slate-200"} shadow-lg hover:shadow-xl transition-all duration-200 rounded-xl p-4 print:break-inside-avoid`}>
-      <h3 className={`text-lg font-semibold ${darkMode ? "text-slate-200" : "text-slate-800"} mb-4`}>Distribuição de Tributos (DAS)</h3>
+    <div className={`bg-white border border-slate-200 shadow-lg hover:shadow-xl transition-all duration-200 rounded-xl p-4 print:break-inside-avoid`}>
+      <h3 className={`text-lg font-semibold text-slate-800 mb-4`}>Distribuição de Tributos (DAS)</h3>
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.8fr]" style={{ gap }}>
         <div className="space-y-1">
           {keys
@@ -51,26 +51,26 @@ export default function DistribuicaoDASCard({ tributos, darkMode = false, config
               const pct = total > 0 ? (value / total) * 100 : 0
               const color = CHART_COLORS[idx % CHART_COLORS.length]
               return (
-                <div key={it.key} className={`flex items-center justify-between p-1 rounded-lg ${darkMode ? "bg-slate-700/50" : "bg-slate-50"}`}>
+                <div key={it.key} className={`flex items-center justify-between p-1 rounded-lg bg-slate-50`}>
                   <div className="flex items-center gap-1.5">
                     <div className="w-3 h-3 rounded-full" style={{ backgroundColor: color }} />
                     <div>
-                      <div className={`font-small text-[10px] ${darkMode ? "text-slate-200" : "text-slate-800"}`}>{it.label}</div>
-                      <div className={`text-[10px] ${darkMode ? "text-slate-400" : "text-slate-500"}`}>{fmt(value)} ({pct.toFixed(2)}%)</div>
+                      <div className={`font-small text-[10px] text-slate-800`}>{it.label}</div>
+                      <div className={`text-[10px] text-slate-500`}>{fmt(value)} ({pct.toFixed(2)}%)</div>
                     </div>
                   </div>
                 </div>
               )
             })}
-          <div className={`flex items-center justify-between p-2 rounded-lg border-2 ${darkMode ? "bg-slate-600 border-slate-500" : "bg-slate-100 border-slate-300"} font-bold`}>
+          <div className={`flex items-center justify-between p-2 rounded-lg border-2 bg-slate-100 border-slate-300 font-bold`}>
             <div className="flex items-center gap-2">
-              <div className={`w-4 h-4 rounded-full ${darkMode ? "bg-slate-300" : "bg-slate-600"}`} />
+              <div className={`w-4 h-4 rounded-full bg-slate-600`} />
               <div>
-                <div className={`font-bold text-[10px] ${darkMode ? "text-slate-100" : "text-slate-800"}`}>TOTAL DAS</div>
-                <div className={`text-[10px] ${darkMode ? "text-slate-300" : "text-slate-600"}`}>100%</div>
+                <div className={`font-bold text-[10px] text-slate-800`}>TOTAL DAS</div>
+                <div className={`text-[10px] text-slate-600`}>100%</div>
               </div>
             </div>
-            <div className={`font-bold text-[10px] ${darkMode ? "text-slate-100" : "text-slate-900"}`}>{fmt(total)}</div>
+            <div className={`font-bold text-[10px] text-slate-900`}>{fmt(total)}</div>
           </div>
           
         </div>

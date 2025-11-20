@@ -24,22 +24,28 @@ interface CalculosData {
   margemLiquida?: number
   margemLiquidaPercent?: number
   aliquotaEfetivaFormatada?: string
+  totalDAS?: number
+  totalDASFormatado?: string
 }
 
 interface IndicadoresReceitaProps {
   receitas?: ReceitasData
   calculos?: CalculosData
-  darkMode?: boolean
   className?: string
 }
 
-export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, calculos, darkMode = false, className = "" }: IndicadoresReceitaProps) {
-  if (!receitas || !calculos) return null
+export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, calculos, className = "" }: IndicadoresReceitaProps) {
+  const receitaPA = useMemo(() => (receitas?.receitaPA || 0), [receitas])
+  const totalDAS = useMemo(() => {
+    const explicit = calculos?.totalDAS
+    if (explicit != null && Number.isFinite(Number(explicit))) return Number(explicit)
+    const aliq = calculos?.aliquotaEfetiva || 0
+    return aliq ? (aliq / 100) * receitaPA : 0
+  }, [calculos, receitaPA])
+  const margemLiquida = useMemo(() => (calculos?.margemLiquida || calculos?.margemLiquidaPercent || 0), [calculos])
+  const aliquotaEfetiva = useMemo(() => (calculos?.aliquotaEfetiva || 0), [calculos])
 
-  const receitaPA = useMemo(() => receitas.receitaPA || 0, [receitas.receitaPA])
-  const totalDAS = useMemo(() => calculos.aliquotaEfetiva ? (calculos.aliquotaEfetiva / 100) * receitaPA : 0, [calculos.aliquotaEfetiva, receitaPA])
-  const margemLiquida = useMemo(() => calculos.margemLiquida || calculos.margemLiquidaPercent || 0, [calculos.margemLiquida, calculos.margemLiquidaPercent])
-  const aliquotaEfetiva = useMemo(() => calculos.aliquotaEfetiva || 0, [calculos.aliquotaEfetiva])
+  if (!receitas || !calculos) return null
 
   return (
     <div className={`grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-2 ${className}`}>
@@ -89,7 +95,7 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
           <CardTitle className="text-[11px] sm:text-xs font-bold">Margem Líquida</CardTitle>
         </CardHeader>
         <CardContent className="p-1 sm:p-2 pt-0">
-          <p className="text-base sm:text-lg font-bold font-sans">{margemLiquida.toFixed(3)}%</p>
+          <p className="text-base sm:text-lg font-bold font-sans">{margemLiquida.toFixed(3).replace('.', ',')}%</p>
           <p className="text-[10px] sm:text-[11px] opacity-75 mt-1">Receita após impostos</p>
         </CardContent>
       </Card>

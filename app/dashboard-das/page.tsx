@@ -1,13 +1,10 @@
 'use client';
 
 import React, { useRef } from 'react';
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
 import {
   Chart as ChartJS,
   CategoryScale,
   LinearScale,
-  BarElement,
   Title,
   Tooltip,
   Legend,
@@ -15,13 +12,13 @@ import {
   PointElement,
   LineElement,
 } from 'chart.js';
+import type { Chart, TooltipItem, LegendItem } from 'chart.js'
 import ChartDataLabels from 'chartjs-plugin-datalabels';
-import { Doughnut, Bar, Line } from 'react-chartjs-2';
+import { Doughnut, Line } from 'react-chartjs-2';
 
 ChartJS.register(
   CategoryScale,
   LinearScale,
-  BarElement,
   Title,
   Tooltip,
   Legend,
@@ -110,28 +107,7 @@ export default function DashboardDAS() {
     return `${valor.toFixed(2)}%`;
   };
 
-  const gerarPDF = async () => {
-    if (!dashboardRef.current) return;
-
-    try {
-      const canvas = await html2canvas(dashboardRef.current, {
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-      });
-
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF('l', 'mm', 'a4');
-      
-      const imgWidth = 297;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      
-      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
-      pdf.save('dashboard-das.pdf');
-    } catch (error) {
-      console.error('Erro ao gerar PDF:', error);
-    }
-  };
+  
 
   const dadosDoughnut = {
     labels: mockData.tributos.map(t => t.nome),
@@ -151,24 +127,30 @@ export default function DashboardDAS() {
       legend: {
         position: 'right' as const,
         labels: {
-          generateLabels: (chart) => {
-            const data = chart.data;
-            return data.labels?.map((label, i) => {
-              const valor = data.datasets[0].data[i];
-              const percentual = mockData.tributos[i].percentual;
-              return {
-                text: `${label} – ${formatarMoeda(valor)} (${percentual.toFixed(1)}%)`,
-                fillStyle: data.datasets[0].backgroundColor[i],
-                hidden: false,
-                index: i,
-              };
-            }) || [];
+          generateLabels: (chart: Chart): LegendItem[] => {
+            const data = chart.data
+            const labels = data.labels as string[] | undefined
+            const dataset0 = data.datasets[0]
+            const valores = dataset0.data as number[]
+            const cores = dataset0.backgroundColor as string[]
+            return (
+              labels?.map((label, i) => {
+                const valor = valores[i]
+                const percentual = mockData.tributos[i].percentual
+                return {
+                  text: `${label} – ${formatarMoeda(valor)} (${percentual.toFixed(1)}%)`,
+                  fillStyle: cores[i],
+                  hidden: false,
+                  index: i,
+                }
+              }) || []
+            )
           },
         },
       },
       tooltip: {
         callbacks: {
-          label: (context) => {
+          label: (context: TooltipItem<'doughnut'>) => {
             const valor = context.parsed;
             const percentual = mockData.tributos[context.dataIndex].percentual;
             return `${context.label}: ${formatarMoeda(valor)} (${percentual.toFixed(1)}%)`;
@@ -178,40 +160,7 @@ export default function DashboardDAS() {
     },
   };
 
-  const dadosBar = {
-    labels: mockData.tributos.map(t => t.nome),
-    datasets: [
-      {
-        label: 'Valor do Tributo',
-        data: mockData.tributos.map(t => t.valor),
-        backgroundColor: coresTributos,
-        borderWidth: 1,
-        borderColor: '#ffffff',
-      },
-    ],
-  };
-
-  const opcoesBar = {
-    responsive: true,
-    plugins: {
-      legend: {
-        display: false,
-      },
-      datalabels: {
-        anchor: 'end' as const,
-        align: 'top' as const,
-        formatter: (value: number) => formatarMoeda(value),
-      },
-    },
-    scales: {
-      y: {
-        beginAtZero: true,
-        ticks: {
-          callback: (value: number) => formatarMoeda(value),
-        },
-      },
-    },
-  };
+  // gráfico de barras removido
 
   const dadosLine = {
     labels: mockData.faturamentoMensal.map(m => m.mes),
@@ -235,11 +184,13 @@ export default function DashboardDAS() {
       },
       tooltip: {
         callbacks: {
-          label: (context) => {
-            return `${context.parsed.y.toLocaleString('pt-BR', {
+          label: (context: TooltipItem<'line'>) => {
+            const y = context.parsed?.y
+            const value = typeof y === 'number' ? y : (typeof context.raw === 'number' ? context.raw : 0)
+            return `${value.toLocaleString('pt-BR', {
               style: 'currency',
               currency: 'BRL',
-            })}`;
+            })}`
           },
         },
       },
@@ -248,7 +199,7 @@ export default function DashboardDAS() {
       y: {
         beginAtZero: true,
         ticks: {
-          callback: (value: number) => formatarMoeda(value),
+          callback: (value: number | string) => formatarMoeda(Number(value)),
         },
       },
     },
@@ -257,14 +208,7 @@ export default function DashboardDAS() {
   return (
     <div className="min-h-screen bg-gray-50 p-4">
       <div className="max-w-7xl mx-auto">
-        <div className="flex justify-end mb-4">
-          <button
-            onClick={gerarPDF}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition-colors"
-          >
-            Gerar PDF
-          </button>
-        </div>
+        
 
         <div ref={dashboardRef} className="bg-white rounded-lg shadow-lg p-8">
           {/* Cabeçalho */}
@@ -344,17 +288,11 @@ export default function DashboardDAS() {
           </div>
 
           {/* Gráficos */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          <div className="grid grid-cols-1 gap-6 mb-6">
             <div className="bg-white border border-gray-200 rounded-lg p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Distribuição dos Tributos na DAS</h3>
               <div className="h-80">
                 <Doughnut data={dadosDoughnut} options={opcoesDoughnut} />
-              </div>
-            </div>
-            <div className="bg-white border border-gray-200 rounded-lg p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Valor dos Tributos (R$)</h3>
-              <div className="h-80">
-                <Bar data={dadosBar} options={opcoesBar} />
               </div>
             </div>
           </div>

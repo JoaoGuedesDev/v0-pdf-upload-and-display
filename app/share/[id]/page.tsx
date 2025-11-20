@@ -34,7 +34,11 @@ export default async function SharePage({ params }: Props) {
           <h1 style={{ margin: 0 }}>Dashboard do DAS</h1>
           <p style={{ margin: 0, color: '#64748b' }}>Compartilhado • ID {id}</p>
         </div>
-        <a href="/" style={{ color: '#2563eb' }}>Voltar</a>
+        <form action="/" method="get">
+          <button type="submit" style={{ color: '#2563eb', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
+            Voltar
+          </button>
+        </form>
       </header>
       <hr style={{ margin: '16px 0' }} />
 

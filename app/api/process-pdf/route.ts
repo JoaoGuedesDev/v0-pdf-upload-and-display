@@ -9,8 +9,8 @@ import path from "node:path"
 import crypto from "node:crypto"
 import { saveDashboard } from "@/lib/store"
 
-// Configuração opcional para encaminhar ao n8n
-const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL || ""
+// Configuração para encaminhar ao n8n (default apontando para seu endpoint)
+const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL || "https://n8n.jjinnovai.me/webhook/processar-pgdasd"
 const N8N_WEBHOOK_TOKEN = process.env.N8N_WEBHOOK_TOKEN || ""
 const N8N_BASIC_USER = process.env.N8N_BASIC_USER || ""
 const N8N_BASIC_PASS = process.env.N8N_BASIC_PASS || ""
@@ -32,11 +32,8 @@ function buildAuthHeader(): Record<string, string> {
 
 export async function POST(request: NextRequest) {
   try {
-    const via = request.nextUrl.searchParams.get("via") || ""
     const hasN8N = !!N8N_WEBHOOK_URL
-    // Encaminha ao n8n por padrão quando configurado, exceto se via=local|direct
-    const viaParam = via.toLowerCase()
-    const useN8N = hasN8N ? (viaParam !== "local" && viaParam !== "direct") : (viaParam === "n8n" && hasN8N)
+    const useN8N = hasN8N
     const contentType = request.headers.get("content-type") || ""
 
     // Caso 1: multipart/form-data com arquivo PDF

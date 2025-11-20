@@ -38,12 +38,14 @@
     "next-env.d.ts",
     "**/*.ts",
     "**/*.tsx",
+    ".next\\dev/types/**/*.ts",
+    ".next\\dev/types/**/*.ts",
     ".next/types/**/*.ts",
-    ".next\\dev/types/**/*.ts",
-    ".next\\dev/types/**/*.ts",
     ".next/dev/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "test",
+    "utils/__tests__"
   ]
 }

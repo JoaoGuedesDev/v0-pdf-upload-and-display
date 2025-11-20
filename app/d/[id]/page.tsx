@@ -2,7 +2,7 @@
 
 import { getDashboard } from '@/lib/store'
 import { headers } from 'next/headers'
-import PGDASDProcessorIA from '@/components/pgdasd-processor-ia'
+import { PGDASDProcessor } from '@/components/pgdasd-processor'
 export const dynamic = 'force-dynamic'
 
 export default async function Page({ params }: any) {
@@ -15,7 +15,11 @@ export default async function Page({ params }: any) {
       <div style={{ padding: 24 }}>
         <h1>Link inválido</h1>
         <p>Esperado formato: /d/abcdef123</p>
-        <a href="/" style={{ color: '#2563eb' }}>Voltar</a>
+        <form action="/" method="get">
+          <button type="submit" style={{ color: '#2563eb', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
+            Voltar
+          </button>
+        </form>
       </div>
     )
   }
@@ -40,7 +44,11 @@ export default async function Page({ params }: any) {
       <div style={{ padding: 24 }}>
         <h1>Link inválido ou expirado</h1>
         <p>Não encontramos o dashboard compartilhado para o id: {id}</p>
-        <a href="/" style={{ color: '#2563eb' }}>Voltar</a>
+        <form action="/" method="get">
+          <button type="submit" style={{ color: '#2563eb', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
+            Voltar
+          </button>
+        </form>
       </div>
     )
   }
@@ -55,7 +63,7 @@ export default async function Page({ params }: any) {
   return (
     <main className="px-6 py-4">
       <div className="mt-4">
-        <PGDASDProcessorIA initialData={initialData as any} shareId={id} />
+        <PGDASDProcessor initialData={initialData as any} shareId={id} hideDownloadButton={true} />
       </div>
     </main>
   )

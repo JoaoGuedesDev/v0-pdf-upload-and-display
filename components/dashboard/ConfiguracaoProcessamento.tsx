@@ -5,14 +5,12 @@ import { Button } from "@/components/ui/button"
 import { toast } from "@/components/ui/use-toast"
 
 interface ConfiguracaoProcessamentoProps {
-  darkMode?: boolean
   onProcess: (file: File) => Promise<void>
   loading?: boolean
   className?: string
 }
 
 export const ConfiguracaoProcessamento = memo(function ConfiguracaoProcessamento({ 
-  darkMode = false, 
   onProcess, 
   loading = false, 
   className = "" 
@@ -77,16 +75,14 @@ export const ConfiguracaoProcessamento = memo(function ConfiguracaoProcessamento
 
   return (
     <Card
-      className={`${
-        darkMode ? "bg-slate-800 border-slate-700" : "border-2 border-dashed border-slate-300 bg-white/50"
-      } backdrop-blur-sm ${className}`}
+      className={`border-2 border-dashed border-slate-300 bg-white/50 backdrop-blur-sm ${className}`}
     >
       <CardContent className="pt-6">
         <div
           className={`relative flex flex-col items-center justify-center rounded-lg p-8 sm:p-12 transition-all ${
             dragActive
-              ? `${darkMode ? "bg-slate-700 border-2 border-blue-500" : "bg-blue-50 border-2 border-blue-400"}`
-              : `${darkMode ? "bg-slate-900 border-2 border-slate-700" : "bg-slate-50 border-2 border-slate-200"}`
+              ? `bg-blue-50 border-2 border-blue-400`
+              : `bg-slate-50 border-2 border-slate-200`
           }`}
           onDragEnter={handleDrag}
           onDragLeave={handleDrag}
@@ -96,18 +92,16 @@ export const ConfiguracaoProcessamento = memo(function ConfiguracaoProcessamento
           <Upload
             className={`h-12 w-12 sm:h-16 sm:w-16 mb-4 ${
               dragActive 
-                ? (darkMode ? "text-blue-300" : "text-blue-600") 
-                : (darkMode ? "text-slate-300" : "text-slate-400")
+                ? "text-blue-600" 
+                : "text-slate-400"
             }`}
           />
           <h3
-            className={`text-lg sm:text-xl font-semibold mb-2 text-center break-words max-w-full ${
-              darkMode ? "text-white" : "text-slate-800"
-            }`}
+            className={`text-lg sm:text-xl font-semibold mb-2 text-center break-words max-w-full text-slate-800`}
           >
             {file ? file.name : "Arraste seu PDF aqui"}
           </h3>
-          <p className={`${darkMode ? "text-slate-300" : "text-slate-500"} mb-4 text-sm sm:text-base`}>
+          <p className={`text-slate-500 mb-4 text-sm sm:text-base`}>
             ou clique para selecionar
           </p>
           
@@ -122,7 +116,7 @@ export const ConfiguracaoProcessamento = memo(function ConfiguracaoProcessamento
           
           <div className="flex flex-col sm:flex-row gap-3">
             <Button 
-              variant={darkMode ? "secondary" : "outline"} 
+              variant="outline" 
               className="cursor-pointer" 
               onClick={handleSelectFile}
               disabled={loading}
@@ -134,11 +128,7 @@ export const ConfiguracaoProcessamento = memo(function ConfiguracaoProcessamento
               <Button
                 onClick={handleProcess}
                 disabled={loading}
-                className={`${
-                  darkMode 
-                    ? "bg-blue-600 hover:bg-blue-700" 
-                    : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
-                }`}
+                className={`bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700`}
               >
                 {loading ? (
                   <>

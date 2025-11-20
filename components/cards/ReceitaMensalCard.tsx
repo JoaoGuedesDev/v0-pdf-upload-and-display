@@ -1,7 +1,7 @@
 import React from "react"
 import { ResponsiveContainer, BarChart, CartesianGrid, XAxis, YAxis, Tooltip, Legend, Bar, Cell, LabelList } from "recharts"
 
-export default function ReceitaMensalCard({ graficos, darkMode = false, height = 280 }: { graficos: any; darkMode?: boolean; height?: number }) {
+export default function ReceitaMensalCard({ graficos, height = 280 }: { graficos: any; height?: number }) {
   const base = (graficos?.receitaLine || graficos?.receitaMensal) || { labels: [], values: [] }
   const labels: string[] = base.labels || []
   const totals: number[] = (base.values || []).map((v: any) => Number(v) || 0)
@@ -26,7 +26,7 @@ export default function ReceitaMensalCard({ graficos, darkMode = false, height =
   const yTicks = [0, topDomain * 0.2, topDomain * 0.4, topDomain * 0.6, topDomain * 0.8, topDomain]
   const IN_COLOR = "#3b82f6"
   const EX_COLOR = "#7c3aed"
-  const labelColor = darkMode ? "#cbd5e1" : "#334155"
+  const labelColor = "#334155"
   const formatAxisShort = (n: number) => n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}k` : `${n.toFixed(0)}`
   const formatNumberBR = (n: number) => Number(n).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   const isZeroish = (n: number) => Math.abs(Number(n) || 0) < 0.005
@@ -39,7 +39,7 @@ export default function ReceitaMensalCard({ graficos, darkMode = false, height =
     const externo = Number(p.externo) || 0
     const show = (v: number) => v > 0.01
     return (
-      <div style={{ background: darkMode ? "#0f172a" : "#ffffff", border: `1px solid ${darkMode ? "#334155" : "#e2e8f0"}`, borderRadius: 6, padding: 8, color: darkMode ? "#cbd5e1" : "#334155" }}>
+      <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 6, padding: 8, color: "#334155" }}>
         <div style={{ marginBottom: 6, fontSize: 11 }}>{String(label)}</div>
         {show(interno) && (<div style={{ fontSize: 11 }}>Interno: <span style={{ color: IN_COLOR }}>{formatNumberBR(interno)}</span></div>)}
         {show(externo) && (<div style={{ fontSize: 11 }}>Externo: <span style={{ color: EX_COLOR }}>{formatNumberBR(externo)}</span></div>)}
@@ -63,13 +63,13 @@ export default function ReceitaMensalCard({ graficos, darkMode = false, height =
   }
 
   return (
-    <div className={`rounded-xl ${darkMode ? "bg-slate-800 border-slate-700" : "bg-white border border-slate-200"} p-4`}>
+    <div className={`rounded-xl bg-white border border-slate-200 p-4`}>
       <div className="w-full" style={{ height }}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 10 }} barCategoryGap="30%" barGap={-18}>
-            <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? "#334155" : "#e2e8f0"} />
-            <XAxis dataKey="name" tick={{ fill: darkMode ? "#cbd5e1" : "#334155", fontSize: 9 }} tickMargin={18} />
-            <YAxis tick={{ fill: darkMode ? "#cbd5e1" : "#334155", fontSize: 9 }} tickFormatter={formatAxisShort} ticks={yTicks} domain={[0, topDomain]} />
+            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+            <XAxis dataKey="name" tick={{ fill: "#334155", fontSize: 9 }} tickMargin={18} />
+            <YAxis tick={{ fill: "#334155", fontSize: 9 }} tickFormatter={formatAxisShort} ticks={yTicks} domain={[0, topDomain]} />
             <Tooltip content={CustomTooltip as any} />
             <Legend align="center" verticalAlign="bottom" wrapperStyle={{ bottom: -10 }} content={() => (
               <div style={{ display: "flex", gap: 12, alignItems: "center", fontSize: 9, justifyContent: "center", width: "100%" }}>
@@ -81,7 +81,7 @@ export default function ReceitaMensalCard({ graficos, darkMode = false, height =
               {chartData.map((entry: any, idx: number) => (<Cell key={`maior-${idx}`} fill={entry.maiorTipo === "interno" ? IN_COLOR : EX_COLOR} />))}
               <LabelList dataKey="maior" content={renderLabelMaior as any} />
             </Bar>
-            <Bar dataKey="menor" name="Menor" radius={[6, 6, 0, 0]} stroke={darkMode ? "rgba(255,255,255,0.35)" : "rgba(51,65,85,0.35)"} strokeWidth={1} isAnimationActive={false}>
+            <Bar dataKey="menor" name="Menor" radius={[6, 6, 0, 0]} stroke={"rgba(51,65,85,0.35)"} strokeWidth={1} isAnimationActive={false}>
               {chartData.map((entry: any, idx: number) => (<Cell key={`menor-${idx}`} fill={entry.maiorTipo === "interno" ? EX_COLOR : IN_COLOR} />))}
               <LabelList dataKey="menor" content={renderLabelMenor as any} />
             </Bar>

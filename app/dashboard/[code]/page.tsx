@@ -11,7 +11,11 @@ export default async function DashboardPage({ params }: Props) {
       <div style={{ padding: 24 }}>
         <h1>Link inválido</h1>
         <p>Esperado formato: /dashboard/1234</p>
-        <a href="/" style={{ color: '#2563eb' }}>Voltar</a>
+        <form action="/" method="get">
+          <button type="submit" style={{ color: '#2563eb', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
+            Voltar
+          </button>
+        </form>
       </div>
     )
   }

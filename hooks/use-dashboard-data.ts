@@ -29,8 +29,7 @@ interface ProcessedReceitaData {
 }
 
 export function useReceitaMensalData(
-  data: ReceitaMensalData | null | undefined,
-  darkMode: boolean = false
+  data: ReceitaMensalData | null | undefined
 ): ProcessedReceitaData {
   return useMemo(() => {
     if (!data || !data.labels || !data.values) {
@@ -70,8 +69,8 @@ export function useReceitaMensalData(
       {
         label: 'Receita Interna',
         data: filteredBaseValues.map(v => v === 0 ? null : v),
-        backgroundColor: darkMode ? '#3b82f6' : '#3b82f6',
-        borderColor: darkMode ? '#60a5fa' : '#2563eb',
+        backgroundColor: '#3b82f6',
+        borderColor: '#2563eb',
         borderWidth: 2,
       },
     ];
@@ -80,8 +79,8 @@ export function useReceitaMensalData(
       datasets.push({
         label: 'Receita Externa',
         data: filteredExternoValues.map(v => v === 0 ? null : v),
-        backgroundColor: darkMode ? '#10b981' : '#10b981',
-        borderColor: darkMode ? '#34d399' : '#059669',
+        backgroundColor: '#10b981',
+        borderColor: '#059669',
         borderWidth: 2,
       });
     }
@@ -97,7 +96,7 @@ export function useReceitaMensalData(
       totalPeriodo,
       mediaPeriodo,
     };
-  }, [data, darkMode]);
+  }, [data]);
 }
 
 /**

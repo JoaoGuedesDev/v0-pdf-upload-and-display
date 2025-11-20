@@ -17,7 +17,12 @@ export default async function DashboardSharedPage({ params }: Props) {
       <div style={{ padding: 24 }}>
         <h1>Link inválido</h1>
         <p>Esperado formato: /dashboar=1234</p>
-        <a href="/" style={{ color: '#2563eb' }}>Voltar</a>
+        {/* use Link for client navigation */}
+        <form action="/" method="get">
+          <button type="submit" style={{ color: '#2563eb', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
+            Voltar
+          </button>
+        </form>
       </div>
     )
   }

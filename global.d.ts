@@ -27,20 +27,9 @@ declare module 'recharts' {
   export const LabelList: any
 }
 
-declare module 'html-to-image' {
-  export function toPng(node: HTMLElement, options?: any): Promise<string>
-}
+ 
 
-declare module 'jspdf' {
-  export const jsPDF: any
-}
 
 declare module 'vaul' {
   export const Drawer: any
-}
-
-declare module 'pdf-lib' {
-  export const PDFDocument: any
-  export const StandardFonts: any
-  export const rgb: any
 }
