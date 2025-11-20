@@ -659,21 +659,22 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
             datasets: [{
               data: items.map(i => i.value),
               backgroundColor: items.map(i => i.color),
-              borderColor: '#ffffff',
-              borderWidth: 1,
+              borderColor: undefined,
+              borderWidth: 0,
               cutout: '65%',
               radius: '85%',
             }]
           }
           const options = {
             ...CHART_CONFIG,
-            layout: { padding: { top: 24, bottom: 12, left: 12, right: 12 } },
+            layout: { padding: { top: 8, bottom: 0, left: 0, right: 0 } },
             plugins: {
               ...CHART_CONFIG.plugins,
               datalabels: { display: false },
               legend: { display: false },
               tooltip: { enabled: true },
             },
+            scales: {},
           } as any
           const centerText = {
             id: 'centerText',
@@ -685,7 +686,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
               ctx.save()
               ctx.textAlign = 'center'
               ctx.fillStyle = '#111827'
-              ctx.font = '700 11px system-ui'
+              ctx.font = '700 10px system-ui'
               ctx.fillText('Total Tributos', cx, cy -7)
               ctx.font = '700 10px system-ui'
               ctx.fillText(formatCurrency(totalDAS), cx, cy + 14)
@@ -761,7 +762,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
-                  <div className="md:col-span-4 lg:col-span-2 space-y-3">
+                  <div className="md:col-span-3 lg:col-span-3 space-y-3">
                     {items.map((it, i) => {
                       const pct = totalDAS > 0 ? ((it.value / totalDAS) * 100) : 0
                       return (
@@ -790,8 +791,8 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                       </div>
                     </div>
                   </div>
-                  <div className="md:col-span-9 lg:col-span-9 min-h-[300px] flex items-center justify-center">
-                    <Doughnut data={dataChart} options={options} plugins={[centerText, labelLeaders]} />
+                  <div className="md:col-span-9 lg:col-span-9 min-h-[300px] flex items-center justify-center w-full">
+                    <Doughnut data={dataChart} options={options} plugins={[centerText, labelLeaders]} style={{ backgroundColor: 'transparent' }} />
                   </div>
                 </div>
               </CardContent>
