@@ -9,7 +9,13 @@ import { IndicadoresReceita } from "@/components/dashboard/IndicadoresReceita"
 import { GraficoReceitaMensal } from "@/components/dashboard/GraficoReceitaMensal"
 import { ComparacaoAtividades } from "@/components/dashboard/ComparacaoAtividades"
 import { formatCurrency, computeTotalDAS } from "@/lib/utils"
-            <Image src="/integra-logo.svg" alt="Integra" width={160} height={48} className="h-10 sm:h-12 w-auto object-contain" />
+import Image from "next/image"
+import { Doughnut } from 'react-chartjs-2'
+import { Chart as ChartJS, ArcElement, Tooltip, Legend, Title } from 'chart.js'
+import ChartDataLabels from 'chartjs-plugin-datalabels'
+import { CHART_CONFIG } from '@/lib/constants'
+
+ChartJS.register(ArcElement, Tooltip, Legend, Title, ChartDataLabels)
 interface DASData {
   identificacao: {
     cnpj: string
@@ -446,6 +452,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
           </Card>
         )}
 
+
         {data?.receitas && (
           <IndicadoresReceita 
             receitas={data.receitas}
@@ -537,6 +544,205 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
             </CardContent>
           </Card>
         )}
+        {data?.tributos && (
+          <Card className="bg-white border-slate-200" style={{ breakInside: 'avoid' }}>
+            <CardHeader>
+              <CardTitle className="text-slate-800">Detalhamento dos Tributos</CardTitle>
+              <CardDescription>Composição do DAS por categoria e tributo</CardDescription>
+            </CardHeader>
+            <CardContent className="overflow-x-auto">
+              {(() => {
+                const t = (data?.tributos || {}) as Record<string, number>
+                const tmI = ((data as any)?.tributosMercadoriasInterno || {}) as Record<string, number>
+                const tmE = ((data as any)?.tributosMercadoriasExterno || {}) as Record<string, number>
+                const tsI = ((data as any)?.tributosServicosInterno || {}) as Record<string, number>
+                const tsE = ((data as any)?.tributosServicosExterno || {}) as Record<string, number>
+                const rows = [
+                  ['IRPJ', t.IRPJ],
+                  ['CSLL', t.CSLL],
+                  ['COFINS', t.COFINS],
+                  ['PIS/PASEP', t.PIS_Pasep],
+                  ['INSS/CPP', t.INSS_CPP],
+                  ['ICMS', t.ICMS],
+                  ['ISS', t.ISS],
+                ] as [string, number][]
+                const getVal = (o: Record<string, number>, label: string) => {
+                  const base = label
+                  const tests = [
+                    base,
+                    base.replace(/\//g, '_'),
+                    base.toUpperCase(),
+                    base.toUpperCase().replace(/\//g, '_'),
+                    base.replace('PIS/PASEP', 'PIS_PASEP'),
+                    base.replace('INSS/CPP', 'INSS_CPP'),
+                    base.replace(/\s+/g, ''),
+                    base.replace(/\s+/g, '_'),
+                  ]
+                  for (const k of tests) {
+                    const v = (o as any)[k]
+                    if (typeof v !== 'undefined') return Number(v || 0)
+                  }
+                  return 0
+                }
+                const totMercInt = rows.reduce((acc, [lbl]) => acc + getVal(tmI, lbl), 0)
+                const totMercExt = rows.reduce((acc, [lbl]) => acc + getVal(tmE, lbl), 0)
+                const totServInt = rows.reduce((acc, [lbl]) => acc + getVal(tsI, lbl), 0)
+                const totServExt = rows.reduce((acc, [lbl]) => acc + getVal(tsE, lbl), 0)
+                const catCols = [
+                  { label: 'Mercadorias (interno)', get: (lbl: string) => getVal(tmI, lbl), total: totMercInt, cls: 'text-blue-600' },
+                  { label: 'Mercadorias (externo)', get: (lbl: string) => getVal(tmE, lbl), total: totMercExt, cls: 'text-blue-600' },
+                  { label: 'Serviços (interno)', get: (lbl: string) => getVal(tsI, lbl), total: totServInt, cls: 'text-indigo-600' },
+                  { label: 'Serviços (externo)', get: (lbl: string) => getVal(tsE, lbl), total: totServExt, cls: 'text-indigo-600' },
+                ]
+                const visible = catCols.filter(c => Number(c.total || 0) > 0)
+                const totalGet = (lbl: string) => visible.reduce((acc, c) => acc + Number(c.get(lbl) || 0), 0)
+                const totalSum = Number(totMercInt + totMercExt + totServInt + totServExt)
+                const cols = [...visible, { label: 'Total', get: totalGet, total: totalSum, cls: 'text-slate-900 font-semibold' }]
+                return (
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-slate-700">
+                        <th className="text-left py-1 px-2">Tributo</th>
+                        {cols.map((h, i) => (
+                          <th key={i} className="text-right py-1 px-2">{h.label}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="text-slate-900">
+                      {rows.map(([label], idx) => {
+                        const rowTotal = Number(totalGet(label) || 0)
+                        if (rowTotal <= 0) return null
+                        return (
+                          <tr key={idx} className="border-slate-200">
+                            <td className="py-1 px-2">{label}</td>
+                            {cols.map((c, ci) => {
+                              const cv = Number(c.get(label) || 0)
+                              const isTotal = c.label === 'Total'
+                              const show = isTotal ? true : cv > 0
+                              return <td key={ci} className={`text-right py-1 px-2 ${c.cls}`}>{show ? formatCurrency(cv) : ''}</td>
+                            })}
+                          </tr>
+                        )
+                      })}
+                      <tr className="border-slate-200 font-semibold">
+                        <td className="py-1 px-2">Total</td>
+                        {cols.map((c, ci) => {
+                          const tv = Number(c.total || 0)
+                          const isTotal = c.label === 'Total'
+                          const show = isTotal ? true : tv > 0
+                          return <td key={ci} className={`text-right py-1 px-2 text-blue-600 font-semibold`}>{show ? formatCurrency(tv) : ''}</td>
+                        })}
+                      </tr>
+                    </tbody>
+                  </table>
+                )
+              })()}
+            </CardContent>
+          </Card>
+        )}
+        {data?.tributos && (() => {
+          const trib = data?.tributos || ({} as any)
+          const totalDAS = Number(data?.calculos?.totalDAS || trib?.Total || 0)
+          const items = [
+            { key: 'IRPJ', label: 'IRPJ', color: '#3b82f6' },
+            { key: 'CSLL', label: 'CSLL', color: '#8b5cf6' },
+            { key: 'COFINS', label: 'COFINS', color: '#ec4899' },
+            { key: 'PIS_Pasep', label: 'PIS/PASEP', color: '#f59e0b' },
+            { key: 'INSS_CPP', label: 'INSS/CPP', color: '#10b981' },
+            { key: 'ICMS', label: 'ICMS', color: '#06b6d4' },
+          ].map(it => ({ ...it, value: Number(trib?.[it.key] || 0) }))
+            .filter(it => it.value > 0)
+            .sort((a, b) => b.value - a.value)
+          if (!items.length || totalDAS <= 0) return null
+          const dataChart = {
+            labels: items.map(i => i.label),
+            datasets: [{
+              data: items.map(i => i.value),
+              backgroundColor: items.map(i => i.color),
+              borderColor: '#ffffff',
+              borderWidth: 1,
+              cutout: '70%',
+            }]
+          }
+          const options = {
+            ...CHART_CONFIG,
+            plugins: {
+              ...CHART_CONFIG.plugins,
+              datalabels: {
+                color: '#111827',
+                formatter: (v: number, ctx: any) => {
+                  const label = String(ctx?.chart?.data?.labels?.[ctx?.dataIndex] || '')
+                  const pct = totalDAS > 0 ? ((Number(v) / totalDAS) * 100) : 0
+                  return `${label}: ${formatCurrency(Number(v))} (${pct.toFixed(2)}%)`
+                },
+                align: 'end',
+                anchor: 'end',
+                clamp: true,
+                font: { size: 10, weight: '650' },
+              },
+              legend: { display: false },
+              tooltip: { enabled: true },
+            },
+          } as any
+          const centerText = {
+            id: 'centerText',
+            beforeDraw: (chart: any) => {
+              const { ctx, chartArea } = chart
+              if (!ctx || !chartArea) return
+              const cx = (chartArea.left + chartArea.right) / 2
+              const cy = (chartArea.top + chartArea.bottom) / 2
+              ctx.save()
+              ctx.textAlign = 'center'
+              ctx.fillStyle = '#111827'
+              ctx.font = '700 11px system-ui'
+              ctx.fillText('Total Tributos', cx, cy -7)
+              ctx.font = '700 10px system-ui'
+              ctx.fillText(formatCurrency(totalDAS), cx, cy + 14)
+              ctx.restore()
+            }
+          }
+          return (
+            <Card className="bg-white border-slate-200" style={{ breakInside: 'avoid' }}>
+              <CardHeader>
+                <CardTitle className="text-slate-800">Distribuição de Tributos (DAS)</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+                  <div className="md:col-span-4 lg:col-span-2 space-y-3">
+                    {items.map((it, i) => {
+                      const pct = totalDAS > 0 ? ((it.value / totalDAS) * 100) : 0
+                      return (
+                        <div key={i} className="flex items-center justify-between bg-slate-50 rounded-lg px-2 py-1">
+                          <div className="flex items-center gap-2">
+                            <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: it.color }} />
+                            <div className="text-slate-600 text-xs font-medium">{it.label}</div>
+                          </div>
+                          <div className="text-right text-slate-900 text-xs">
+                            <div>{formatCurrency(it.value)}</div>
+                            <div className="text-slate-500 text-[10px]">{pct.toFixed(2)}%</div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                    <div className="flex items-center justify-between bg-slate-200 rounded-lg px-2 py-2 border border-slate-200">
+                      <div className="flex items-center gap-2">
+                        <span className="inline-block w-3 h-2 rounded-full bg-slate-600" />
+                        <div className="text-slate-700 text-xs font-semibold">TOTAL DAS</div>
+                      </div>
+                      <div className="text-right text-slate-900 text-xs font-semibold">
+                        <div>100%</div>
+                        <div>{formatCurrency(totalDAS)}</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="md:col-span-9 lg:col-span-9 min-h-[300px] flex items-center justify-center">
+                    <Doughnut data={dataChart} options={options} plugins={[centerText]} />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )
+        })()}
         
 
         
@@ -645,4 +851,3 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
     </div>
   )
 })
-import Image from "next/image"

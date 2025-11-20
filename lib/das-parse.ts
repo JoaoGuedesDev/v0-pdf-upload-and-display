@@ -112,6 +112,40 @@ export function processDasData(textRaw: string) {
         Total: toNumber(somaTributosAtividades.total),
       }
 
+      // Split de tributos por Mercadorias/Serviços e Interno/Externo (JSON)
+      const toKey = (s: string) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+      const isExt = (nome: string) => {
+        const k = toKey(nome)
+        if (/(exceto|nao)\s+para\s+o?\s*exterior/.test(k) || /(exceto|nao).*(exterior|externo)/.test(k)) return false
+        return /(para\s+o\s+exterior|mercado\s+externo|para\s+exterior|exportacao)/.test(k)
+      }
+      const isServ = (nome: string) => /(servico|servicos|prestacao)/.test(toKey(nome))
+      const baseMap = () => ({ IRPJ: 0, CSLL: 0, COFINS: 0, PIS_PASEP: 0, INSS_CPP: 0, ICMS: 0, IPI: 0, ISS: 0 })
+      const addTrib = (map: any, t: any) => {
+        map.IRPJ += toNumber(t?.irpj)
+        map.CSLL += toNumber(t?.csll)
+        map.COFINS += toNumber(t?.cofins)
+        map.PIS_PASEP += toNumber(t?.pis)
+        map.INSS_CPP += toNumber(t?.inss_cpp)
+        map.ICMS += toNumber(t?.icms)
+        map.IPI += toNumber(t?.ipi)
+        map.ISS += toNumber(t?.iss)
+      }
+      const mInt = baseMap()
+      const mExt = baseMap()
+      const sInt = baseMap()
+      const sExt = baseMap()
+      for (const at of atividades) {
+        const nomeAt = String(at?.nome || at?.name || at?.descricao || '')
+        const ext = isExt(nomeAt)
+        const serv = isServ(nomeAt)
+        const trib = at?.tributos || {}
+        if (serv && ext) addTrib(sExt, trib)
+        else if (serv && !ext) addTrib(sInt, trib)
+        else if (!serv && ext) addTrib(mExt, trib)
+        else addTrib(mInt, trib)
+      }
+
       const valorDAS = tribDecl.Total
 
       const moneyBR = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
@@ -166,6 +200,10 @@ export function processDasData(textRaw: string) {
             },
           },
           tributos: tribDecl,
+          tributosMercadoriasInterno: mInt,
+          tributosMercadoriasExterno: mExt,
+          tributosServicosInterno: sInt,
+          tributosServicosExterno: sExt,
           cenario,
           valorTotalDAS: valorDAS,
           valorTotalDASFormatado: moneyBR(valorDAS),
@@ -564,7 +602,11 @@ export function processDasData(textRaw: string) {
   })()
 
   const toKey = (s: string) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
-  const isExt = (nome: string) => /(para\s+o\s+exterior|para\s+exterior|mercado\s+externo|exterior|externo)/.test(toKey(nome))
+  const isExt = (nome: string) => {
+    const k = toKey(nome)
+    if (/(exceto|nao)\s+para\s+o?\s*exterior/.test(k) || /(exceto|nao).*(exterior|externo)/.test(k)) return false
+    return /(para\s+o\s+exterior|mercado\s+externo|para\s+exterior|exportacao)/.test(k)
+  }
   const isServ = (nome: string) => /(servico|servicos|prestacao)/.test(toKey(nome))
   const baseMap = () => ({ IRPJ: 0, CSLL: 0, COFINS: 0, PIS_PASEP: 0, INSS_CPP: 0, ICMS: 0, IPI: 0, ISS: 0 })
   const addTrib = (map: any, t: any) => {
