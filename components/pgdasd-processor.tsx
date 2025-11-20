@@ -488,12 +488,12 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
           />
         )}
         {((data?.graficos?.receitaMensal) || (data?.graficos?.receitaLine) || (data as any)?.historico) && (
-          <Card className="bg-white border-slate-200" style={{ breakInside: 'avoid' }}>
-            <CardHeader className="py-1">
+          <Card className="bg-white border-slate-200 py-1 gap-1" style={{ breakInside: 'avoid' }}>
+            <CardHeader className="pt-1 pb-0">
               <CardTitle className="text-slate-800">Receita Mensal (R$)</CardTitle>
               <CardDescription>Mercado Interno e Externo</CardDescription>
             </CardHeader>
-            <CardContent className="py-1">
+            <CardContent className="pt-0 pb-0">
               {(() => {
                 const serieA = data.graficos?.receitaMensal
                 const serieMI = data.graficos?.receitaLine

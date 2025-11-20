@@ -138,7 +138,7 @@ export const GraficoReceitaMensal = memo(function GraficoReceitaMensal({
   const options: ChartOptions<'bar'> = useMemo(() => ({
     ...CHART_CONFIG,
     animation: false,
-    layout: { padding: { top: 130, bottom: 1 } },
+    layout: { padding: { top: 24, bottom: 1 } },
     plugins: {
       ...CHART_CONFIG.plugins,
       legend: {
