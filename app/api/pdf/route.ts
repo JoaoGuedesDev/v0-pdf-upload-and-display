@@ -25,25 +25,33 @@ function parseQuery(req: NextRequest) {
   return { path, w, h, scale, type }
 }
 
+function getOrigin(req: NextRequest): string {
+  try {
+    const hs = req.headers
+    const host = hs.get('host') || process.env.VERCEL_URL || 'localhost:3000'
+    const proto = hs.get('x-forwarded-proto') || 'https'
+    const origin = host.includes('http') ? host : `${proto}://${host}`
+    return origin
+  } catch {
+    return typeof process !== 'undefined' && process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : ''
+  }
+}
+
 export async function GET(req: NextRequest) {
   const { path: pathQ, w, h, scale, type } = parseQuery(req)
   const pathFixed = pathQ.startsWith('/') ? pathQ : `/${pathQ}`
-  const origin = process.env.VERCEL_URL
-    ? `https://${process.env.VERCEL_URL}`
-    : `${process.env.NEXT_PUBLIC_SITE_URL || ''}`
-  const base = origin || `${req.nextUrl.origin}`
+  const base = getOrigin(req) || (process.env.NEXT_PUBLIC_SITE_URL || `${req.nextUrl.origin}`)
   const target = `${base}${pathFixed}`
 
-  const { puppeteer, core } = await getPuppeteer()
+  const { puppeteer } = await getPuppeteer()
   const chromiumMod = await getChromium()
   const chrome: any = await chromiumMod
-  const executablePath: string | undefined = await chrome.executablePath().catch(() => undefined)
-  const isServerlessChromium = !!executablePath
-  const args = isServerlessChromium ? chrome.args : ['--no-sandbox','--disable-setuid-sandbox']
+  const executablePath: string = await chrome.executablePath()
+  const args = chrome.args
   const defaultViewport = { width: w, height: h, deviceScaleFactor: scale }
   const browser = await puppeteer.launch({
     args,
-    headless: true,
+    headless: (typeof chrome.headless === 'boolean') ? chrome.headless : true,
     defaultViewport,
     executablePath,
   })
@@ -52,7 +60,7 @@ export async function GET(req: NextRequest) {
     const page = await browser.newPage()
     await page.emulateMediaType('screen')
     await page.goto(target, { waitUntil: 'domcontentloaded', timeout: 120000 })
-    await new Promise((r) => setTimeout(r, 500))
+    try { await page.waitForNetworkIdle({ idleTime: 500, timeout: 5000 }) } catch {}
 
     const size = await page.evaluate(() => ({
       w: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth, window.innerWidth),
@@ -78,7 +86,7 @@ export async function GET(req: NextRequest) {
   } catch (err: any) {
     const msg = err?.message || 'Erro ao gerar PDF'
     const details = err?.stack || String(err)
-    return NextResponse.json({ error: msg, target, details, executablePath }, { status: 500 })
+    return NextResponse.json({ error: msg, target, details }, { status: 500 })
   } finally {
     await browser.close()
   }
