@@ -8,7 +8,7 @@ import path from 'node:path'
 
 async function getPuppeteer() {
   const mod = await import('puppeteer-core')
-  return { puppeteer: mod.default || (mod as any), core: true }
+  return { puppeteer: (mod as any).default || (mod as any), core: true }
 }
 
 function getChromium() {
@@ -37,30 +37,15 @@ export async function GET(req: NextRequest) {
   const { puppeteer, core } = await getPuppeteer()
   const chromiumMod = await getChromium()
   const chrome: any = await chromiumMod
-  let executablePath: string | undefined
-  try {
-    executablePath = core ? await chrome.executablePath() : undefined
-  } catch {}
-  if (!executablePath && process.platform === 'win32') {
-    const candidates = [
-      'C:/Program Files/Google/Chrome/Application/chrome.exe',
-      'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe',
-      'C:/Users/Default/AppData/Local/Google/Chrome/Application/chrome.exe',
-      'C:/Program Files/Microsoft/Edge/Application/msedge.exe',
-      'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
-    ]
-    for (const pth of candidates) {
-      try { if (fs.existsSync(pth)) { executablePath = pth; break } } catch {}
-    }
-  }
-
-  const usingLocalBrowser = !!executablePath && typeof executablePath === 'string' && !/chromium/i.test(executablePath)
+  const executablePath: string | undefined = await chrome.executablePath().catch(() => undefined)
+  const isServerlessChromium = !!executablePath
+  const args = isServerlessChromium ? chrome.args : ['--no-sandbox','--disable-setuid-sandbox']
+  const defaultViewport = { width: w, height: h, deviceScaleFactor: scale }
   const browser = await puppeteer.launch({
-    args: usingLocalBrowser ? ['--no-sandbox','--disable-setuid-sandbox'] : chrome.args,
-    headless: chrome.headless,
-    defaultViewport: { width: w, height: h, deviceScaleFactor: scale },
+    args,
+    headless: true,
+    defaultViewport,
     executablePath,
-    ignoreDefaultArgs: [ '--enable-automation' ],
   })
 
   try {
@@ -75,8 +60,8 @@ export async function GET(req: NextRequest) {
     }))
 
     const pdf = await page.pdf({
-      width: `${size.w}px`,
-      height: `${type === 'screen' ? size.h : h}px`,
+      width: `${Math.max(size.w, w)}px`,
+      height: `${type === 'screen' ? Math.max(size.h, h) : h}px`,
       printBackground: true,
       preferCSSPageSize: true,
       timeout: 120000,
