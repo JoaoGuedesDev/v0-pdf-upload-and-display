@@ -5,6 +5,17 @@ import crypto from 'node:crypto'
 
 async function kvSet(key: string, value: string): Promise<boolean> {
   try {
+    const url = process.env.UPSTASH_REDIS_REST_URL || process.env.UPSTASH_REDIS_URL || ''
+    const token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.UPSTASH_REDIS_TOKEN || ''
+    if (url && token) {
+      const res = await fetch(`${url.replace(/\/$/, '')}/set/${encodeURIComponent(key)}/${encodeURIComponent(value)}`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+      })
+      return res.ok
+    }
+  } catch {}
+  try {
     const url = process.env.KV_REST_API_URL || ''
     const token = process.env.KV_REST_API_TOKEN || ''
     if (url && token) {
@@ -16,39 +27,10 @@ async function kvSet(key: string, value: string): Promise<boolean> {
       return res.ok
     }
   } catch {}
-  try {
-    const url = process.env.UPSTASH_REDIS_REST_URL || process.env.UPSTASH_REDIS_URL || ''
-    const token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.UPSTASH_REDIS_TOKEN || ''
-    if (url && token) {
-      const res = await fetch(`${url.replace(/\/$/, '')}/set/${encodeURIComponent(key)}/${encodeURIComponent(value)}`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
-      })
-      return res.ok
-    }
-  } catch {}
   return false
 }
 
 async function kvGet(key: string): Promise<string | null> {
-  try {
-    const url = process.env.KV_REST_API_URL || ''
-    const token = process.env.KV_REST_API_TOKEN || ''
-    if (url && token) {
-      const res = await fetch(`${url.replace(/\/$/, '')}/get/${encodeURIComponent(key)}`, {
-        method: 'GET',
-        headers: { 'Authorization': `Bearer ${token}` },
-      })
-      if (!res.ok) return null
-      const ct = res.headers.get('content-type') || ''
-      if (ct.includes('application/json')) {
-        const j = await res.json().catch(() => null)
-        const v = j?.value ?? j?.result ?? null
-        return typeof v === 'string' ? v : (v ? JSON.stringify(v) : null)
-      }
-      return await res.text()
-    }
-  } catch {}
   try {
     const url = process.env.UPSTASH_REDIS_REST_URL || process.env.UPSTASH_REDIS_URL || ''
     const token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.UPSTASH_REDIS_TOKEN || ''
@@ -67,6 +49,24 @@ async function kvGet(key: string): Promise<string | null> {
       } catch {
         return txt
       }
+    }
+  } catch {}
+  try {
+    const url = process.env.KV_REST_API_URL || ''
+    const token = process.env.KV_REST_API_TOKEN || ''
+    if (url && token) {
+      const res = await fetch(`${url.replace(/\/$/, '')}/get/${encodeURIComponent(key)}`, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${token}` },
+      })
+      if (!res.ok) return null
+      const ct = res.headers.get('content-type') || ''
+      if (ct.includes('application/json')) {
+        const j = await res.json().catch(() => null)
+        const v = j?.value ?? j?.result ?? null
+        return typeof v === 'string' ? v : (v ? JSON.stringify(v) : null)
+      }
+      return await res.text()
     }
   } catch {}
   return null
