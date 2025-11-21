@@ -73,7 +73,9 @@ export async function POST(request: NextRequest) {
               }
               const parsedLocal = processDasData(textLocal)
               const shareLocal = await persistShare(parsedLocal)
-              return NextResponse.json({ ...parsedLocal, dashboardUrl: shareLocal.url, dashboardCode: shareLocal.code })
+              const origin = getOrigin(request)
+              const pdfUrl = `${origin}/api/pdf?path=${encodeURIComponent(shareLocal.url)}&type=screen&w=1280&scale=1`
+              return NextResponse.json({ ...parsedLocal, dashboardUrl: shareLocal.url, dashboardCode: shareLocal.code, pdfUrl })
             } catch (e) {
               return NextResponse.json({ error: "Falha no n8n e erro ao processar localmente", details: e instanceof Error ? e.message : String(e) }, { status: res.status || 502 })
             }
@@ -97,18 +99,24 @@ export async function POST(request: NextRequest) {
               const isNormalized = json && typeof json === 'object' && ('success' in json) && ('dados' in json)
               if (isNormalized) {
                 const share = await persistShare(json)
-                return NextResponse.json({ ...json, dashboardUrl: share.url, dashboardCode: share.code })
+                const origin = getOrigin(request)
+                const pdfUrl = `${origin}/api/pdf?path=${encodeURIComponent(share.url)}&type=screen&w=1280&scale=1`
+                return NextResponse.json({ ...json, dashboardUrl: share.url, dashboardCode: share.code, pdfUrl })
               }
               const normalized = processDasData(JSON.stringify(json))
               const share = await persistShare(normalized)
-              return NextResponse.json({ ...normalized, dashboardUrl: share.url, dashboardCode: share.code })
+              const origin = getOrigin(request)
+              const pdfUrl = `${origin}/api/pdf?path=${encodeURIComponent(share.url)}&type=screen&w=1280&scale=1`
+              return NextResponse.json({ ...normalized, dashboardUrl: share.url, dashboardCode: share.code, pdfUrl })
             } catch (e) {
             }
           }
           // Fallback: tentar processar texto bruto como DAS
           const parsed = processDasData(bodyText)
           const share = await persistShare(parsed)
-          return NextResponse.json({ ...parsed, dashboardUrl: share.url, dashboardCode: share.code })
+          const origin = getOrigin(request)
+          const pdfUrl = `${origin}/api/pdf?path=${encodeURIComponent(share.url)}&type=screen&w=1280&scale=1`
+          return NextResponse.json({ ...parsed, dashboardUrl: share.url, dashboardCode: share.code, pdfUrl })
         } catch (e) {
           console.error("[v0-n8n] Erro ao encaminhar ao n8n:", e)
           // Fallback: processamento local quando não foi possível contatar o n8n
@@ -124,7 +132,9 @@ export async function POST(request: NextRequest) {
             }
             const parsedLocal = processDasData(textLocal)
             const shareLocal = await persistShare(parsedLocal)
-            return NextResponse.json({ ...parsedLocal, dashboardUrl: shareLocal.url, dashboardCode: shareLocal.code })
+            const origin = getOrigin(request)
+            const pdfUrl = `${origin}/api/pdf?path=${encodeURIComponent(shareLocal.url)}&type=screen&w=1280&scale=1`
+            return NextResponse.json({ ...parsedLocal, dashboardUrl: shareLocal.url, dashboardCode: shareLocal.code, pdfUrl })
           } catch (err) {
             return NextResponse.json({ error: "Erro ao contatar n8n e falha ao processar localmente", details: err instanceof Error ? err.message : String(err) }, { status: 502 })
           }
@@ -152,7 +162,9 @@ export async function POST(request: NextRequest) {
 
       const dasData = processDasData(text)
       const share = await persistShare(dasData)
-      return NextResponse.json({ ...dasData, dashboardUrl: share.url, dashboardCode: share.code })
+      const origin = getOrigin(request)
+      const pdfUrl = `${origin}/api/pdf?path=${encodeURIComponent(share.url)}&type=screen&w=1280&scale=1`
+      return NextResponse.json({ ...dasData, dashboardUrl: share.url, dashboardCode: share.code, pdfUrl })
     }
 
     // Caso 2: JSON com campo { text }
@@ -177,22 +189,33 @@ export async function POST(request: NextRequest) {
           // Fallback: processar localmente
           const parsedLocal = processDasData(text)
           const shareLocal = await persistShare(parsedLocal)
-          return NextResponse.json({ ...parsedLocal, dashboardUrl: shareLocal.url, dashboardCode: shareLocal.code })
+          const origin = getOrigin(request)
+          const pdfUrl = `${origin}/api/pdf?path=${encodeURIComponent(shareLocal.url)}&type=screen&w=1280&scale=1`
+          return NextResponse.json({ ...parsedLocal, dashboardUrl: shareLocal.url, dashboardCode: shareLocal.code, pdfUrl })
         }
         if (ct.includes("application/json")) {
           try {
             const json = JSON.parse(bodyText)
             const isNormalized = json && typeof json === 'object' && ('success' in json) && ('dados' in json)
             if (isNormalized) {
-              return NextResponse.json(json)
+              const share = await persistShare(json)
+              const origin = getOrigin(request)
+              const pdfUrl = `${origin}/api/pdf?path=${encodeURIComponent(share.url)}&type=screen&w=1280&scale=1`
+              return NextResponse.json({ ...json, dashboardUrl: share.url, dashboardCode: share.code, pdfUrl })
             }
             const normalized = processDasData(JSON.stringify(json))
-            return NextResponse.json(normalized)
+            const share = await persistShare(normalized)
+            const origin = getOrigin(request)
+            const pdfUrl = `${origin}/api/pdf?path=${encodeURIComponent(share.url)}&type=screen&w=1280&scale=1`
+            return NextResponse.json({ ...normalized, dashboardUrl: share.url, dashboardCode: share.code, pdfUrl })
           } catch (e) {
           }
         }
         const parsed = processDasData(bodyText)
-        return NextResponse.json(parsed)
+        const share = await persistShare(parsed)
+        const origin = getOrigin(request)
+        const pdfUrl = `${origin}/api/pdf?path=${encodeURIComponent(share.url)}&type=screen&w=1280&scale=1`
+        return NextResponse.json({ ...parsed, dashboardUrl: share.url, dashboardCode: share.code, pdfUrl })
       } catch (e) {
         console.error("[v0-n8n] Erro ao encaminhar ao n8n:", e)
         // Fallback: processamento local
@@ -203,7 +226,9 @@ export async function POST(request: NextRequest) {
     }
     const dasData = processDasData(text)
     const share = await persistShare(dasData)
-    return NextResponse.json({ ...dasData, dashboardUrl: share.url, dashboardCode: share.code })
+    const origin = getOrigin(request)
+    const pdfUrl = `${origin}/api/pdf?path=${encodeURIComponent(share.url)}&type=screen&w=1280&scale=1`
+    return NextResponse.json({ ...dasData, dashboardUrl: share.url, dashboardCode: share.code, pdfUrl })
   } catch (error) {
     console.error("[v0] Erro ao processar:", error)
     return NextResponse.json(
@@ -241,5 +266,17 @@ async function persistShare(payload: any): Promise<{ code: string; url: string; 
       const code = String(Math.floor(1000 + Math.random() * 9000))
       return { code, url: `/d/${code}`, filePath: "" }
     }
+  }
+}
+
+function getOrigin(req: NextRequest): string {
+  try {
+    const hs = req.headers
+    const host = hs.get('host') || process.env.VERCEL_URL || 'localhost:3000'
+    const proto = hs.get('x-forwarded-proto') || 'https'
+    const origin = host.includes('http') ? host : `${proto}://${host}`
+    return origin
+  } catch {
+    return typeof process !== 'undefined' && process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : ''
   }
 }

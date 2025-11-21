@@ -47,9 +47,3 @@ export default function Home() {
     </main>
   )
 }
-import Image from "next/image"
-        <div className="flex justify-between items-center">
-          <div className="space-y-1">
-            <Image src="/integra-logo.svg" alt="Integra" width={160} height={48} className="h-10 sm:h-12 w-auto object-contain" />
-          </div>
-        </div>
