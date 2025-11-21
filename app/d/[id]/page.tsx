@@ -53,12 +53,12 @@ export default async function Page({ params }: any) {
     )
   }
 
-  const initialData = {
-    ...(data?.dados || {}),
-    graficos: data?.graficos || {},
+  const initialData = data && data.dados ? {
+    ...data.dados,
+    graficos: data.graficos || {},
     debug: (data as any)?.debug,
     calculos: (data as any)?.calculos,
-  }
+  } : undefined
 
   return (
     <main className="px-6 py-4">
