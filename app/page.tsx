@@ -10,61 +10,29 @@ export default function Home() {
     try {
       setLoading(true)
       const form = new FormData()
-      form.append("pdf", file)
-      const envFlag = String(process.env.NEXT_PUBLIC_USE_N8N || "").toLowerCase()
-      const hasWebhook = !!process.env.NEXT_PUBLIC_N8N_UPLOAD_WEBHOOK_URL
-      const useN8N = hasWebhook || ["1","true","yes","n8n"].includes(envFlag)
-      const url = useN8N ? "/api/upload?n8n=1" : "/api/upload"
-      const res = await fetch(url, { method: "POST", body: form, redirect: "follow" })
-      if (res.redirected && res.url) {
+      form.append("file", file)
+      const res = await fetch("/api/process-pdf", { method: "POST", body: form })
+      if (!res.ok) throw new Error("Falha ao processar PDF via n8n")
+      const data = await res.json().catch(() => null)
+      const url2 = data?.dashboardUrl || data?.redirect || data?.url
+      const id = data?.dashboardCode || data?.id || data?.shareId || data?.dashboardId
+      if (url2) {
         const target = (() => {
           try {
-            const u = new URL(res.url)
-            const sameOrigin = u.origin === window.location.origin
-            return sameOrigin ? res.url : `${window.location.origin}${u.pathname}${u.search}${u.hash}`
-          } catch {
-            return res.url
-          }
-        })()
-        window.location.assign(target)
-        return
-      }
-      const redirectedUrl = res.headers.get("Location") || ((res.url && res.url !== window.location.href) ? res.url : null)
-      if (redirectedUrl) {
-        const target = (() => {
-          try {
-            const u = new URL(redirectedUrl, window.location.origin)
+            const u = new URL(url2, window.location.origin)
             const sameOrigin = u.origin === window.location.origin
             return sameOrigin ? u.toString() : `${window.location.origin}${u.pathname}${u.search}${u.hash}`
           } catch {
-            return redirectedUrl
+            return url2
           }
         })()
         window.location.assign(target)
         return
       }
-      try {
-        const data = await res.json()
-        const url2 = data?.redirect || data?.url
-        const id = data?.id || data?.shareId || data?.dashboardId
-        if (url2) {
-          const target = (() => {
-            try {
-              const u = new URL(url2, window.location.origin)
-              const sameOrigin = u.origin === window.location.origin
-              return sameOrigin ? u.toString() : `${window.location.origin}${u.pathname}${u.search}${u.hash}`
-            } catch {
-              return url2
-            }
-          })()
-          window.location.assign(target)
-          return
-        }
-        if (id) {
-          window.location.assign(`/d/${id}`)
-          return
-        }
-      } catch {}
+      if (id) {
+        window.location.assign(`/d/${id}`)
+        return
+      }
     } finally {
       setLoading(false)
     }

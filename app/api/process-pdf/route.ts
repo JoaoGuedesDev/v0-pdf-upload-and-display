@@ -80,9 +80,20 @@ export async function POST(request: NextRequest) {
           }
           if (ct.includes("application/json")) {
             try {
-              const json = JSON.parse(bodyText)
-              // Normalizar sempre para o formato esperado pela UI
-              // Se já estiver normalizado (tem 'success'/'dados'), retornamos como está; caso contrário, convertemos.
+              const parsed = JSON.parse(bodyText)
+              const unwrap = (x: any): any => {
+                if (!x) return x
+                if (Array.isArray(x)) {
+                  const first = x[0]
+                  return unwrap(first)
+                }
+                if (typeof x === 'object') {
+                  if ('json' in x) return unwrap((x as any).json)
+                  if ('data' in x) return unwrap((x as any).data)
+                }
+                return x
+              }
+              const json = unwrap(parsed)
               const isNormalized = json && typeof json === 'object' && ('success' in json) && ('dados' in json)
               if (isNormalized) {
                 const share = await persistShare(json)

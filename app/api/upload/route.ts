@@ -43,14 +43,17 @@ export async function POST(req: NextRequest) {
     const urlObj = new URL(req.url)
     const forceN8N = ['1','true','yes','n8n'].includes(String(urlObj.searchParams.get('n8n') || '').toLowerCase())
       || ['n8n','1','true','yes'].includes(String(urlObj.searchParams.get('use') || '').toLowerCase())
+    const webhookFromQuery = String(urlObj.searchParams.get('webhook') || '').trim()
     const webhookCandidate = String(
       process.env.N8N_UPLOAD_WEBHOOK_URL
       || process.env.N8N_WEBHOOK_URL
       || ''
     ).trim()
     const publicWebhook = String(process.env.NEXT_PUBLIC_N8N_UPLOAD_WEBHOOK_URL || '').trim()
-    const webhook = (webhookCandidate || publicWebhook)
-    if (webhook || forceN8N) {
+    const defaultWebhook = 'https://n8n.jjinnovai.me/webhook/processar-pgdasd'
+    const webhook = (webhookFromQuery || webhookCandidate || publicWebhook)
+    const target = webhook || (forceN8N ? defaultWebhook : '')
+    if (target) {
       const fd = new FormData()
       const name = (file as any).name || 'documento.pdf'
       const mime = (file as any).type || 'application/pdf'
@@ -63,7 +66,6 @@ export async function POST(req: NextRequest) {
       fd.append('mimetype', mime)
       fd.append('size', String(size))
       fd.append('source', 'dashboard-das')
-      const target = webhook || publicWebhook
       const r2 = await fetch(String(target), { method: 'POST', body: fd, redirect: 'follow', headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } })
       const loc = r2.headers.get('Location')
       if (r2.redirected && r2.url) {
@@ -76,7 +78,24 @@ export async function POST(req: NextRequest) {
       const ct = r2.headers.get('content-type') || ''
       const bodyText = await r2.text().catch(() => '')
       let data: any = null
-      try { data = ct.includes('application/json') ? JSON.parse(bodyText) : null } catch {}
+      try {
+        if (ct.includes('application/json')) {
+          const parsed = JSON.parse(bodyText)
+          const unwrap = (x: any): any => {
+            if (!x) return x
+            if (Array.isArray(x)) {
+              const first = x[0]
+              return unwrap(first)
+            }
+            if (typeof x === 'object') {
+              if ('json' in x) return unwrap((x as any).json)
+              if ('data' in x) return unwrap((x as any).data)
+            }
+            return x
+          }
+          data = unwrap(parsed)
+        }
+      } catch {}
       const idFromData = data?.id || data?.shareId || data?.dashboardId
       const redirectUrl = data?.redirect || data?.url
       if (redirectUrl) {
@@ -99,7 +118,8 @@ export async function POST(req: NextRequest) {
             return null
           })()
           if (payload) {
-            const normalized = typeof payload === 'string' ? processDasData(payload) : (('success' in payload && 'dados' in payload) ? payload : processDasData(JSON.stringify(payload)))
+            const isNormalized = typeof payload === 'object' && payload && ('success' in (payload as any)) && ('dados' in (payload as any))
+            const normalized = typeof payload === 'string' ? processDasData(payload) : (isNormalized ? payload : processDasData(JSON.stringify(payload)))
             const genId = await saveDashboard(normalized, 60)
             return NextResponse.redirect(new URL(`/d/${genId}`, req.url), { status: 303 })
           }
