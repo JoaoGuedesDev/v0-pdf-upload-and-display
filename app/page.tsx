@@ -17,12 +17,30 @@ export default function Home() {
       const url = useN8N ? "/api/upload?n8n=1" : "/api/upload"
       const res = await fetch(url, { method: "POST", body: form, redirect: "follow" })
       if (res.redirected && res.url) {
-        window.location.assign(res.url)
+        const target = (() => {
+          try {
+            const u = new URL(res.url)
+            const sameOrigin = u.origin === window.location.origin
+            return sameOrigin ? res.url : `${window.location.origin}${u.pathname}${u.search}${u.hash}`
+          } catch {
+            return res.url
+          }
+        })()
+        window.location.assign(target)
         return
       }
       const redirectedUrl = res.headers.get("Location") || ((res.url && res.url !== window.location.href) ? res.url : null)
       if (redirectedUrl) {
-        window.location.assign(redirectedUrl)
+        const target = (() => {
+          try {
+            const u = new URL(redirectedUrl, window.location.origin)
+            const sameOrigin = u.origin === window.location.origin
+            return sameOrigin ? u.toString() : `${window.location.origin}${u.pathname}${u.search}${u.hash}`
+          } catch {
+            return redirectedUrl
+          }
+        })()
+        window.location.assign(target)
         return
       }
       try {
@@ -30,7 +48,16 @@ export default function Home() {
         const url2 = data?.redirect || data?.url
         const id = data?.id || data?.shareId || data?.dashboardId
         if (url2) {
-          window.location.assign(url2)
+          const target = (() => {
+            try {
+              const u = new URL(url2, window.location.origin)
+              const sameOrigin = u.origin === window.location.origin
+              return sameOrigin ? u.toString() : `${window.location.origin}${u.pathname}${u.search}${u.hash}`
+            } catch {
+              return url2
+            }
+          })()
+          window.location.assign(target)
           return
         }
         if (id) {
