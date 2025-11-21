@@ -577,7 +577,23 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                   }
                   const miMap = toMap(historicoMI)
                   const meMap = toMap(historicoME)
-                  const labels = Array.from(new Set<string>([...Object.keys(miMap), ...Object.keys(meMap)])).sort()
+                  const rawLabels = Array.from(new Set<string>([...Object.keys(miMap), ...Object.keys(meMap)]))
+                  const monthIdx = (m: string) => {
+                    const map: Record<string, number> = { jan:1, fev:2, mar:3, abr:4, mai:5, jun:6, jul:7, ago:8, set:9, out:10, nov:11, dez:12 }
+                    const k = String(m||'').trim().slice(0,3).toLowerCase()
+                    return map[k] || 0
+                  }
+                  const toKey = (s: string, i: number) => {
+                    const mmYYYY = s.match(/^(\d{1,2})\/(\d{4})$/)
+                    if (mmYYYY) { const mm = Number(mmYYYY[1]); const yy = Number(mmYYYY[2]); return yy*100 + mm }
+                    const yDashM = s.match(/^(\d{4})-(\d{1,2})$/)
+                    if (yDashM) { const yy = Number(yDashM[1]); const mm = Number(yDashM[2]); return yy*100 + mm }
+                    const monYear = s.match(/^([A-Za-zÀ-ÿ]{3,})\s*\/?\s*(\d{4})$/)
+                    if (monYear) { const mm = monthIdx(monYear[1]); const yy = Number(monYear[2]); return yy*100 + mm }
+                    const mm = monthIdx(s); if (mm>0) return 2000*100 + mm
+                    return i
+                  }
+                  const labels = rawLabels.sort((a, b) => toKey(a, rawLabels.indexOf(a)) - toKey(b, rawLabels.indexOf(b)))
                   const values = labels.map((l) => (miMap[l] || 0))
                   const externo = { labels, values: labels.map((l) => meMap[l] || 0) }
                   const merged = { labels, values, externo }
@@ -592,7 +608,23 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                   const miLabels = (serieMI?.labels || []) as string[]
                   const meVals = (serieME?.values || []).map(parseNumber)
                   const meLabels = (serieME?.labels || []) as string[]
-                  const labels = Array.from(new Set<string>([...miLabels, ...meLabels])).sort()
+                  const rawLabels2 = Array.from(new Set<string>([...miLabels, ...meLabels]))
+                  const monthIdx2 = (m: string) => {
+                    const map: Record<string, number> = { jan:1, fev:2, mar:3, abr:4, mai:5, jun:6, jul:7, ago:8, set:9, out:10, nov:11, dez:12 }
+                    const k = String(m||'').trim().slice(0,3).toLowerCase()
+                    return map[k] || 0
+                  }
+                  const toKey2 = (s: string, i: number) => {
+                    const mmYYYY = s.match(/^(\d{1,2})\/(\d{4})$/)
+                    if (mmYYYY) { const mm = Number(mmYYYY[1]); const yy = Number(mmYYYY[2]); return yy*100 + mm }
+                    const yDashM = s.match(/^(\d{4})-(\d{1,2})$/)
+                    if (yDashM) { const yy = Number(yDashM[1]); const mm = Number(yDashM[2]); return yy*100 + mm }
+                    const monYear = s.match(/^([A-Za-zÀ-ÿ]{3,})\s*\/?\s*(\d{4})$/)
+                    if (monYear) { const mm = monthIdx2(monYear[1]); const yy = Number(monYear[2]); return yy*100 + mm }
+                    const mm = monthIdx2(s); if (mm>0) return 2000*100 + mm
+                    return i
+                  }
+                  const labels = rawLabels2.sort((a, b) => toKey2(a, rawLabels2.indexOf(a)) - toKey2(b, rawLabels2.indexOf(b)))
                   const miMap: Record<string, number> = {}
                   const meMap: Record<string, number> = {}
                   miLabels.forEach((l, i) => { miMap[l] = miVals[i] || 0 })

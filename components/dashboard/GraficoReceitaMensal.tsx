@@ -103,10 +103,58 @@ export const GraficoReceitaMensal = memo(function GraficoReceitaMensal({
       return v > TH ? v : null
     })
 
+    const monthIndex = (m: string) => {
+      const map: Record<string, number> = {
+        jan: 1, fev: 2, mar: 3, abr: 4, mai: 5, jun: 6,
+        jul: 7, ago: 8, set: 9, out: 10, nov: 11, dez: 12,
+      }
+      const k = String(m || '').trim().slice(0,3).toLowerCase()
+      return map[k] || 0
+    }
+    const labelToKey = (s: string, i: number) => {
+      const mmYYYY = s.match(/^(\d{1,2})\/(\d{4})$/)
+      if (mmYYYY) {
+        const mm = Number(mmYYYY[1])
+        const yy = Number(mmYYYY[2])
+        return yy * 100 + mm
+      }
+      const yDashM = s.match(/^(\d{4})-(\d{1,2})$/)
+      if (yDashM) {
+        const yy = Number(yDashM[1])
+        const mm = Number(yDashM[2])
+        return yy * 100 + mm
+      }
+      const monYear = s.match(/^([A-Za-zÀ-ÿ]{3,})\s*\/?\s*(\d{4})$/)
+      if (monYear) {
+        const mm = monthIndex(monYear[1])
+        const yy = Number(monYear[2])
+        return yy * 100 + mm
+      }
+      const mm = monthIndex(s)
+      if (mm > 0) return 2000 * 100 + mm
+      return i
+    }
+    const items = labels.map((l, i) => ({
+      label: l,
+      ext: Number(externaData[i] ?? 0) || 0,
+      int: Number(internaData[i] ?? 0) || 0,
+      key: labelToKey(l, i),
+    }))
+    const sorted = items.sort((a, b) => a.key - b.key)
+    const labelsSorted = sorted.map(it => it.label)
+    const externaSorted = sorted.map(it => {
+      const v = it.ext
+      return v > TH ? v : null
+    })
+    const internaSorted = sorted.map(it => {
+      const v = it.int
+      return v > TH ? v : null
+    })
+
     const datasets = [
       {
         label: 'Mercado Externo',
-        data: externaData,
+        data: externaSorted,
         backgroundColor: '#a183f573',
         borderColor: '#000000ff',
         borderWidth: 1,
@@ -119,7 +167,7 @@ export const GraficoReceitaMensal = memo(function GraficoReceitaMensal({
       },
       {
         label: 'Mercado Interno',
-        data: internaData,
+        data: internaSorted,
         backgroundColor: '#61a0f1ff',
         borderColor: '#200466ff',
         borderWidth: 0,
@@ -132,7 +180,7 @@ export const GraficoReceitaMensal = memo(function GraficoReceitaMensal({
       },
     ]
 
-    return { labels, datasets };
+    return { labels: labelsSorted, datasets };
   }, [data]);
 
   const options: ChartOptions<'bar'> = useMemo(() => ({
