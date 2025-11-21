@@ -29,10 +29,7 @@ export default function Home() {
         window.location.assign(target)
         return
       }
-      if (id) {
-        window.location.assign(`/d/${id}`)
-        return
-      }
+      // Evita navegar por id sem URL quando a persistência não está pronta (ex.: Vercel sem KV)
     } finally {
       setLoading(false)
     }
