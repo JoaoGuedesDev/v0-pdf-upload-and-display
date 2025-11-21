@@ -3,8 +3,8 @@ import { Geist, Geist_Mono } from 'next/font/google'
 import './globals.css'
 import { Toaster as AppToaster } from '@/components/ui/toaster'
 
-const _geist = Geist({ subsets: ["latin"], preload: false });
-const _geistMono = Geist_Mono({ subsets: ["latin"], preload: false });
+const _geist = Geist({ subsets: ["latin"], preload: true });
+const _geistMono = Geist_Mono({ subsets: ["latin"], preload: true });
 
 export const metadata: Metadata = {
   title: 'v0 App',
@@ -23,7 +23,7 @@ export default function RootLayout({
 
   return (
     <html lang="pt-BR" suppressHydrationWarning>
-      <body className={`font-sans antialiased bg-background text-foreground`}>
+      <body className={`${_geist.className} ${_geistMono.className} font-sans antialiased bg-background text-foreground`}>
         {children}
         <AppToaster />
         

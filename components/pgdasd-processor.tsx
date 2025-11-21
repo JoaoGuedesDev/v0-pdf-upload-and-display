@@ -489,12 +489,18 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
               else mercadoriasTotal += v
             }
           }
+          const acts = ((data as any)?.debug?.atividades || (data as any)?.atividades || []) as any[]
+          const parseNum = (v: any) => Number(v || 0)
+          const servicosBrutoPA = acts.filter(a => /servi/i.test(String(a?.nome || a?.descricao || ''))).reduce((acc, a) => acc + parseNum(a?.receita_bruta_informada), 0)
+          const mercadoriasBrutoPA = acts.filter(a => !/servi/i.test(String(a?.nome || a?.descricao || ''))).reduce((acc, a) => acc + parseNum(a?.receita_bruta_informada), 0)
           return (
             <IndicadoresReceita 
               receitas={data.receitas}
               calculos={data?.calculos}
               servicosTotal={servicosTotal}
               mercadoriasTotal={mercadoriasTotal}
+              servicosBrutoPA={servicosBrutoPA}
+              mercadoriasBrutoPA={mercadoriasBrutoPA}
             />
           )
         })()}

@@ -34,9 +34,11 @@ interface IndicadoresReceitaProps {
   className?: string
   servicosTotal?: number
   mercadoriasTotal?: number
+  servicosBrutoPA?: number
+  mercadoriasBrutoPA?: number
 }
 
-export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, calculos, className = "", servicosTotal = 0, mercadoriasTotal = 0 }: IndicadoresReceitaProps) {
+export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, calculos, className = "", servicosTotal = 0, mercadoriasTotal = 0, servicosBrutoPA = 0, mercadoriasBrutoPA = 0 }: IndicadoresReceitaProps) {
   const receitaPA = useMemo(() => (receitas?.receitaPA || 0), [receitas])
   const totalDAS = useMemo(() => {
     const explicit = calculos?.totalDAS
@@ -58,6 +60,18 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
           <DollarSign className="h-4 w-4" />
         </CardHeader>
         <CardContent className="p-1 sm:p-2 pt-0">
+          <div className="flex flex-col gap-1 mb-1">
+            {servicosBrutoPA > 0 && (
+              <span className="inline-flex items-center rounded-full bg-white/10 text-white px-2 py-0.5 text-[10px] font-semibold">
+                Serviços: {formatCurrency(servicosBrutoPA)}
+              </span>
+            )}
+            {mercadoriasBrutoPA > 0 && (
+              <span className="inline-flex items-center rounded-full bg-white/10 text-white px-2 py-0.5 text-[10px] font-semibold">
+                Mercadorias: {formatCurrency(mercadoriasBrutoPA)}
+              </span>
+            )}
+          </div>
           <p className="text-base sm:text-lg font-bold break-words">{formatCurrency(receitaPA)}</p>
           <p className="text-[10px] sm:text-[11px] opacity-75 mt-1 flex items-center gap-1">
             <span className="inline-block w-3 h-3 rounded-full bg-slate-400" /> Período de apuração

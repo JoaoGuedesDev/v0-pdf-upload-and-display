@@ -21,7 +21,7 @@ function parseQuery(req: NextRequest) {
   const path = url.searchParams.get('path') || '/dashboard-das'
   const w = Number(url.searchParams.get('w') || 1280)
   const h = Number(url.searchParams.get('h') || 1800)
-  const scale = Number(url.searchParams.get('scale') || 1)
+  const scale = Number(url.searchParams.get('scale') || 2)
   const type = url.searchParams.get('type') || 'screen'
   return { path, w, h, scale, type }
 }
