@@ -40,14 +40,31 @@ export async function POST(req: NextRequest) {
       console.log('[upload] env check:', { hasUpstash, hasVercelRest, hasKvUrl })
     } catch {}
 
-    const webhook = String(process.env.N8N_UPLOAD_WEBHOOK_URL || '').trim()
-    if (webhook) {
+    const urlObj = new URL(req.url)
+    const forceN8N = ['1','true','yes','n8n'].includes(String(urlObj.searchParams.get('n8n') || '').toLowerCase())
+      || ['n8n','1','true','yes'].includes(String(urlObj.searchParams.get('use') || '').toLowerCase())
+    const webhookCandidate = String(
+      process.env.N8N_UPLOAD_WEBHOOK_URL
+      || process.env.N8N_WEBHOOK_URL
+      || ''
+    ).trim()
+    const publicWebhook = String(process.env.NEXT_PUBLIC_N8N_UPLOAD_WEBHOOK_URL || '').trim()
+    const webhook = (webhookCandidate || publicWebhook)
+    if (webhook || forceN8N) {
       const fd = new FormData()
       const name = (file as any).name || 'documento.pdf'
-      fd.append('pdf', file, name)
+      const mime = (file as any).type || 'application/pdf'
+      const size = Number((file as any).size || 0)
       fd.append('file', file, name)
+      fd.append('pdf', file, name)
+      fd.append('upload', file, name)
+      fd.append('files[]', file, name)
+      fd.append('filename', name)
+      fd.append('mimetype', mime)
+      fd.append('size', String(size))
       fd.append('source', 'dashboard-das')
-      const r2 = await fetch(webhook, { method: 'POST', body: fd, redirect: 'follow' })
+      const target = webhook || publicWebhook
+      const r2 = await fetch(String(target), { method: 'POST', body: fd, redirect: 'follow', headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } })
       const loc = r2.headers.get('Location')
       if (r2.redirected && r2.url) {
         return NextResponse.redirect(r2.url, { status: 303 })
@@ -57,7 +74,12 @@ export async function POST(req: NextRequest) {
         return NextResponse.redirect(abs, { status: 303 })
       }
       let data: any = null
-      try { data = await r2.json() } catch {}
+      try { data = await r2.json() } catch {
+        try {
+          const txt = await r2.text()
+          data = (() => { try { return JSON.parse(txt) } catch { return { message: txt } } })()
+        } catch {}
+      }
       const idFromData = data?.id || data?.shareId || data?.dashboardId
       const redirectUrl = data?.redirect || data?.url
       if (redirectUrl) {
@@ -67,7 +89,7 @@ export async function POST(req: NextRequest) {
       if (idFromData) {
         return NextResponse.redirect(new URL(`/d/${idFromData}`, req.url), { status: 303 })
       }
-      return NextResponse.json({ ok: r2.ok }, { status: r2.status || 200 })
+      return NextResponse.json({ ok: r2.ok, status: r2.status, data }, { status: r2.status || 200 })
     } else {
       const arrayBuffer = await file.arrayBuffer()
       const buf = Buffer.from(arrayBuffer)
