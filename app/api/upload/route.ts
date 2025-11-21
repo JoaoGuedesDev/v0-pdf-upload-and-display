@@ -73,13 +73,10 @@ export async function POST(req: NextRequest) {
         const abs = new URL(loc, req.url).toString()
         return NextResponse.redirect(abs, { status: 303 })
       }
+      const ct = r2.headers.get('content-type') || ''
+      const bodyText = await r2.text().catch(() => '')
       let data: any = null
-      try { data = await r2.json() } catch {
-        try {
-          const txt = await r2.text()
-          data = (() => { try { return JSON.parse(txt) } catch { return { message: txt } } })()
-        } catch {}
-      }
+      try { data = ct.includes('application/json') ? JSON.parse(bodyText) : null } catch {}
       const idFromData = data?.id || data?.shareId || data?.dashboardId
       const redirectUrl = data?.redirect || data?.url
       if (redirectUrl) {
@@ -89,7 +86,26 @@ export async function POST(req: NextRequest) {
       if (idFromData) {
         return NextResponse.redirect(new URL(`/d/${idFromData}`, req.url), { status: 303 })
       }
-      return NextResponse.json({ ok: r2.ok, status: r2.status, data }, { status: r2.status || 200 })
+      if (r2.ok) {
+        // Tenta normalizar e salvar qualquer payload retornado pelo n8n
+        try {
+          const payload = (() => {
+            if (data && typeof data === 'object') {
+              return data
+            }
+            if (typeof bodyText === 'string' && bodyText.trim().length > 0) {
+              try { return JSON.parse(bodyText) } catch { return bodyText }
+            }
+            return null
+          })()
+          if (payload) {
+            const normalized = typeof payload === 'string' ? processDasData(payload) : (('success' in payload && 'dados' in payload) ? payload : processDasData(JSON.stringify(payload)))
+            const genId = await saveDashboard(normalized, 60)
+            return NextResponse.redirect(new URL(`/d/${genId}`, req.url), { status: 303 })
+          }
+        } catch {}
+      }
+      return NextResponse.json({ ok: r2.ok, status: r2.status, data: data ?? bodyText }, { status: r2.status || 200 })
     } else {
       const arrayBuffer = await file.arrayBuffer()
       const buf = Buffer.from(arrayBuffer)
