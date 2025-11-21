@@ -11,8 +11,9 @@ async function getPuppeteer() {
   return { puppeteer: (mod as any).default || (mod as any), core: true }
 }
 
-function getChromium() {
-  return import('@sparticuz/chromium')
+async function getChromium() {
+  const mod = await import('@sparticuz/chromium')
+  return (mod as any).default || (mod as any)
 }
 
 function parseQuery(req: NextRequest) {
@@ -44,8 +45,7 @@ export async function GET(req: NextRequest) {
   const target = `${base}${pathFixed}`
 
   const { puppeteer } = await getPuppeteer()
-  const chromiumMod = await getChromium()
-  const chrome: any = await chromiumMod
+  const chrome: any = await getChromium()
   const executablePath: string = await chrome.executablePath()
   const args = chrome.args
   const defaultViewport = { width: w, height: h, deviceScaleFactor: scale }
@@ -54,12 +54,14 @@ export async function GET(req: NextRequest) {
     headless: (typeof chrome.headless === 'boolean') ? chrome.headless : true,
     defaultViewport,
     executablePath,
+    ignoreHTTPSErrors: true,
   })
 
   try {
     const page = await browser.newPage()
     await page.emulateMediaType('screen')
     await page.goto(target, { waitUntil: 'domcontentloaded', timeout: 120000 })
+    try { await page.waitForSelector('main', { timeout: 10000 }) } catch {}
     try { await page.waitForNetworkIdle({ idleTime: 500, timeout: 5000 }) } catch {}
 
     const size = await page.evaluate(() => ({
