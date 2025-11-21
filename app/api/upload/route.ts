@@ -62,5 +62,17 @@ export async function POST(req: NextRequest) {
   }
 }
 
+export async function GET(req: NextRequest) {
+  try {
+    return NextResponse.redirect(new URL('/', req.url), { status: 302 })
+  } catch {
+    return NextResponse.json({ ok: true }, { status: 200 })
+  }
+}
+
+export async function OPTIONS() {
+  return NextResponse.json({}, { status: 204 })
+}
+
 // Assegura que esta rota execute no runtime Node.js (necessário para Buffer/createRequire/pdf-parse)
 export const runtime = 'nodejs'
