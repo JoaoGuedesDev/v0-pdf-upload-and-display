@@ -493,6 +493,32 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
           const parseNum = (v: any) => Number(v || 0)
           const servicosBrutoPA = acts.filter(a => /servi/i.test(String(a?.nome || a?.descricao || ''))).reduce((acc, a) => acc + parseNum(a?.receita_bruta_informada), 0)
           const mercadoriasBrutoPA = acts.filter(a => !/servi/i.test(String(a?.nome || a?.descricao || ''))).reduce((acc, a) => acc + parseNum(a?.receita_bruta_informada), 0)
+          const historicoMI = (data as any)?.historico?.mercadoInterno as { mes: string; valor: any }[] | undefined
+          const parseNumber = (v: any): number => {
+            if (typeof v === "number") return v
+            if (typeof v === "string") {
+              const s = v.trim()
+              if (!s) return 0
+              const hasComma = s.includes(",")
+              const hasDot = s.includes(".")
+              let cleaned = s
+              if (hasComma && hasDot) {
+                const lastDot = s.lastIndexOf('.')
+                const lastComma = s.lastIndexOf(',')
+                if (lastComma > lastDot) cleaned = s.replace(/\./g, "").replace(",", ".")
+                else cleaned = s.replace(/,/g, "")
+              } else if (hasComma) cleaned = s.replace(",", ".")
+              const n = Number(cleaned)
+              return isFinite(n) ? n : 0
+            }
+            const n = Number(v)
+            return isFinite(n) ? n : 0
+          }
+          const receitas12Meses = (() => {
+            const values = (historicoMI || []).map(p => parseNumber(p.valor))
+            if (values.length >= 12) return values.slice(values.length - 12)
+            return undefined
+          })()
           return (
             <IndicadoresReceita 
               receitas={data.receitas}
@@ -501,6 +527,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
               mercadoriasTotal={mercadoriasTotal}
               servicosBrutoPA={servicosBrutoPA}
               mercadoriasBrutoPA={mercadoriasBrutoPA}
+              receitas12Meses={receitas12Meses}
             />
           )
         })()}

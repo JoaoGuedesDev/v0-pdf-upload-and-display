@@ -16,6 +16,20 @@ async function getChromium() {
   return (mod as any).default || (mod as any)
 }
 
+function guessLocalChrome(): string | null {
+  const candidates = [
+    process.env.CHROME_BIN || '',
+    'C:/Program Files/Google/Chrome/Application/chrome.exe',
+    'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe',
+    'C:/Program Files/Microsoft/Edge/Application/msedge.exe',
+    'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
+  ].filter(Boolean)
+  for (const p of candidates) {
+    try { if (fs.existsSync(p)) return p } catch {}
+  }
+  return null
+}
+
 function parseQuery(req: NextRequest) {
   const url = new URL(req.url)
   const path = url.searchParams.get('path') || '/dashboard-das'
@@ -46,7 +60,15 @@ export async function GET(req: NextRequest) {
 
   const { puppeteer } = await getPuppeteer()
   const chrome: any = await getChromium()
-  const executablePath: string = await chrome.executablePath()
+  let executablePath: string | undefined
+  try { executablePath = await chrome.executablePath() } catch {}
+  if (!executablePath) {
+    const local = guessLocalChrome()
+    if (local) executablePath = local
+  }
+  if (!executablePath) {
+    return NextResponse.json({ error: 'Chromium/Chrome não encontrado no ambiente local', hint: 'Defina CHROME_BIN com o caminho do seu Chrome/Edge' }, { status: 500 })
+  }
   const args = chrome.args
   const defaultViewport = { width: w, height: h, deviceScaleFactor: scale }
   const browser = await puppeteer.launch({

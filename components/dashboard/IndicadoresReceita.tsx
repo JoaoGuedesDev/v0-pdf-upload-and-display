@@ -36,9 +36,10 @@ interface IndicadoresReceitaProps {
   mercadoriasTotal?: number
   servicosBrutoPA?: number
   mercadoriasBrutoPA?: number
+  receitas12Meses?: number[]
 }
 
-export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, calculos, className = "", servicosTotal = 0, mercadoriasTotal = 0, servicosBrutoPA = 0, mercadoriasBrutoPA = 0 }: IndicadoresReceitaProps) {
+export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, calculos, className = "", servicosTotal = 0, mercadoriasTotal = 0, servicosBrutoPA = 0, mercadoriasBrutoPA = 0, receitas12Meses }: IndicadoresReceitaProps) {
   const receitaPA = useMemo(() => (receitas?.receitaPA || 0), [receitas])
   const totalDAS = useMemo(() => {
     const explicit = calculos?.totalDAS
@@ -48,6 +49,19 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
   }, [calculos, receitaPA])
   const margemLiquida = useMemo(() => (calculos?.margemLiquida || calculos?.margemLiquidaPercent || 0), [calculos])
   const aliquotaEfetiva = useMemo(() => (calculos?.aliquotaEfetiva || 0), [calculos])
+  const rbt12 = useMemo(() => (receitas?.rbt12 || 0), [receitas])
+  const aliquotaMes = useMemo(() => (receitaPA > 0 ? (totalDAS / receitaPA) * 100 : 0), [totalDAS, receitaPA])
+  const pesoDAS_RBT12 = useMemo(() => (rbt12 > 0 ? (totalDAS / rbt12) * 100 : 0), [totalDAS, rbt12])
+  const rbt12Futuro = useMemo(() => {
+    const arr = Array.isArray(receitas12Meses) ? receitas12Meses : []
+    if (arr.length >= 12 && rbt12 > 0) {
+      const oldest = arr[0] || 0
+      const current = arr[arr.length - 1] || 0
+      return rbt12 - oldest + current
+    }
+    return 0
+  }, [receitas12Meses, rbt12])
+  const pesoDAS_RBT12_Futuro = useMemo(() => (rbt12Futuro > 0 ? (totalDAS / rbt12Futuro) * 100 : 0), [totalDAS, rbt12Futuro])
 
   if (!receitas || !calculos) return null
 
@@ -110,10 +124,25 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
           <TrendingUp className="h-4 w-4" />
         </CardHeader>
         <CardContent className="p-1 sm:p-2 pt-0">
+          <div className="flex flex-col gap-1 mb-1">
+            <span className="inline-flex items-center rounded-full bg-white/15 text-white px-2 py-0.5 text-[10px] font-semibold">
+              Regime (RBT12): {(calculos.aliquotaEfetivaFormatada || `${aliquotaEfetiva.toFixed(5).replace('.', ',')}%`)}
+            </span>
+            {rbt12 > 0 && (
+              <span className="inline-flex items-center rounded-full bg-white/15 text-white px-2 py-0.5 text-[10px] font-semibold">
+                Peso do DAS sobre RBT12: {pesoDAS_RBT12.toFixed(5).replace('.', ',')}%
+              </span>
+            )}
+            {rbt12Futuro > 0 && (
+              <span className="inline-flex items-center rounded-full bg-white/15 text-white px-2 py-0.5 text-[10px] font-semibold">
+                Peso do DAS sobre RBT12 futuro: {pesoDAS_RBT12_Futuro.toFixed(5).replace('.', ',')}%
+              </span>
+            )}
+          </div>
           <p className="text-base sm:text-lg font-bold font-sans">
-            {(calculos.aliquotaEfetivaFormatada || aliquotaEfetiva.toFixed(5).replace(".", ",")).replace("%", "")}%
+            {aliquotaMes.toFixed(5).replace('.', ',')}%
           </p>
-          <p className="text-[10px] sm:text-[11px] opacity-75 mt-1">DAS / Receita PA</p>
+          <p className="text-[10px] sm:text-[11px] opacity-75 mt-1">Mês: DAS / Receita PA</p>
         </CardContent>
       </Card>
 
