@@ -95,6 +95,11 @@ interface DASData {
     aliquotaEfetivaFormatada?: string
     totalDAS?: number
     totalDASFormatado?: string
+    aliquotaEfetivaAtualPercent?: number
+    aliquotaEfetivaOriginalPercent?: number
+    analiseAliquota?: any[]
+    analiseAliquotaItems?: any[]
+    analiseAliquotaMeta?: any
   }
   tributosMercadoriasInterno?: Record<string, number>
   tributosMercadoriasExterno?: Record<string, number>
@@ -140,11 +145,56 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
         ...initialData,
         calculos: {
           ...initialData.calculos,
-          aliquotaEfetiva: aliquota0,
+          aliquotaEfetiva: (() => {
+            const src: any = (initialData as any)?.calculos || (initialData as any)
+            const v = src?.aliquotaEfetivaOriginalPercent ?? src?.aliquota_efetiva_original_percent ?? src?.aliquota_efetiva
+            const n = Number(v)
+            return isFinite(n) ? n : aliquota0
+          })(),
           margemLiquida: margem0,
-          aliquotaEfetivaFormatada: (aliquota0 || 0).toFixed(5).replace('.', ','),
+          aliquotaEfetivaFormatada: (() => {
+            const v = (initialData as any)?.calculos?.aliquotaEfetivaOriginalPercent ?? (initialData as any)?.calculos?.aliquota_efetiva_original_percent
+            const n = Number(v)
+            const base = isFinite(n) ? n : aliquota0
+            return base.toFixed(5).replace('.', ',')
+          })(),
           totalDAS: totalDAS0,
           totalDASFormatado: formatCurrency(totalDAS0),
+          aliquotaEfetivaAtualPercent: (() => {
+            const src: any = (initialData as any)?.calculos || (initialData as any)
+            const v = src?.aliquotaEfetivaAtualPercent ?? src?.aliquota_efetiva_atual_percent ?? src?.aliquota_efetiva_atual
+            const n = Number(v)
+            return isFinite(n) ? n : aliquota0
+          })(),
+          aliquotaEfetivaOriginalPercent: (() => {
+            const src: any = (initialData as any)?.calculos || (initialData as any)
+            const v = src?.aliquotaEfetivaOriginalPercent ?? src?.aliquota_efetiva_original_percent
+            const n = Number(v)
+            return isFinite(n) ? n : undefined
+          })(),
+          analiseAliquota: (() => {
+            const src: any = (initialData as any)
+            return src?.calculos?.analiseAliquota || src?.analiseAliquota || src?.calculos?.analise_aliquota || src?.analise_aliquota || undefined
+          })(),
+          analiseAliquotaItems: (() => {
+            const a: any = (initialData as any)?.calculos?.analiseAliquota || (initialData as any)?.analiseAliquota || (initialData as any)?.calculos?.analise_aliquota || (initialData as any)?.analise_aliquota
+            if (!a) return undefined
+            if (Array.isArray(a)) return a
+            if (Array.isArray(a?.por_anexo)) return a.por_anexo
+            return undefined
+          })(),
+          analiseAliquotaMeta: (() => {
+            const a: any = (initialData as any)?.calculos?.analiseAliquota || (initialData as any)?.analiseAliquota || (initialData as any)?.calculos?.analise_aliquota || (initialData as any)?.analise_aliquota
+            if (!a || Array.isArray(a)) return undefined
+            const meta: any = {}
+            meta.anexo_principal = a?.anexo_principal
+            meta.anexos_detectados = a?.anexos_detectados
+            meta.rpa_atual = a?.rpa_atual
+            meta.rbt12_original = a?.rbt12_original
+            meta.rbt12_atual = a?.rbt12_atual
+            meta.rpa_mes_ano_anterior = a?.rpa_mes_ano_anterior
+            return meta
+          })(),
         }
       }
       setData(hydratedData)
@@ -195,11 +245,59 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
         cenario: dados?.cenario,
         graficos: graficos,
         calculos: {
-          aliquotaEfetiva,
+          aliquotaEfetiva: (() => {
+            const src: any = (result as any)?.calculos || (dados as any)?.calculos || {}
+            const v = src?.aliquotaEfetivaOriginalPercent ?? src?.aliquota_efetiva_original_percent ?? src?.aliquota_efetiva
+            const n = Number(v)
+            return isFinite(n) ? n : aliquotaEfetiva
+          })(),
           margemLiquida,
-          aliquotaEfetivaFormatada: aliquotaEfetiva.toFixed(5).replace(".", ","),
+          aliquotaEfetivaFormatada: (() => {
+            const src: any = (result as any)?.calculos || (dados as any)?.calculos || {}
+            const v = src?.aliquotaEfetivaOriginalPercent ?? src?.aliquota_efetiva_original_percent
+            const n = Number(v)
+            const base = isFinite(n) ? n : aliquotaEfetiva
+            return base.toFixed(5).replace('.', ',')
+          })(),
           totalDAS,
           totalDASFormatado: formatCurrency(totalDAS),
+          aliquotaEfetivaAtualPercent: (() => {
+            const src: any = (dados as any)?.calculos || (graficos as any) || (result as any) || {}
+            const v = src?.aliquotaEfetivaAtualPercent ?? src?.aliquota_efetiva_atual_percent ?? src?.aliquota_efetiva_atual
+            const n = Number(v)
+            if (isFinite(n)) return n
+            return (receitaPA > 0 ? (totalDAS / receitaPA) * 100 : aliquotaEfetiva)
+          })(),
+          aliquotaEfetivaOriginalPercent: (() => {
+            const src: any = (result as any)?.calculos || (dados as any)?.calculos || {}
+            const v = src?.aliquotaEfetivaOriginalPercent ?? src?.aliquota_efetiva_original_percent
+            const n = Number(v)
+            return isFinite(n) ? n : undefined
+          })(),
+          analiseAliquota: (() => {
+            const srcR: any = (result as any)
+            const srcD: any = (dados as any)
+            return srcD?.calculos?.analiseAliquota || srcR?.calculos?.analiseAliquota || srcD?.analiseAliquota || srcR?.analiseAliquota || srcD?.calculos?.analise_aliquota || srcR?.calculos?.analise_aliquota || srcD?.analise_aliquota || srcR?.analise_aliquota || undefined
+          })(),
+          analiseAliquotaItems: (() => {
+            const a: any = (dados as any)?.calculos?.analiseAliquota || (result as any)?.calculos?.analiseAliquota || (dados as any)?.analiseAliquota || (result as any)?.analiseAliquota || (dados as any)?.calculos?.analise_aliquota || (result as any)?.calculos?.analise_aliquota || (dados as any)?.analise_aliquota || (result as any)?.analise_aliquota
+            if (!a) return undefined
+            if (Array.isArray(a)) return a
+            if (Array.isArray(a?.por_anexo)) return a.por_anexo
+            return undefined
+          })(),
+          analiseAliquotaMeta: (() => {
+            const a: any = (dados as any)?.calculos?.analiseAliquota || (result as any)?.calculos?.analiseAliquota || (dados as any)?.analiseAliquota || (result as any)?.analiseAliquota || (dados as any)?.calculos?.analise_aliquota || (result as any)?.calculos?.analise_aliquota || (dados as any)?.analise_aliquota || (result as any)?.analise_aliquota
+            if (!a || Array.isArray(a)) return undefined
+            const meta: any = {}
+            meta.anexo_principal = a?.anexo_principal
+            meta.anexos_detectados = a?.anexos_detectados
+            meta.rpa_atual = a?.rpa_atual
+            meta.rbt12_original = a?.rbt12_original
+            meta.rbt12_atual = a?.rbt12_atual
+            meta.rpa_mes_ano_anterior = a?.rpa_mes_ano_anterior
+            return meta
+          })(),
         }
         ,
         tributosMercadoriasInterno: dados?.tributosMercadoriasInterno,
@@ -528,7 +626,73 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
               servicosBrutoPA={servicosBrutoPA}
               mercadoriasBrutoPA={mercadoriasBrutoPA}
               receitas12Meses={receitas12Meses}
+              periodoApuracao={data?.identificacao?.periodoApuracao}
             />
+          )
+        })()}
+
+        {(() => {
+          const items = (data?.calculos?.analiseAliquotaItems || data?.calculos?.analiseAliquota) as any[] | undefined
+          const meta = data?.calculos?.analiseAliquotaMeta as any
+          if (!Array.isArray(items) || items.length === 0) return null
+          return (
+          <Card className="bg-white border-slate-200" style={{ breakInside: 'avoid' }}>
+            <CardHeader className="py-2">
+              <CardTitle className="text-slate-800">Análise de Alíquota</CardTitle>
+              <CardDescription>Detalhamento por Anexo e Faixa</CardDescription>
+            </CardHeader>
+            <CardContent className="py-2">
+              {meta && (
+                <div className="flex flex-wrap gap-2 mb-3 text-[11px] text-slate-700">
+                  {typeof meta?.anexo_principal !== 'undefined' && (
+                    <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-1">Anexo principal: {String(meta.anexo_principal)}</span>
+                  )}
+                  {Array.isArray(meta?.anexos_detectados) && meta.anexos_detectados.length > 0 && (
+                    <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-1">Anexos detectados: {meta.anexos_detectados.join(', ')}</span>
+                  )}
+                </div>
+              )}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {items.map((item: any, idx: number) => {
+                  const anexo = item?.anexo ?? item?.anexo_numero
+                  const rbt12Original = Number(item?.rbt12_original || item?.rbt12 || 0)
+                  const rbt12Atual = Number(item?.rbt12_atual || 0)
+                  const fxO = item?.faixa_original || {}
+                  const fxA = item?.faixa_atual || {}
+                  const aliqOrigRaw = item?.aliquota_efetiva_original_percent ?? item?.aliquotaEfetivaOriginalPercent ?? item?.aliquota_efetiva
+                  const aliqOrig = Number(aliqOrigRaw ?? 0)
+                  const aliqAtualRaw = item?.aliquota_efetiva_atual_percent ?? item?.aliquotaEfetivaAtualPercent
+                  const aliqAtual = Number(aliqAtualRaw ?? 0)
+                  const fmtPct = (v: number) => `${Number(v || 0).toFixed(5).replace('.', ',')}%`
+                  const fmtMoney = (v: number) => formatCurrency(Number(v || 0))
+                  return (
+                    <div key={idx} className="border rounded-lg p-3">
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm font-semibold text-slate-800">Anexo {anexo}</div>
+                        <div className="text-[11px] text-slate-500">RBT12: {fmtMoney(rbt12Atual || rbt12Original)}</div>
+                      </div>
+                      <div className="mt-2 grid grid-cols-2 gap-2">
+                        <div className="bg-slate-50 rounded p-2">
+                          <div className="text-[11px] text-slate-600">Faixa original</div>
+                          <div className="text-xs text-slate-700">Faixa: {fxO?.faixa}</div>
+                          <div className="text-xs text-slate-700">Aliq nominal: {fmtPct(fxO?.aliquota_nominal)}</div>
+                          <div className="text-xs text-slate-700">Dedução: {fmtMoney(fxO?.valor_deduzir)}</div>
+                          <div className="text-xs font-semibold text-slate-900 mt-1">Alíquota efetiva: {fmtPct(aliqOrig)}</div>
+                        </div>
+                        <div className="bg-slate-50 rounded p-2">
+                          <div className="text-[11px] text-slate-600">Faixa atual</div>
+                          <div className="text-xs text-slate-700">Faixa: {fxA?.faixa}</div>
+                          <div className="text-xs text-slate-700">Aliq nominal: {fmtPct(fxA?.aliquota_nominal)}</div>
+                          <div className="text-xs text-slate-700">Dedução: {fmtMoney(fxA?.valor_deduzir)}</div>
+                          <div className="text-xs font-semibold text-slate-900 mt-1">Alíquota efetiva: {fmtPct(aliqAtual)}</div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </CardContent>
+          </Card>
           )
         })()}
         {((data?.graficos?.receitaMensal) || (data?.graficos?.receitaLine) || (data as any)?.historico) && (
@@ -668,6 +832,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                   ['PIS/PASEP', t.PIS_Pasep],
                   ['INSS/CPP', t.INSS_CPP],
                   ['ICMS', t.ICMS],
+                  ['IPI', t.IPI],
                   ['ISS', t.ISS],
                 ] as [string, number][]
                 const getVal = (o: Record<string, number>, label: string) => {
@@ -699,7 +864,11 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                   { label: 'Serviços (externo)', get: (lbl: string) => getVal(tsE, lbl), total: totServExt, cls: 'text-indigo-600' },
                 ]
                 const visible = catCols.filter(c => Number(c.total || 0) > 0)
-                const totalGet = (lbl: string) => visible.reduce((acc, c) => acc + Number(c.get(lbl) || 0), 0)
+                const totalGet = (lbl: string) => {
+                  const sum = visible.reduce((acc, c) => acc + Number(c.get(lbl) || 0), 0)
+                  if (sum > 0) return sum
+                  return Number(getVal(t, lbl) || 0)
+                }
                 const totalSum = Number(totMercInt + totMercExt + totServInt + totServExt)
                 const cols = [...visible, { label: 'Total', get: totalGet, total: totalSum, cls: 'text-slate-900 font-semibold' }]
                 return (
@@ -715,14 +884,15 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                     <tbody className="text-slate-900">
                       {rows.map(([label], idx) => {
                         const rowTotal = Number(totalGet(label) || 0)
-                        if (rowTotal <= 0) return null
+                        const globalVal = Number(getVal(t, label) || 0)
+                        if (rowTotal <= 0 && globalVal <= 0) return null
                         return (
                           <tr key={idx} className="border-slate-200">
                             <td className="py-1 px-2">{label}</td>
                             {cols.map((c, ci) => {
                               const cv = Number(c.get(label) || 0)
                               const isTotal = c.label === 'Total'
-                              const show = isTotal ? true : cv > 0
+                              const show = isTotal ? (Number(totalGet(label) || 0) > 0 || globalVal > 0) : cv > 0
                               return <td key={ci} className={`text-right py-1 px-2 ${c.cls}`}>{show ? formatCurrency(cv) : ''}</td>
                             })}
                           </tr>
@@ -747,6 +917,28 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
         {data?.tributos && (() => {
           const trib = data?.tributos || ({} as any)
           const totalDAS = Number(data?.calculos?.totalDAS || trib?.Total || 0)
+          const sI = (data as any)?.tributosServicosInterno || {}
+          const sE = (data as any)?.tributosServicosExterno || {}
+          const mI = (data as any)?.tributosMercadoriasInterno || {}
+          const mE = (data as any)?.tributosMercadoriasExterno || {}
+          const getVal = (o: Record<string, number>, label: string) => {
+            const base = label
+            const tests = [
+              base,
+              base.replace(/\//g, '_'),
+              base.toUpperCase(),
+              base.toUpperCase().replace(/\//g, '_'),
+              base.replace('PIS/PASEP', 'PIS_PASEP'),
+              base.replace('INSS/CPP', 'INSS_CPP'),
+              base.replace(/\s+/g, ''),
+              base.replace(/\s+/g, '_'),
+            ]
+            for (const k of tests) {
+              const v = (o as any)[k]
+              if (typeof v !== 'undefined') return Number(v || 0)
+            }
+            return 0
+          }
           const items = [
             { key: 'IRPJ', label: 'IRPJ', color: '#3b82f6' },
             { key: 'CSLL', label: 'CSLL', color: '#8b5cf6' },
@@ -754,7 +946,14 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
             { key: 'PIS_Pasep', label: 'PIS/PASEP', color: '#f59e0b' },
             { key: 'INSS_CPP', label: 'INSS/CPP', color: '#10b981' },
             { key: 'ICMS', label: 'ICMS', color: '#06b6d4' },
-          ].map(it => ({ ...it, value: Number((trib as any)?.[it.key] || 0) }))
+            { key: 'IPI', label: 'IPI', color: '#ef4444' },
+            { key: 'ISS', label: 'ISS', color: '#94a3b8' },
+          ].map(it => {
+            const global = Number((trib as any)?.[it.key] || 0)
+            const cats = Number(getVal(sI, it.label) || 0) + Number(getVal(sE, it.label) || 0) + Number(getVal(mI, it.label) || 0) + Number(getVal(mE, it.label) || 0)
+            const value = global > 0 ? global : cats
+            return { ...it, value }
+          })
             .filter(it => it.value > 0)
             .sort((a, b) => b.value - a.value)
           if (!items.length || totalDAS <= 0) return null
