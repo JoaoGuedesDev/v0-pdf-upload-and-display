@@ -11,7 +11,11 @@ export default function Home() {
       setLoading(true)
       const form = new FormData()
       form.append("pdf", file)
-      const res = await fetch("/api/upload", { method: "POST", body: form, redirect: "follow" })
+      const envFlag = String(process.env.NEXT_PUBLIC_USE_N8N || "").toLowerCase()
+      const hasWebhook = !!process.env.NEXT_PUBLIC_N8N_UPLOAD_WEBHOOK_URL
+      const useN8N = hasWebhook || ["1","true","yes","n8n"].includes(envFlag)
+      const url = useN8N ? "/api/upload?n8n=1" : "/api/upload"
+      const res = await fetch(url, { method: "POST", body: form, redirect: "follow" })
       if (res.redirected && res.url) {
         window.location.assign(res.url)
         return
@@ -21,6 +25,19 @@ export default function Home() {
         window.location.assign(redirectedUrl)
         return
       }
+      try {
+        const data = await res.json()
+        const url2 = data?.redirect || data?.url
+        const id = data?.id || data?.shareId || data?.dashboardId
+        if (url2) {
+          window.location.assign(url2)
+          return
+        }
+        if (id) {
+          window.location.assign(`/d/${id}`)
+          return
+        }
+      } catch {}
     } finally {
       setLoading(false)
     }
