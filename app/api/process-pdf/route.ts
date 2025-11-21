@@ -225,8 +225,21 @@ async function persistShare(payload: any): Promise<{ code: string; url: string; 
     return { code: id, url, filePath: "" }
   } catch (e) {
     console.error("[share] Falha ao persistir resultado:", e)
-    // Fallback: gerar ID simples mesmo sem storage
-    const code = String(Math.floor(1000 + Math.random() * 9000))
-    return { code, url: `/d/${code}`, filePath: "" }
+    try {
+      const code = String(Math.floor(1000 + Math.random() * 9000))
+      const baseDir = path.resolve('public', 'shared')
+      try { fs.mkdirSync(baseDir, { recursive: true }) } catch {}
+      const filePath = path.join(baseDir, `dash-${code}.json`)
+      try {
+        fs.writeFileSync(filePath, JSON.stringify(payload ?? {}, null, 2), 'utf-8')
+        return { code, url: `/d/${code}`, filePath }
+      } catch (err) {
+        console.error('[share] Fallback write failed:', err)
+        return { code, url: `/d/${code}`, filePath: '' }
+      }
+    } catch {
+      const code = String(Math.floor(1000 + Math.random() * 9000))
+      return { code, url: `/d/${code}`, filePath: "" }
+    }
   }
 }
