@@ -112,7 +112,9 @@ export const ConfiguracaoProcessamento = memo(function ConfiguracaoProcessamento
             onChange={handleFileChange} 
             className="hidden" 
             id="file-upload-config" 
+            aria-label="Selecionar arquivo PDF"
           />
+          <label htmlFor="file-upload-config" className="sr-only">Selecionar arquivo PDF</label>
           
           <div className="flex flex-col sm:flex-row gap-3">
             <Button 

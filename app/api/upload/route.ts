@@ -40,22 +40,52 @@ export async function POST(req: NextRequest) {
       console.log('[upload] env check:', { hasUpstash, hasVercelRest, hasKvUrl })
     } catch {}
 
-    const arrayBuffer = await file.arrayBuffer()
-    const buf = Buffer.from(arrayBuffer)
-    const require = createRequire(import.meta.url)
-    const pdfParse = require('pdf-parse/lib/pdf-parse.js')
-    const result = await pdfParse(buf)
-    const text = (result?.text || '') as string
-    if (!text || text.trim().length === 0) {
-      return NextResponse.json({ error: 'Texto do PDF está vazio' }, { status: 400 })
-    }
+    const webhook = String(process.env.N8N_UPLOAD_WEBHOOK_URL || '').trim()
+    if (webhook) {
+      const fd = new FormData()
+      const name = (file as any).name || 'documento.pdf'
+      fd.append('pdf', file, name)
+      fd.append('file', file, name)
+      fd.append('source', 'dashboard-das')
+      const r2 = await fetch(webhook, { method: 'POST', body: fd, redirect: 'follow' })
+      const loc = r2.headers.get('Location')
+      if (r2.redirected && r2.url) {
+        return NextResponse.redirect(r2.url, { status: 303 })
+      }
+      if (loc) {
+        const abs = new URL(loc, req.url).toString()
+        return NextResponse.redirect(abs, { status: 303 })
+      }
+      let data: any = null
+      try { data = await r2.json() } catch {}
+      const idFromData = data?.id || data?.shareId || data?.dashboardId
+      const redirectUrl = data?.redirect || data?.url
+      if (redirectUrl) {
+        const abs = new URL(redirectUrl, req.url).toString()
+        return NextResponse.redirect(abs, { status: 303 })
+      }
+      if (idFromData) {
+        return NextResponse.redirect(new URL(`/d/${idFromData}`, req.url), { status: 303 })
+      }
+      return NextResponse.json({ ok: r2.ok }, { status: r2.status || 200 })
+    } else {
+      const arrayBuffer = await file.arrayBuffer()
+      const buf = Buffer.from(arrayBuffer)
+      const require = createRequire(import.meta.url)
+      const pdfParse = require('pdf-parse/lib/pdf-parse.js')
+      const result = await pdfParse(buf)
+      const text = (result?.text || '') as string
+      if (!text || text.trim().length === 0) {
+        return NextResponse.json({ error: 'Texto do PDF está vazio' }, { status: 400 })
+      }
 
-    const dasData = processDasData(text)
-    const id = await saveDashboard(dasData, 60) // expira em 60 dias
-    try {
-      console.log('[upload] ID gerado:', id)
-    } catch {}
-    return NextResponse.redirect(new URL(`/d/${id}`, req.url), { status: 303 })
+      const dasData = processDasData(text)
+      const id = await saveDashboard(dasData, 60) // expira em 60 dias
+      try {
+        console.log('[upload] ID gerado:', id)
+      } catch {}
+      return NextResponse.redirect(new URL(`/d/${id}`, req.url), { status: 303 })
+    }
   } catch (e) {
     console.error('[upload] Falha ao processar PDF:', e)
     return NextResponse.json({ error: 'Falha ao ler o arquivo PDF.' }, { status: 500 })
