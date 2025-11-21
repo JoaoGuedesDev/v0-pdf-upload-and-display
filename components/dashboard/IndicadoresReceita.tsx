@@ -32,9 +32,11 @@ interface IndicadoresReceitaProps {
   receitas?: ReceitasData
   calculos?: CalculosData
   className?: string
+  servicosTotal?: number
+  mercadoriasTotal?: number
 }
 
-export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, calculos, className = "" }: IndicadoresReceitaProps) {
+export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, calculos, className = "", servicosTotal = 0, mercadoriasTotal = 0 }: IndicadoresReceitaProps) {
   const receitaPA = useMemo(() => (receitas?.receitaPA || 0), [receitas])
   const totalDAS = useMemo(() => {
     const explicit = calculos?.totalDAS
@@ -70,6 +72,18 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
           <FileText className="h-4 w-4" />
         </CardHeader>
         <CardContent className="p-1 sm:p-2 pt-0">
+          <div className="flex flex-col gap-1 mb-1">
+            {servicosTotal > 0 && (
+              <span className="inline-flex items-center rounded-full bg-white/15 text-white px-2 py-0.5 text-[10px] font-semibold">
+                Serviços: {formatCurrency(servicosTotal)}
+              </span>
+            )}
+            {mercadoriasTotal > 0 && (
+              <span className="inline-flex items-center rounded-full bg-white/15 text-white px-2 py-0.5 text-[10px] font-semibold">
+                Mercadorias: {formatCurrency(mercadoriasTotal)}
+              </span>
+            )}
+          </div>
           <p className="text-base sm:text-lg font-bold break-words">{formatCurrency(totalDAS)}</p>
           <p className="text-[10px] sm:text-[11px] opacity-75 mt-1">Total de tributos pagos</p>
         </CardContent>

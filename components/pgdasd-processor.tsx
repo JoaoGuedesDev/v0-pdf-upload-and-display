@@ -318,19 +318,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-4">
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="flex justify-between items-center">
-          <div className="space-y-1">
-            
-          </div>
-          <div className="flex items-center gap-2">
-            {!hideDownloadButton && data && (
-              <Button variant="outline" size="sm" onClick={() => {
-                const url = `/api/pdf?path=${encodeURIComponent('/dashboard-das')}`
-                window.open(url, '_blank')
-              }}>
-                Exportar
-              </Button>
-            )}
-          </div>
+          <div className="space-y-1"></div>
         </div>
 
         
@@ -481,12 +469,35 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
         )}
 
 
-        {data?.receitas && (
-          <IndicadoresReceita 
-            receitas={data.receitas}
-            calculos={data?.calculos}
-          />
-        )}
+        {data?.receitas && (() => {
+          const sI = (data as any)?.tributosServicosInterno || {}
+          const sE = (data as any)?.tributosServicosExterno || {}
+          const mI = (data as any)?.tributosMercadoriasInterno || {}
+          const mE = (data as any)?.tributosMercadoriasExterno || {}
+          const sum = (o: Record<string, number>) => Object.values(o).reduce((a, b) => a + Number(b || 0), 0)
+          let servicosTotal = sum(sI) + sum(sE)
+          let mercadoriasTotal = sum(mI) + sum(mE)
+          if (servicosTotal <= 0 && mercadoriasTotal <= 0) {
+            const atividades = (data as any)?.atividades || []
+            const norm = (s: string) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+            const somaTrib = (t: any) => ['irpj','csll','cofins','pis','inss_cpp','icms','ipi','iss','total'].reduce((a,k)=>a+Number(t?.[k]||0),0)
+            for (const a of atividades) {
+              const nome = norm(a?.nome || a?.descricao || '')
+              const isServ = /servi/.test(nome)
+              const v = somaTrib(a?.tributos || {})
+              if (isServ) servicosTotal += v
+              else mercadoriasTotal += v
+            }
+          }
+          return (
+            <IndicadoresReceita 
+              receitas={data.receitas}
+              calculos={data?.calculos}
+              servicosTotal={servicosTotal}
+              mercadoriasTotal={mercadoriasTotal}
+            />
+          )
+        })()}
         {((data?.graficos?.receitaMensal) || (data?.graficos?.receitaLine) || (data as any)?.historico) && (
           <Card className="bg-white border-slate-200 py-1 gap-1" style={{ breakInside: 'avoid' }}>
             <CardHeader className="pt-1 pb-0">
@@ -809,16 +820,55 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                         </div>
                       )
                     })}
-                    <div className="flex items-center justify-between bg-slate-200 rounded-lg px-2 py-2 border border-slate-200">
-                      <div className="flex items-center gap-2">
-                        <span className="inline-block w-3 h-2 rounded-full bg-slate-600" />
-                        <div className="text-slate-700 text-xs font-semibold">TOTAL DAS</div>
-                      </div>
-                      <div className="text-right text-slate-900 text-xs font-semibold">
-                        <div>100%</div>
-                        <div>{formatCurrency(totalDAS)}</div>
-                      </div>
-                    </div>
+                    {(() => {
+                      const sI = (data as any)?.tributosServicosInterno || {}
+                      const sE = (data as any)?.tributosServicosExterno || {}
+                      const mI = (data as any)?.tributosMercadoriasInterno || {}
+                      const mE = (data as any)?.tributosMercadoriasExterno || {}
+                      const sum = (o: Record<string, number>) => Object.values(o).reduce((a, b) => a + Number(b || 0), 0)
+                      let servicosTotal = sum(sI) + sum(sE)
+                      let mercadoriasTotal = sum(mI) + sum(mE)
+                      if (servicosTotal <= 0 && mercadoriasTotal <= 0) {
+                        const atividades = (data as any)?.atividades || []
+                        const norm = (s: string) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+                        const somaTrib = (t: any) => ['irpj','csll','cofins','pis','inss_cpp','icms','ipi','iss','total'].reduce((a,k)=>a+Number(t?.[k]||0),0)
+                        for (const a of atividades) {
+                          const nome = norm(a?.nome || a?.descricao || '')
+                          const isServ = /servi/.test(nome)
+                          const v = somaTrib(a?.tributos || {})
+                          if (isServ) servicosTotal += v
+                          else mercadoriasTotal += v
+                        }
+                      }
+                      const showServ = servicosTotal > 0
+                      const showMerc = mercadoriasTotal > 0
+                      return (
+                        <div className="flex items-center justify-between bg-slate-200 rounded-lg px-2 py-2 border border-slate-200">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="inline-block w-3 h-2 rounded-full bg-slate-600" />
+                              <div className="text-slate-700 text-xs font-semibold">TOTAL DAS</div>
+                            </div>
+                            <div className="flex flex-wrap gap-2 mt-2">
+                              {showServ && (
+                                <span className="inline-flex items-center rounded-full bg-indigo-600/15 text-indigo-700 px-2 py-1 text-[11px] font-semibold">
+                                  Serviços: {formatCurrency(servicosTotal)}
+                                </span>
+                              )}
+                              {showMerc && (
+                                <span className="inline-flex items-center rounded-full bg-blue-600/15 text-blue-700 px-2 py-1 text-[11px] font-semibold">
+                                  Mercadorias: {formatCurrency(mercadoriasTotal)}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="text-right text-slate-900 text-xs font-semibold">
+                            <div>100%</div>
+                            <div>{formatCurrency(totalDAS)}</div>
+                          </div>
+                        </div>
+                      )
+                    })()}
                   </div>
                   <div className="md:col-span-9 lg:col-span-9 min-h-[300px] flex items-center justify-center w-full">
                     <Doughnut data={dataChart} options={options} plugins={[centerText, labelLeaders]} style={{ backgroundColor: 'transparent' }} />

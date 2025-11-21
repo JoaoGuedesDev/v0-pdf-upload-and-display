@@ -46,7 +46,7 @@ export const GraficoReceitaMensal = memo(function GraficoReceitaMensal({
   data, 
   title = '',
   description = 'Evolução de Receitas',
-  height = 420 
+  height = 370 
 }: GraficoReceitaMensalProps) {
   const chartData = useMemo(() => {
     if (!data || !data.labels || !data.values) {
