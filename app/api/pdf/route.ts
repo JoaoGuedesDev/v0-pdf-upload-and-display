@@ -42,13 +42,17 @@ function parseQuery(req: NextRequest) {
 
 function getOrigin(req: NextRequest): string {
   try {
+    // Prefer the framework-provided origin which matches the current request
+    const fallback = req.nextUrl?.origin || ''
     const hs = req.headers
     const host = hs.get('host') || process.env.VERCEL_URL || 'localhost:3000'
-    const proto = hs.get('x-forwarded-proto') || 'https'
+    let proto = hs.get('x-forwarded-proto') || ''
+    // Local development commonly runs on http
+    if (!proto) proto = host.includes('localhost') ? 'http' : 'https'
     const origin = host.includes('http') ? host : `${proto}://${host}`
-    return origin
+    return origin || fallback
   } catch {
-    return typeof process !== 'undefined' && process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : ''
+    return req.nextUrl?.origin || (typeof process !== 'undefined' && process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '')
   }
 }
 

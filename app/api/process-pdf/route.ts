@@ -245,7 +245,7 @@ export async function POST(request: NextRequest) {
 
 async function persistShare(payload: any): Promise<{ code: string; url: string; filePath: string }> {
   try {
-    const id = await saveDashboard(payload)
+    const id = await saveDashboard(sanitizePayload(ensureAnaliseAliquota(payload)))
     const url = `/d/${id}`
     return { code: id, url, filePath: "" }
   } catch (e) {
@@ -256,7 +256,7 @@ async function persistShare(payload: any): Promise<{ code: string; url: string; 
       try { fs.mkdirSync(baseDir, { recursive: true }) } catch {}
       const filePath = path.join(baseDir, `dash-${code}.json`)
       try {
-        fs.writeFileSync(filePath, JSON.stringify(payload ?? {}, null, 2), 'utf-8')
+        fs.writeFileSync(filePath, JSON.stringify(sanitizePayload(ensureAnaliseAliquota(payload)) ?? {}, null, 2), 'utf-8')
         return { code, url: `/d/${code}`, filePath }
       } catch (err) {
         console.error('[share] Fallback write failed:', err)
@@ -278,5 +278,58 @@ function getOrigin(req: NextRequest): string {
     return origin
   } catch {
     return typeof process !== 'undefined' && process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : ''
+  }
+}
+
+function ensureAnaliseAliquota(payload: any): any {
+  try {
+    const p = JSON.parse(JSON.stringify(payload ?? {}))
+    const root = p?.dados || p
+    if (!root || typeof root !== 'object') return payload
+    const calc = root.calculos || (root.calculos = {})
+    const aa = root.analise_aliquota || calc.analise_aliquota
+    if (!aa) return p
+    calc.analise_aliquota = aa
+    const items = Array.isArray((aa as any)?.por_anexo) ? (aa as any).por_anexo : undefined
+    const meta = (aa as any)?.meta || (aa as any)?.metadados || undefined
+    const principal = Number(meta?.anexo_principal || meta?.principal || 0)
+    const pick = Array.isArray(items) ? (items.find((i: any) => Number(i?.anexo) === principal) || items[0]) : undefined
+    const num = (v: any) => { const n = Number(v); return isFinite(n) ? n : undefined }
+    const origPerc = num(pick?.aliquota_efetiva_original_percent) ?? (num(pick?.faixa_original?.aliquota_efetiva) != null ? Number(pick.faixa_original.aliquota_efetiva) * 100 : undefined)
+    const atualPerc = num(pick?.aliquota_efetiva_atual_percent) ?? (num(pick?.faixa_atual?.aliquota_efetiva) != null ? Number(pick.faixa_atual.aliquota_efetiva) * 100 : undefined)
+    if (principal > 0) calc.anexoPrincipal = principal
+    if (origPerc != null) calc.aliquota_efetiva_original_percent = origPerc
+    if (atualPerc != null) calc.aliquota_efetiva_atual_percent = atualPerc
+    return p
+  } catch {
+    return payload
+  }
+}
+
+function sanitizePayload(payload: any): any {
+  try {
+    const p = JSON.parse(JSON.stringify(payload ?? {}))
+    const paths: string[][] = [
+      ['dados','calculos','aliquotaEfetiva'],
+      ['dados','calculos','aliquotaEfetivaFormatada'],
+      ['dados','calculos','margemLiquida'],
+      ['calculos','aliquotaEfetiva'],
+      ['calculos','aliquotaEfetivaFormatada'],
+      ['calculos','margemLiquida'],
+    ]
+    for (const path of paths) {
+      let obj: any = p
+      for (let i = 0; i < path.length - 1; i++) {
+        obj = obj?.[path[i]]
+        if (!obj) break
+      }
+      const key = path[path.length - 1]
+      if (obj && typeof obj === 'object' && key in obj) {
+        delete obj[key]
+      }
+    }
+    return p
+  } catch {
+    return payload
   }
 }

@@ -48,7 +48,7 @@ export const GraficoReceitaMensal = memo(function GraficoReceitaMensal({
   description = 'Evolução de Receitas',
   height = 370 
 }: GraficoReceitaMensalProps) {
-  const chartData = useMemo(() => {
+  const chartData = (() => {
     if (!data || !data.labels || !data.values) {
       return { labels: [], datasets: [] };
     }
@@ -181,9 +181,9 @@ export const GraficoReceitaMensal = memo(function GraficoReceitaMensal({
     ]
 
     return { labels: labelsSorted, datasets };
-  }, [data]);
+  })();
 
-  const options: ChartOptions<'bar'> = useMemo(() => ({
+  const options: ChartOptions<'bar'> = ({
     ...CHART_CONFIG,
     animation: false,
     layout: { padding: { top: 70, bottom: -7 } },
@@ -321,7 +321,7 @@ export const GraficoReceitaMensal = memo(function GraficoReceitaMensal({
         },
       },
     },
-  }), [title]);
+  });
 
   if (!data || chartData.labels.length === 0) {
     return (

@@ -40,9 +40,10 @@ interface IndicadoresReceitaProps {
   mercadoriasBrutoPA?: number
   receitas12Meses?: number[]
   periodoApuracao?: string
+  porAnexoItems?: any[]
 }
 
-export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, calculos, className = "", servicosTotal = 0, mercadoriasTotal = 0, servicosBrutoPA = 0, mercadoriasBrutoPA = 0, receitas12Meses, periodoApuracao }: IndicadoresReceitaProps) {
+export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, calculos, className = "", servicosTotal = 0, mercadoriasTotal = 0, servicosBrutoPA = 0, mercadoriasBrutoPA = 0, receitas12Meses, periodoApuracao, porAnexoItems }: IndicadoresReceitaProps) {
   const receitaPA = useMemo(() => (receitas?.receitaPA || 0), [receitas])
   const totalDAS = useMemo(() => {
     const explicit = calculos?.totalDAS
@@ -51,9 +52,11 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
     return aliq ? (aliq / 100) * receitaPA : 0
   }, [calculos, receitaPA])
   const margemLiquida = useMemo(() => (calculos?.margemLiquida || calculos?.margemLiquidaPercent || 0), [calculos])
-  const aliquotaEfetiva = useMemo(() => {
-    const v = calculos?.aliquotaEfetivaOriginalPercent
-    if (v != null && isFinite(Number(v))) return Number(v)
+  const aliquotaOriginal = useMemo(() => {
+    const c: any = calculos || {}
+    const v = c?.aliquotaEfetivaPrincipalOriginal ?? c?.aliquota_efetiva_original_percent ?? calculos?.aliquotaEfetivaOriginalPercent
+    const n = Number(v)
+    if (isFinite(n)) return n
     return Number(calculos?.aliquotaEfetiva || 0)
   }, [calculos])
   const rbt12 = useMemo(() => (receitas?.rbt12 || 0), [receitas])
@@ -71,10 +74,56 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
   const pesoDAS_RBT12_Futuro = useMemo(() => (rbt12Futuro > 0 ? (totalDAS / rbt12Futuro) * 100 : 0), [totalDAS, rbt12Futuro])
 
   const aliquotaEfetivaAtual = useMemo(() => {
-    const v = calculos?.aliquotaEfetivaAtualPercent
-    if (v != null && isFinite(Number(v))) return Number(v)
+    const c: any = calculos || {}
+    const v = c?.aliquotaEfetivaPrincipalAtual ?? c?.aliquota_efetiva_atual_percent ?? calculos?.aliquotaEfetivaAtualPercent
+    const n = Number(v)
+    if (isFinite(n)) return n
     return aliquotaMes
   }, [calculos, aliquotaMes])
+
+  const aliquotaItems = useMemo(() => {
+    if (Array.isArray(porAnexoItems) && porAnexoItems.length > 0) return porAnexoItems
+    const c: any = calculos || {}
+    const a = c?.analiseAliquotaItems ?? c?.analiseAliquota ?? c?.analise_aliquota
+    let arr: any[] = []
+    if (Array.isArray(a)) arr = a
+    else if (Array.isArray(a?.por_anexo)) arr = a.por_anexo
+    // Ordena: Serviços primeiro, Mercadorias depois
+    arr = arr.slice().sort((x, y) => {
+      const lab = (an: number) => (an === 1 || an === 2) ? 'Mercadorias' : 'Serviços'
+      const lx = lab(Number(x?.anexo))
+      const ly = lab(Number(y?.anexo))
+      if (lx === ly) return Number(x?.anexo) - Number(y?.anexo)
+      return lx === 'Serviços' ? -1 : 1
+    })
+    return arr
+  }, [calculos, porAnexoItems])
+
+  const valoresAtual = useMemo(() => {
+    const r: Record<'Serviços'|'Mercadorias', number | undefined> = { Serviços: undefined, Mercadorias: undefined }
+    for (const it of aliquotaItems) {
+      const an = Number(it?.anexo)
+      const label = (an === 1 || an === 2) ? 'Mercadorias' : 'Serviços'
+      const p = Number(it?.aliquota_efetiva_atual_percent)
+      const fx = Number(it?.faixa_atual?.aliquota_efetiva)
+      const v = isFinite(p) ? p : (isFinite(fx) ? fx * 100 : NaN)
+      if (isFinite(v)) r[label] = v
+    }
+    return r
+  }, [aliquotaItems])
+
+  const valoresOriginal = useMemo(() => {
+    const r: Record<'Serviços'|'Mercadorias', number | undefined> = { Serviços: undefined, Mercadorias: undefined }
+    for (const it of aliquotaItems) {
+      const an = Number(it?.anexo)
+      const label = (an === 1 || an === 2) ? 'Mercadorias' : 'Serviços'
+      const p = Number(it?.aliquota_efetiva_original_percent)
+      const fx = Number(it?.faixa_original?.aliquota_efetiva)
+      const v = isFinite(p) ? p : (isFinite(fx) ? fx * 100 : NaN)
+      if (isFinite(v)) r[label] = v
+    }
+    return r
+  }, [aliquotaItems])
 
   const nextPeriodoLabel = useMemo(() => {
     const s = String(periodoApuracao || '').trim()
@@ -101,6 +150,13 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
         return `${mmStr}/${yy}`
       }
     }
+    return ''
+  }, [periodoApuracao])
+
+  const currentPeriodoLabel = useMemo(() => {
+    const s = String(periodoApuracao || '').trim()
+    const mmYYYY = s.match(/(\d{2})\/(\d{4})/)
+    if (mmYYYY) return `${mmYYYY[1]}/${mmYYYY[2]}`
     return ''
   }, [periodoApuracao])
 
@@ -158,27 +214,42 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
         </CardContent>
       </Card>
 
-      {/* Alíquota Efetiva - Laranja */}
+      {/* Alíquota do Período Atual - Laranja */}
       <Card className="bg-gradient-to-br from-orange-500 to-orange-600 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200 py-1">
         <CardHeader className="pb-0.5 p-1 sm:p-2 flex flex-row items-center justify-between space-y-0">
-          <CardTitle className="text-[11px] sm:text-xs font-bold">Alíquota Efetiva</CardTitle>
+          <CardTitle className="text-[11px] sm:text-xs font-bold">Alíquota {currentPeriodoLabel}</CardTitle>
           <TrendingUp className="h-4 w-4" />
         </CardHeader>
         <CardContent className="p-1 sm:p-2 pt-0">
-          <p className="text-base sm:text-lg font-bold font-sans">
-            {(calculos?.aliquotaEfetivaFormatada || `${aliquotaEfetiva.toFixed(5).replace('.', ',')}%`)}
-          </p>
+          <div className="mt-1 space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] sm:text-xs opacity-90">Serviços</span>
+              <span className="text-base sm:text-lg font-bold font-sans">{isFinite(Number(valoresOriginal['Serviços'])) ? Number(valoresOriginal['Serviços']).toFixed(5).replace('.', ',') + '%' : ''}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] sm:text-xs opacity-90">Mercadorias</span>
+              <span className="text-base sm:text-lg font-bold font-sans">{isFinite(Number(valoresOriginal['Mercadorias'])) ? Number(valoresOriginal['Mercadorias']).toFixed(5).replace('.', ',') + '%' : ''}</span>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
-      {/* Alíquota do Mês Vigente - Roxo */}
+      {/* Alíquota do Próximo Mês - Roxo */}
       <Card className="bg-gradient-to-br from-purple-600 to-purple-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200 py-1">
         <CardHeader className="pb-0.5 p-1 sm:p-2">
           <CardTitle className="text-[11px] sm:text-xs font-bold">Alíquota {nextPeriodoLabel}</CardTitle>
         </CardHeader>
         <CardContent className="p-1 sm:p-2 pt-0">
-          <p className="text-base sm:text-lg font-bold font-sans">{aliquotaEfetivaAtual.toFixed(5).replace('.', ',')}%</p>
-          <p className="text-[10px] sm:text-[11px] opacity-75 mt-1">Alíquota efetiva atual</p>
+          <div className="mt-1 space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] sm:text-xs opacity-90">Serviços</span>
+              <span className="text-base sm:text-lg font-bold font-sans">{isFinite(Number(valoresAtual['Serviços'])) ? Number(valoresAtual['Serviços']).toFixed(5).replace('.', ',') + '%' : ''}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] sm:text-xs opacity-90">Mercadorias</span>
+              <span className="text-base sm:text-lg font-bold font-sans">{isFinite(Number(valoresAtual['Mercadorias'])) ? Number(valoresAtual['Mercadorias']).toFixed(5).replace('.', ',') + '%' : ''}</span>
+            </div>
+          </div>
         </CardContent>
       </Card>
     </div>

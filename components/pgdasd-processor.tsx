@@ -627,6 +627,14 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
               mercadoriasBrutoPA={mercadoriasBrutoPA}
               receitas12Meses={receitas12Meses}
               periodoApuracao={data?.identificacao?.periodoApuracao}
+              porAnexoItems={
+                (data as any)?.calculos?.analiseAliquotaItems
+                || (data as any)?.calculos?.analiseAliquota?.por_anexo
+                || (data as any)?.calculos?.analise_aliquota?.por_anexo
+                || (data as any)?.analiseAliquotaItems
+                || (data as any)?.analiseAliquota?.por_anexo
+                || (data as any)?.analise_aliquota?.por_anexo
+              }
             />
           )
         })()}

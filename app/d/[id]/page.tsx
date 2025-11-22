@@ -57,7 +57,7 @@ export default async function Page({ params }: any) {
     ...data.dados,
     graficos: data.graficos || {},
     debug: (data as any)?.debug,
-    calculos: (data as any)?.calculos,
+    calculos: (data as any)?.calculos ?? (data as any)?.dados?.calculos,
   } : undefined
 
   return (
