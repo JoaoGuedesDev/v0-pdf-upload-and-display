@@ -640,8 +640,13 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
         })()}
 
         {(() => {
-          const items = (data?.calculos?.analiseAliquotaItems || data?.calculos?.analiseAliquota) as any[] | undefined
-          const meta = data?.calculos?.analiseAliquotaMeta as any
+          const items = (
+            (data?.calculos as any)?.analise_aliquota?.por_anexo
+            || (data?.calculos as any)?.analiseAliquota?.por_anexo
+            || (data?.calculos as any)?.analiseAliquotaItems
+            || (data?.calculos as any)?.analiseAliquota
+          ) as any[] | undefined
+          const meta = (data?.calculos as any)?.analiseAliquotaMeta || (data?.calculos as any)?.analise_aliquota?.meta
           if (!Array.isArray(items) || items.length === 0) return null
           return (
           <Card className="bg-white border-slate-200" style={{ breakInside: 'avoid' }}>
@@ -672,26 +677,28 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                   const aliqAtualRaw = item?.aliquota_efetiva_atual_percent ?? item?.aliquotaEfetivaAtualPercent
                   const aliqAtual = Number(aliqAtualRaw ?? 0)
                   const fmtPct = (v: number) => `${Number(v || 0).toFixed(5).replace('.', ',')}%`
+                  const fmtPctFromPercent = (v: number) => `${Number(v || 0).toFixed(5).replace('.', ',')}%`
                   const fmtMoney = (v: number) => formatCurrency(Number(v || 0))
                   return (
                     <div key={idx} className="border rounded-lg p-3">
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-start">
                         <div className="text-sm font-semibold text-slate-800">Anexo {anexo}</div>
-                        <div className="text-[11px] text-slate-500">RBT12: {fmtMoney(rbt12Atual || rbt12Original)}</div>
                       </div>
                       <div className="mt-2 grid grid-cols-2 gap-2">
                         <div className="bg-slate-50 rounded p-2">
-                          <div className="text-[11px] text-slate-600">Faixa original</div>
+                          <div className="text-[11px] text-slate-600 mt-2">Faixa original</div>
                           <div className="text-xs text-slate-700">Faixa: {fxO?.faixa}</div>
-                          <div className="text-xs text-slate-700">Aliq nominal: {fmtPct(fxO?.aliquota_nominal)}</div>
+                          <div className="text-xs text-slate-700">Aliq nominal: {fmtPctFromPercent(Number(fxO?.aliquota_nominal || 0) * 100)}</div>
                           <div className="text-xs text-slate-700">Dedução: {fmtMoney(fxO?.valor_deduzir)}</div>
+                          <div className="text-xs text-slate-700 whitespace-nowrap"><span>RBT12 original: </span><span>{fmtMoney(rbt12Original)}</span></div>
                           <div className="text-xs font-semibold text-slate-900 mt-1">Alíquota efetiva: {fmtPct(aliqOrig)}</div>
                         </div>
                         <div className="bg-slate-50 rounded p-2">
-                          <div className="text-[11px] text-slate-600">Faixa atual</div>
+                          <div className="text-[11px] text-slate-600 mt-2">Faixa atual</div>
                           <div className="text-xs text-slate-700">Faixa: {fxA?.faixa}</div>
-                          <div className="text-xs text-slate-700">Aliq nominal: {fmtPct(fxA?.aliquota_nominal)}</div>
+                          <div className="text-xs text-slate-700">Aliq nominal: {fmtPctFromPercent(Number(fxA?.aliquota_nominal || 0) * 100)}</div>
                           <div className="text-xs text-slate-700">Dedução: {fmtMoney(fxA?.valor_deduzir)}</div>
+                          <div className="text-xs text-slate-700 whitespace-nowrap"><span>RBT12 atual: </span><span>{fmtMoney(rbt12Atual)}</span></div>
                           <div className="text-xs font-semibold text-slate-900 mt-1">Alíquota efetiva: {fmtPct(aliqAtual)}</div>
                         </div>
                       </div>

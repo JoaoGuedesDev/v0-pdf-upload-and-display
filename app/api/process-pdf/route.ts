@@ -292,14 +292,50 @@ function ensureAnaliseAliquota(payload: any): any {
     calc.analise_aliquota = aa
     const items = Array.isArray((aa as any)?.por_anexo) ? (aa as any).por_anexo : undefined
     const meta = (aa as any)?.meta || (aa as any)?.metadados || undefined
+    const tabelaFaixas: Record<number, { faixa: number; min: number; max: number; aliquota_nominal: number; valor_deduzir: number }[]> = {
+      1: [
+        { faixa: 1, min: 0, max: 180000, aliquota_nominal: 0.04, valor_deduzir: 0 },
+        { faixa: 2, min: 180000.01, max: 360000, aliquota_nominal: 0.073, valor_deduzir: 5940 },
+        { faixa: 3, min: 360000.01, max: 720000, aliquota_nominal: 0.095, valor_deduzir: 13860 },
+        { faixa: 4, min: 720000.01, max: 1800000, aliquota_nominal: 0.107, valor_deduzir: 22500 },
+        { faixa: 5, min: 1800000.01, max: 3600000, aliquota_nominal: 0.143, valor_deduzir: 87300 },
+        { faixa: 6, min: 3600000.01, max: 4800000, aliquota_nominal: 0.19, valor_deduzir: 378000 },
+      ],
+      3: [
+        { faixa: 1, min: 0, max: 180000, aliquota_nominal: 0.06, valor_deduzir: 0 },
+        { faixa: 2, min: 180000.01, max: 360000, aliquota_nominal: 0.112, valor_deduzir: 9360 },
+        { faixa: 3, min: 360000.01, max: 720000, aliquota_nominal: 0.135, valor_deduzir: 17640 },
+        { faixa: 4, min: 720000.01, max: 1800000, aliquota_nominal: 0.16, valor_deduzir: 35640 },
+        { faixa: 5, min: 1800000.01, max: 3600000, aliquota_nominal: 0.21, valor_deduzir: 125640 },
+        { faixa: 6, min: 3600000.01, max: 4800000, aliquota_nominal: 0.33, valor_deduzir: 648000 },
+      ],
+    }
+    const num = (v: any) => { const n = Number(v); return isFinite(n) ? n : undefined }
+    const pickFaixa = (anexo: number, rbt12Val?: number) => {
+      const v = num(rbt12Val)
+      if (v == null) return undefined
+      const table = tabelaFaixas[anexo] || []
+      const f = table.find((fx) => v >= fx.min && v <= fx.max)
+      if (!f) return undefined
+      const aliquota_efetiva = v > 0 ? ((f.aliquota_nominal * v) - f.valor_deduzir) / v : 0
+      return { ...f, aliquota_efetiva }
+    }
     const principal = Number(meta?.anexo_principal || meta?.principal || 0)
     const pick = Array.isArray(items) ? (items.find((i: any) => Number(i?.anexo) === principal) || items[0]) : undefined
-    const num = (v: any) => { const n = Number(v); return isFinite(n) ? n : undefined }
     const origPerc = num(pick?.aliquota_efetiva_original_percent) ?? (num(pick?.faixa_original?.aliquota_efetiva) != null ? Number(pick.faixa_original.aliquota_efetiva) * 100 : undefined)
     const atualPerc = num(pick?.aliquota_efetiva_atual_percent) ?? (num(pick?.faixa_atual?.aliquota_efetiva) != null ? Number(pick.faixa_atual.aliquota_efetiva) * 100 : undefined)
     if (principal > 0) calc.anexoPrincipal = principal
     if (origPerc != null) calc.aliquota_efetiva_original_percent = origPerc
     if (atualPerc != null) calc.aliquota_efetiva_atual_percent = atualPerc
+    if (Array.isArray(items)) {
+      for (const it of items) {
+        const an = Number(it?.anexo || it?.anexo_numero || 0)
+        const rbt12O = num(it?.rbt12_original || it?.rbt12)
+        const rbt12A = num(it?.rbt12_atual || it?.rbt12)
+        if (!it.faixa_original) it.faixa_original = pickFaixa(an, rbt12O)
+        if (!it.faixa_atual) it.faixa_atual = pickFaixa(an, rbt12A)
+      }
+    }
     return p
   } catch {
     return payload
