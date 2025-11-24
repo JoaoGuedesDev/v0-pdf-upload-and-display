@@ -38,7 +38,16 @@ export default function Home() {
   return (
     <main className={`min-h-screen p-6 bg-gradient-to-br from-slate-50 via-gray-50 to-slate-100`}>
       <div className="mx-auto max-w-7xl space-y-6">
-        
+        <div className="flex justify-between items-center">
+          <div className="space-y-1">
+            <img
+              src="/shared/integra-logo.png"
+              alt="Integra Soluções Empresariais"
+              className="h-10 sm:h-12 w-auto object-contain"
+              onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/integra-logo.svg' }}
+            />
+          </div>
+        </div>
 
         <div className="mt-2">
           <ConfiguracaoProcessamento onProcess={onProcess} loading={loading} className="min-h-[320px]" />

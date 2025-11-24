@@ -9,7 +9,6 @@ import { IndicadoresReceita } from "@/components/dashboard/IndicadoresReceita"
 import { GraficoReceitaMensal } from "@/components/dashboard/GraficoReceitaMensal"
 import { ComparacaoAtividades } from "@/components/dashboard/ComparacaoAtividades"
 import { formatCurrency, computeTotalDAS } from "@/lib/utils"
-import Image from "next/image"
 import { Doughnut } from 'react-chartjs-2'
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, Title } from 'chart.js'
 import ChartDataLabels from 'chartjs-plugin-datalabels'
@@ -416,7 +415,14 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-4">
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="flex justify-between items-center">
-          <div className="space-y-1"></div>
+          <div className="space-y-1">
+            <img
+              src="/shared/integra-logo.png"
+              alt="Integra Soluções Empresariais"
+              className="h-10 sm:h-12 w-auto object-contain"
+              onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/integra-logo.svg' }}
+            />
+          </div>
         </div>
 
         
