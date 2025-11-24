@@ -36,7 +36,7 @@ export default function Home() {
   }
 
   return (
-    <main className={`min-h-screen p-6 bg-gradient-to-br from-slate-50 via-gray-50 to-slate-100`}>
+    <main className={`min-h-screen p-6 bg-white`}>
       <div className="mx-auto max-w-7xl space-y-6">
         <div className="flex justify-between items-center">
           <div className="space-y-1">

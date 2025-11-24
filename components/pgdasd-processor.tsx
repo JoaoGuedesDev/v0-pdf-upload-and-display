@@ -412,7 +412,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-4">
+    <div className="min-h-screen bg-white p-4">
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="flex justify-between items-center">
           <div className="space-y-1">
