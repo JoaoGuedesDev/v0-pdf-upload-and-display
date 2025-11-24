@@ -668,6 +668,16 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                     if ([1,2].includes(an)) return 'Mercadorias'
                     return ''
                   })()
+                  const getAnexoUrl = (n: number): string | null => {
+                    switch (n) {
+                      case 1: return 'https://www.lsassessoriacontabil.net.br/p/teste.html'
+                      case 2: return 'https://www.lsassessoriacontabil.net.br/p/anexo-2-simples-nacional-beneficios-e.html'
+                      case 3: return 'https://www.lsassessoriacontabil.net.br/p/o-simples-nacional-e-uma-opcao.html'
+                      case 4: return 'https://www.lsassessoriacontabil.net.br/p/anexo-4-simples-nacional-simplificando.html'
+                      case 5: return 'https://www.lsassessoriacontabil.net.br/p/anexo-5-simples-nacional-simplificando.html'
+                      default: return null
+                    }
+                  }
                   return (
                     <div key={idx} className="border rounded-lg p-3">
                       <div className="flex items-center justify-start">
@@ -712,6 +722,17 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                           <div className="text-xs font-semibold text-slate-900 mt-1">Alíquota efetiva: {fmtPctRaw(aliqAtualRaw)}</div>
                         </div>
                       </div>
+                      {(() => {
+                        const url = getAnexoUrl(Number(anexo))
+                        if (!url) return null
+                        return (
+                          <div className="mt-2 flex items-center gap-2">
+                            <Button asChild variant="ghost" size="sm" className="h-6 px-2 text-[11px]">
+                              <a href={url} target="_blank" rel="noreferrer">Explicação do Anexo {anexo}</a>
+                            </Button>
+                          </div>
+                        )
+                      })()}
                     </div>
                   )
                 })}
