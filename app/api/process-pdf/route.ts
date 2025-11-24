@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
               if (isNormalized) {
                 const share = await persistShare(json)
                 const origin = getOrigin(request)
-                const pdfUrl = `${origin}/api/pdf?path=${encodeURIComponent(share.url)}&type=screen&w=1280&scale=1`
+                const pdfUrl = `${origin}/api/pdf?path=${encodeURIComponent(share.url)}&type=print&w=1280&scale=1`
                 return NextResponse.json({ ...json, dashboardUrl: share.url, dashboardCode: share.code, pdfUrl })
               }
               const normalized = processDasData(JSON.stringify(json))
@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
               } catch {}
               const share = await persistShare(normalized)
               const origin = getOrigin(request)
-              const pdfUrl = `${origin}/api/pdf?path=${encodeURIComponent(share.url)}&type=screen&w=1280&scale=1`
+              const pdfUrl = `${origin}/api/pdf?path=${encodeURIComponent(share.url)}&type=print&w=1280&scale=1`
               return NextResponse.json({ ...normalized, dashboardUrl: share.url, dashboardCode: share.code, pdfUrl })
             } catch (e) {
             }
@@ -130,7 +130,7 @@ export async function POST(request: NextRequest) {
           const parsed = processDasData(bodyText)
           const share = await persistShare(parsed)
           const origin = getOrigin(request)
-          const pdfUrl = `${origin}/api/pdf?path=${encodeURIComponent(share.url)}&type=screen&w=1280&scale=1`
+          const pdfUrl = `${origin}/api/pdf?path=${encodeURIComponent(share.url)}&type=print&w=1280&scale=1`
           return NextResponse.json({ ...parsed, dashboardUrl: share.url, dashboardCode: share.code, pdfUrl })
         } catch (e) {
           console.error("[v0-n8n] Erro ao encaminhar ao n8n:", e)

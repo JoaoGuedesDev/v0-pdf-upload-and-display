@@ -1265,7 +1265,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
               </div>
             </div>
             {!hideDownloadButton && (
-              <div className="flex flex-wrap gap-2 justify-center mt-4">
+              <div className="flex flex-wrap gap-2 justify-center mt-4 print:hidden">
                 <Button variant="secondary" onClick={() => window.location.assign('/')}>Processar Novo PDF</Button>
                 <Button onClick={handleDownloadPDF}>Baixar PDF</Button>
               </div>

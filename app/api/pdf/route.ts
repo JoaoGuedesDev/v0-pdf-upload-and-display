@@ -85,7 +85,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const page = await browser.newPage()
-    await page.emulateMediaType('screen')
+    await page.emulateMediaType((type === 'print' || type === 'screen') ? (type as any) : 'screen')
     await page.goto(target, { waitUntil: 'domcontentloaded', timeout: 120000 })
     try { await page.waitForSelector('main', { timeout: 10000 }) } catch {}
     try { await page.waitForNetworkIdle({ idleTime: 500, timeout: 5000 }) } catch {}
@@ -97,9 +97,11 @@ export async function GET(req: NextRequest) {
 
     const pdf = await page.pdf({
       width: `${Math.max(size.w, w)}px`,
-      height: `${type === 'screen' ? Math.max(size.h, h) : h}px`,
+      height: `${Math.max(size.h, h)}px`,
       printBackground: true,
       preferCSSPageSize: true,
+      pageRanges: '1',
+      margin: { top: 0, right: 0, bottom: 0, left: 0 },
       timeout: 120000,
     })
 
