@@ -47,82 +47,66 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
   const receitaPA = useMemo(() => (receitas?.receitaPA || 0), [receitas])
   const totalDAS = useMemo(() => {
     const explicit = calculos?.totalDAS
-    if (explicit != null && Number.isFinite(Number(explicit))) return Number(explicit)
-    const aliq = calculos?.aliquotaEfetiva || 0
-    return aliq ? (aliq / 100) * receitaPA : 0
-  }, [calculos, receitaPA])
-  const margemLiquida = useMemo(() => (calculos?.margemLiquida || calculos?.margemLiquidaPercent || 0), [calculos])
-  const aliquotaOriginal = useMemo(() => {
-    const c: any = calculos || {}
-    const v = c?.aliquotaEfetivaPrincipalOriginal ?? c?.aliquota_efetiva_original_percent ?? calculos?.aliquotaEfetivaOriginalPercent
-    const n = Number(v)
-    if (isFinite(n)) return n
-    return Number(calculos?.aliquotaEfetiva || 0)
+    return explicit != null && Number.isFinite(Number(explicit)) ? Number(explicit) : 0
   }, [calculos])
-  const rbt12 = useMemo(() => (receitas?.rbt12 || 0), [receitas])
-  const aliquotaMes = useMemo(() => (receitaPA > 0 ? (totalDAS / receitaPA) * 100 : 0), [totalDAS, receitaPA])
-  const pesoDAS_RBT12 = useMemo(() => (rbt12 > 0 ? (totalDAS / rbt12) * 100 : 0), [totalDAS, rbt12])
-  const rbt12Futuro = useMemo(() => {
-    const arr = Array.isArray(receitas12Meses) ? receitas12Meses : []
-    if (arr.length >= 12 && rbt12 > 0) {
-      const oldest = arr[0] || 0
-      const current = arr[arr.length - 1] || 0
-      return rbt12 - oldest + current
-    }
-    return 0
-  }, [receitas12Meses, rbt12])
-  const pesoDAS_RBT12_Futuro = useMemo(() => (rbt12Futuro > 0 ? (totalDAS / rbt12Futuro) * 100 : 0), [totalDAS, rbt12Futuro])
-
-  const aliquotaEfetivaAtual = useMemo(() => {
-    const c: any = calculos || {}
-    const v = c?.aliquotaEfetivaPrincipalAtual ?? c?.aliquota_efetiva_atual_percent ?? calculos?.aliquotaEfetivaAtualPercent
-    const n = Number(v)
-    if (isFinite(n)) return n
-    return aliquotaMes
-  }, [calculos, aliquotaMes])
+  const margemLiquida = useMemo(() => (calculos?.margemLiquida || calculos?.margemLiquidaPercent || 0), [calculos])
 
   const aliquotaItems = useMemo(() => {
-    if (Array.isArray(porAnexoItems) && porAnexoItems.length > 0) return porAnexoItems
     const c: any = calculos || {}
-    const a = c?.analiseAliquotaItems ?? c?.analiseAliquota ?? c?.analise_aliquota
-    let arr: any[] = []
-    if (Array.isArray(a)) arr = a
-    else if (Array.isArray(a?.por_anexo)) arr = a.por_anexo
-    // Ordena: Serviços primeiro, Mercadorias depois
-    arr = arr.slice().sort((x, y) => {
-      const lab = (an: number) => (an === 1 || an === 2) ? 'Mercadorias' : 'Serviços'
-      const lx = lab(Number(x?.anexo))
-      const ly = lab(Number(y?.anexo))
-      if (lx === ly) return Number(x?.anexo) - Number(y?.anexo)
-      return lx === 'Serviços' ? -1 : 1
-    })
+    const arr: any[] = (
+      Array.isArray(c?.analise_aliquota?.detalhe) ? c.analise_aliquota.detalhe :
+      []
+    )
     return arr
-  }, [calculos, porAnexoItems])
+  }, [calculos])
 
-  const valoresAtual = useMemo(() => {
-    const r: Record<'Serviços'|'Mercadorias', number | undefined> = { Serviços: undefined, Mercadorias: undefined }
-    for (const it of aliquotaItems) {
-      const an = Number(it?.anexo)
-      const label = (an === 1 || an === 2) ? 'Mercadorias' : 'Serviços'
-      const p = Number(it?.aliquota_efetiva_atual_percent)
-      const fx = Number(it?.faixa_atual?.aliquota_efetiva)
-      const v = isFinite(p) ? p : (isFinite(fx) ? fx * 100 : NaN)
-      if (isFinite(v)) r[label] = v
+  // Removido cálculo: os cards usam os valores exatamente como vierem do n8n
+
+  const rowsOriginal = useMemo(() => {
+    const labelForItem = (it: any): string => {
+      const an = it?.anexo ?? it?.anexo_numero
+      if (an != null) return `Anexo ${an}`
+      const t = String(it?.tipo || '').toLowerCase()
+      return t ? t.charAt(0).toUpperCase() + t.slice(1) : 'Item'
     }
-    return r
+    return (aliquotaItems || []).map((it: any) => ({
+      label: labelForItem(it),
+      value: it?.aliquota_efetiva_original_percent
+    })).filter((r: any) => r.value != null)
   }, [aliquotaItems])
 
-  const valoresOriginal = useMemo(() => {
-    const r: Record<'Serviços'|'Mercadorias', number | undefined> = { Serviços: undefined, Mercadorias: undefined }
-    for (const it of aliquotaItems) {
-      const an = Number(it?.anexo)
-      const label = (an === 1 || an === 2) ? 'Mercadorias' : 'Serviços'
-      const p = Number(it?.aliquota_efetiva_original_percent)
-      const fx = Number(it?.faixa_original?.aliquota_efetiva)
-      const v = isFinite(p) ? p : (isFinite(fx) ? fx * 100 : NaN)
-      if (isFinite(v)) r[label] = v
+  
+  const tipoServPresent = useMemo(() => {
+    return aliquotaItems.some((it: any) => {
+      const t = String(it?.tipo || '').toLowerCase()
+      const an = Number(it?.anexo ?? it?.anexo_numero)
+      return t === 'servicos' || an === 3 || an === 4
+    })
+  }, [aliquotaItems])
+  const tipoMercPresent = useMemo(() => {
+    return aliquotaItems.some((it: any) => {
+      const t = String(it?.tipo || '').toLowerCase()
+      const an = Number(it?.anexo ?? it?.anexo_numero)
+      return t === 'mercadorias' || an === 1 || an === 2
+    })
+  }, [aliquotaItems])
+  const showFlags = useMemo(() => {
+    return { serv: tipoServPresent, merc: tipoMercPresent }
+  }, [tipoServPresent, tipoMercPresent])
+  const showServ = showFlags.serv
+  const showMerc = showFlags.merc
+
+  const rowsAtual = useMemo(() => {
+    const labelForItem = (it: any): string => {
+      const an = it?.anexo ?? it?.anexo_numero
+      if (an != null) return `Anexo ${an}`
+      const t = String(it?.tipo || '').toLowerCase()
+      return t ? t.charAt(0).toUpperCase() + t.slice(1) : 'Item'
     }
-    return r
+    return (aliquotaItems || []).map((it: any) => ({
+      label: labelForItem(it),
+      value: it?.aliquota_efetiva_atual_percent
+    })).filter((r: any) => r.value != null)
   }, [aliquotaItems])
 
   const nextPeriodoLabel = useMemo(() => {
@@ -222,14 +206,14 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
         </CardHeader>
         <CardContent className="p-1 sm:p-2 pt-0">
           <div className="mt-1 space-y-1">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] sm:text-xs opacity-90">Serviços</span>
-              <span className="text-base sm:text-lg font-bold font-sans">{isFinite(Number(valoresOriginal['Serviços'])) ? Number(valoresOriginal['Serviços']).toFixed(5).replace('.', ',') + '%' : ''}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] sm:text-xs opacity-90">Mercadorias</span>
-              <span className="text-base sm:text-lg font-bold font-sans">{isFinite(Number(valoresOriginal['Mercadorias'])) ? Number(valoresOriginal['Mercadorias']).toFixed(5).replace('.', ',') + '%' : ''}</span>
-            </div>
+            {rowsOriginal.map((r: any, i: number) => (
+              <div key={i} className="flex items-center justify-between">
+                <span className="text-[11px] sm:text-xs opacity-90">{r.label}</span>
+                <span className="text-base sm:text-lg font-bold font-sans">
+                  {String(r.value)}%
+                </span>
+              </div>
+            ))}
           </div>
         </CardContent>
       </Card>
@@ -241,14 +225,14 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
         </CardHeader>
         <CardContent className="p-1 sm:p-2 pt-0">
           <div className="mt-1 space-y-1">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] sm:text-xs opacity-90">Serviços</span>
-              <span className="text-base sm:text-lg font-bold font-sans">{isFinite(Number(valoresAtual['Serviços'])) ? Number(valoresAtual['Serviços']).toFixed(5).replace('.', ',') + '%' : ''}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] sm:text-xs opacity-90">Mercadorias</span>
-              <span className="text-base sm:text-lg font-bold font-sans">{isFinite(Number(valoresAtual['Mercadorias'])) ? Number(valoresAtual['Mercadorias']).toFixed(5).replace('.', ',') + '%' : ''}</span>
-            </div>
+            {rowsAtual.map((r: any, i: number) => (
+              <div key={i} className="flex items-center justify-between">
+                <span className="text-[11px] sm:text-xs opacity-90">{r.label}</span>
+                <span className="text-base sm:text-lg font-bold font-sans">
+                  {String(r.value)}%
+                </span>
+              </div>
+            ))}
           </div>
         </CardContent>
       </Card>

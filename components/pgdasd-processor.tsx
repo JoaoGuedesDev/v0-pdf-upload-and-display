@@ -628,12 +628,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
               receitas12Meses={receitas12Meses}
               periodoApuracao={data?.identificacao?.periodoApuracao}
               porAnexoItems={
-                (data as any)?.calculos?.analiseAliquotaItems
-                || (data as any)?.calculos?.analiseAliquota?.por_anexo
-                || (data as any)?.calculos?.analise_aliquota?.por_anexo
-                || (data as any)?.analiseAliquotaItems
-                || (data as any)?.analiseAliquota?.por_anexo
-                || (data as any)?.analise_aliquota?.por_anexo
+                Array.isArray((data as any)?.calculos?.analise_aliquota?.detalhe) ? (data as any).calculos.analise_aliquota.detalhe : undefined
               }
             />
           )
@@ -641,12 +636,9 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
 
         {(() => {
           const items = (
-            (data?.calculos as any)?.analise_aliquota?.por_anexo
-            || (data?.calculos as any)?.analiseAliquota?.por_anexo
-            || (data?.calculos as any)?.analiseAliquotaItems
-            || (data?.calculos as any)?.analiseAliquota
+            Array.isArray((data?.calculos as any)?.analise_aliquota?.detalhe) ? (data?.calculos as any).analise_aliquota.detalhe :
+            undefined
           ) as any[] | undefined
-          const meta = (data?.calculos as any)?.analiseAliquotaMeta || (data?.calculos as any)?.analise_aliquota?.meta
           if (!Array.isArray(items) || items.length === 0) return null
           return (
           <Card className="bg-white border-slate-200" style={{ breakInside: 'avoid' }}>
@@ -655,51 +647,69 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
               <CardDescription>Detalhamento por Anexo e Faixa</CardDescription>
             </CardHeader>
             <CardContent className="py-2">
-              {meta && (
-                <div className="flex flex-wrap gap-2 mb-3 text-[11px] text-slate-700">
-                  {typeof meta?.anexo_principal !== 'undefined' && (
-                    <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-1">Anexo principal: {String(meta.anexo_principal)}</span>
-                  )}
-                  {Array.isArray(meta?.anexos_detectados) && meta.anexos_detectados.length > 0 && (
-                    <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-1">Anexos detectados: {meta.anexos_detectados.join(', ')}</span>
-                  )}
-                </div>
-              )}
+              
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {items.map((item: any, idx: number) => {
                   const anexo = item?.anexo ?? item?.anexo_numero
                   const rbt12Original = Number(item?.rbt12_original || item?.rbt12 || 0)
                   const rbt12Atual = Number(item?.rbt12_atual || 0)
-                  const fxO = item?.faixa_original || {}
-                  const fxA = item?.faixa_atual || {}
+                  const fxO = item?.faixa_original
+                  const fxA = item?.faixa_atual
                   const aliqOrigRaw = item?.aliquota_efetiva_original_percent ?? item?.aliquotaEfetivaOriginalPercent ?? item?.aliquota_efetiva
-                  const aliqOrig = Number(aliqOrigRaw ?? 0)
                   const aliqAtualRaw = item?.aliquota_efetiva_atual_percent ?? item?.aliquotaEfetivaAtualPercent
-                  const aliqAtual = Number(aliqAtualRaw ?? 0)
-                  const fmtPct = (v: number) => `${Number(v || 0).toFixed(5).replace('.', ',')}%`
-                  const fmtPctFromPercent = (v: number) => `${Number(v || 0).toFixed(5).replace('.', ',')}%`
+                  const fmtPctRaw = (v: any) => v != null ? `${String(v)}` + (String(v).includes('%') ? '' : '%') : ''
+                  const fmtPctFromPercent = (v: number) => `${String(v ?? '')}`
                   const fmtMoney = (v: number) => formatCurrency(Number(v || 0))
+                  const tipo = (() => {
+                    const t = String(item?.tipo || '').toLowerCase()
+                    if (t) return t === 'servicos' ? 'Serviços' : (t === 'mercadorias' ? 'Mercadorias' : t)
+                    const an = Number(anexo)
+                    if ([3,4].includes(an)) return 'Serviços'
+                    if ([1,2].includes(an)) return 'Mercadorias'
+                    return ''
+                  })()
                   return (
                     <div key={idx} className="border rounded-lg p-3">
                       <div className="flex items-center justify-start">
                         <div className="text-sm font-semibold text-slate-800">Anexo {anexo}</div>
+                        {tipo && (<div className="ml-2 text-xs text-slate-600">{tipo}</div>)}
                       </div>
                       <div className="mt-2 grid grid-cols-2 gap-2">
                         <div className="bg-slate-50 rounded p-2">
                           <div className="text-[11px] text-slate-600 mt-2">Faixa original</div>
-                          <div className="text-xs text-slate-700">Faixa: {fxO?.faixa}</div>
-                          <div className="text-xs text-slate-700">Aliq nominal: {fmtPctFromPercent(Number(fxO?.aliquota_nominal || 0) * 100)}</div>
-                          <div className="text-xs text-slate-700">Dedução: {fmtMoney(fxO?.valor_deduzir)}</div>
+                          {typeof fxO?.faixa !== 'undefined' && (
+                            <div className="text-xs text-slate-700">Faixa: {fxO?.faixa}</div>
+                          )}
+                          {typeof fxO?.aliquota_nominal !== 'undefined' ? (
+                            <div className="text-xs text-slate-700">Aliq nominal: {fmtPctFromPercent(fxO?.aliquota_nominal as number)}</div>
+                          ) : (typeof item?.aliquota_nominal !== 'undefined' && (
+                            <div className="text-xs text-slate-700">Aliq nominal: {fmtPctFromPercent(item?.aliquota_nominal as number)}</div>
+                          ))}
+                          {typeof fxO?.valor_deduzir !== 'undefined' ? (
+                            <div className="text-xs text-slate-700">Dedução: {fmtMoney(fxO?.valor_deduzir)}</div>
+                          ) : (typeof item?.valor_deduzir !== 'undefined' && (
+                            <div className="text-xs text-slate-700">Dedução: {fmtMoney(item?.valor_deduzir as number)}</div>
+                          ))}
                           <div className="text-xs text-slate-700 whitespace-nowrap"><span>RBT12 original: </span><span>{fmtMoney(rbt12Original)}</span></div>
-                          <div className="text-xs font-semibold text-slate-900 mt-1">Alíquota efetiva: {fmtPct(aliqOrig)}</div>
+                          <div className="text-xs font-semibold text-slate-900 mt-1">Alíquota efetiva: {fmtPctRaw(aliqOrigRaw)}</div>
                         </div>
                         <div className="bg-slate-50 rounded p-2">
                           <div className="text-[11px] text-slate-600 mt-2">Faixa atual</div>
-                          <div className="text-xs text-slate-700">Faixa: {fxA?.faixa}</div>
-                          <div className="text-xs text-slate-700">Aliq nominal: {fmtPctFromPercent(Number(fxA?.aliquota_nominal || 0) * 100)}</div>
-                          <div className="text-xs text-slate-700">Dedução: {fmtMoney(fxA?.valor_deduzir)}</div>
+                          {typeof fxA?.faixa !== 'undefined' && (
+                            <div className="text-xs text-slate-700">Faixa: {fxA?.faixa}</div>
+                          )}
+                          {typeof fxA?.aliquota_nominal !== 'undefined' ? (
+                            <div className="text-xs text-slate-700">Aliq nominal: {fmtPctFromPercent(fxA?.aliquota_nominal as number)}</div>
+                          ) : (typeof item?.aliquota_nominal !== 'undefined' && (
+                            <div className="text-xs text-slate-700">Aliq nominal: {fmtPctFromPercent(item?.aliquota_nominal as number)}</div>
+                          ))}
+                          {typeof fxA?.valor_deduzir !== 'undefined' ? (
+                            <div className="text-xs text-slate-700">Dedução: {fmtMoney(fxA?.valor_deduzir)}</div>
+                          ) : (typeof item?.valor_deduzir !== 'undefined' && (
+                            <div className="text-xs text-slate-700">Dedução: {fmtMoney(item?.valor_deduzir as number)}</div>
+                          ))}
                           <div className="text-xs text-slate-700 whitespace-nowrap"><span>RBT12 atual: </span><span>{fmtMoney(rbt12Atual)}</span></div>
-                          <div className="text-xs font-semibold text-slate-900 mt-1">Alíquota efetiva: {fmtPct(aliqAtual)}</div>
+                          <div className="text-xs font-semibold text-slate-900 mt-1">Alíquota efetiva: {fmtPctRaw(aliqAtualRaw)}</div>
                         </div>
                       </div>
                     </div>

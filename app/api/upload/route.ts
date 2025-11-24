@@ -120,6 +120,21 @@ export async function POST(req: NextRequest) {
           if (payload) {
             const isNormalized = typeof payload === 'object' && payload && ('success' in (payload as any)) && ('dados' in (payload as any))
             const normalized = typeof payload === 'string' ? processDasData(payload) : (isNormalized ? payload : processDasData(JSON.stringify(payload)))
+            try {
+              const src: any = payload || {}
+              const root = (normalized as any)?.dados || normalized
+              if (root && typeof root === 'object') {
+                const calc = root.calculos || (root.calculos = {})
+                const aa = src?.analise_aliquota || src?.calculos?.analise_aliquota
+                if (aa && typeof aa === 'object') calc.analise_aliquota = aa
+                const protocolo = src?.protocolo
+                if (protocolo) {
+                  const meta = root.metadata || (root.metadata = {})
+                  ;(meta as any).protocolo = protocolo
+                  ;(root as any).protocolo = protocolo
+                }
+              }
+            } catch {}
             const genId = await saveDashboard(normalized, 60)
             return NextResponse.redirect(new URL(`/d/${genId}`, req.url), { status: 303 })
           }

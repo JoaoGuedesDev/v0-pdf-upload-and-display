@@ -288,29 +288,7 @@ export function processDasData(textRaw: string) {
                 rbt12_original: rbt12_original_calc,
                 rbt12_atual: rbt12_atual_calc,
               }
-              return {
-                meta,
-                por_anexo: [
-                  {
-                    anexo: 1,
-                    rbt12_original: meta.rbt12_original,
-                    rbt12_atual: meta.rbt12_atual,
-                    faixa_original: pickFaixa(1, meta.rbt12_original),
-                    faixa_atual: pickFaixa(1, meta.rbt12_atual),
-                    aliquota_efetiva_original_percent: (() => { const f = pickFaixa(1, meta.rbt12_original); return f ? +(f.aliquota_efetiva * 100).toFixed(4) : +Number(aliqMerc || 0).toFixed(4) })(),
-                    aliquota_efetiva_atual_percent: (() => { const f = pickFaixa(1, meta.rbt12_atual); return f ? +(f.aliquota_efetiva * 100).toFixed(4) : +Number(aliqMerc || 0).toFixed(4) })(),
-                  },
-                  {
-                    anexo: 3,
-                    rbt12_original: meta.rbt12_original,
-                    rbt12_atual: meta.rbt12_atual,
-                    faixa_original: pickFaixa(3, meta.rbt12_original),
-                    faixa_atual: pickFaixa(3, meta.rbt12_atual),
-                    aliquota_efetiva_original_percent: (() => { const f = pickFaixa(3, meta.rbt12_original); return f ? +(f.aliquota_efetiva * 100).toFixed(4) : +Number(aliqServ || 0).toFixed(4) })(),
-                    aliquota_efetiva_atual_percent: (() => { const f = pickFaixa(3, meta.rbt12_atual); return f ? +(f.aliquota_efetiva * 100).toFixed(4) : +Number(aliqServ || 0).toFixed(4) })(),
-                  },
-                ],
-              }
+              return { meta }
             })(),
           },
           historico: {
@@ -763,115 +741,7 @@ export function processDasData(textRaw: string) {
       valorTotalDAS: valorDAS,
       valorTotalDASFormatado: moneyBR(valorDAS),
       calculos: {
-        aliquotaEfetiva: +aliquotaEfetiva.toFixed(1),
-        aliquotaEfetivaFormatada: formatPercent1(aliquotaEfetiva),
         margemLiquida: +margemLiquida.toFixed(3),
-        analise_aliquota: (() => {
-          const sumVals = (o: any) => Object.values(o || {}).reduce((a: number, b: any) => a + Number(b || 0), 0)
-          const tribServ = sumVals(sInt) + sumVals(sExt)
-          const tribMerc = sumVals(mInt) + sumVals(mExt)
-          const tabelaFaixas: Record<number, { faixa: number; min: number; max: number; aliquota_nominal: number; valor_deduzir: number }[]> = {
-            1: [
-              { faixa: 1, min: 0, max: 180000, aliquota_nominal: 0.04, valor_deduzir: 0 },
-              { faixa: 2, min: 180000.01, max: 360000, aliquota_nominal: 0.073, valor_deduzir: 5940 },
-              { faixa: 3, min: 360000.01, max: 720000, aliquota_nominal: 0.095, valor_deduzir: 13860 },
-              { faixa: 4, min: 720000.01, max: 1800000, aliquota_nominal: 0.107, valor_deduzir: 22500 },
-              { faixa: 5, min: 1800000.01, max: 3600000, aliquota_nominal: 0.143, valor_deduzir: 87300 },
-              { faixa: 6, min: 3600000.01, max: 4800000, aliquota_nominal: 0.19, valor_deduzir: 378000 },
-            ],
-            3: [
-              { faixa: 1, min: 0, max: 180000, aliquota_nominal: 0.06, valor_deduzir: 0 },
-              { faixa: 2, min: 180000.01, max: 360000, aliquota_nominal: 0.112, valor_deduzir: 9360 },
-              { faixa: 3, min: 360000.01, max: 720000, aliquota_nominal: 0.135, valor_deduzir: 17640 },
-              { faixa: 4, min: 720000.01, max: 1800000, aliquota_nominal: 0.16, valor_deduzir: 35640 },
-              { faixa: 5, min: 1800000.01, max: 3600000, aliquota_nominal: 0.21, valor_deduzir: 125640 },
-              { faixa: 6, min: 3600000.01, max: 4800000, aliquota_nominal: 0.33, valor_deduzir: 648000 },
-            ],
-          }
-          const pickFaixa = (anexo: number, rbt12Val: number) => {
-            const table = tabelaFaixas[anexo] || []
-            const f = table.find((fx) => rbt12Val >= fx.min && rbt12Val <= fx.max)
-            if (!f) return undefined as any
-            const aliqEfetiva = rbt12Val > 0 ? ((f.aliquota_nominal * rbt12Val) - f.valor_deduzir) / rbt12Val : 0
-            return { ...f, aliquota_efetiva: aliqEfetiva }
-          }
-          const rpaServ = (() => {
-            let total = 0
-            for (const b of atividadesFromTexto) {
-              const nome = String((b as any)?.nome || '')
-              if (isServ(nome)) total += Number((b as any)?.receita_bruta_informada || 0)
-            }
-            if (total > 0) return total
-            const denom = tribServ + tribMerc
-            if (denom > 0) return (receitaPA || 0) * (tribServ / denom)
-            return 0
-          })()
-          const rpaMerc = (() => {
-            let total = 0
-            for (const b of atividadesFromTexto) {
-              const nome = String((b as any)?.nome || '')
-              if (!isServ(nome)) total += Number((b as any)?.receita_bruta_informada || 0)
-            }
-            if (total > 0) return total
-            const denom = tribServ + tribMerc
-            if (denom > 0) return (receitaPA || 0) * (tribMerc / denom)
-            return 0
-          })()
-          const aliqServ = rpaServ > 0 ? (tribServ / rpaServ) * 100 : 0
-          const aliqMerc = rpaMerc > 0 ? (tribMerc / rpaMerc) * 100 : 0
-          const combinedSeries = (() => {
-            const map: Record<string, number> = {}
-            for (const p of historicoMI || []) { map[p.mes] = (map[p.mes] || 0) + Number(p.valor || 0) }
-            for (const p of historicoME || []) { map[p.mes] = (map[p.mes] || 0) + Number(p.valor || 0) }
-            const arr = Object.entries(map).map(([mes, valor]) => ({ mes, valor }))
-            const sort = (arr2: any[]) => arr2.sort((a, b) => {
-              const pa = a.mes.match(/(\d{2})\/(\d{4})/); const pb = b.mes.match(/(\d{2})\/(\d{4})/)
-              if (pa && pb) { const ka = Number(pa[2]) * 100 + Number(pa[1]); const kb = Number(pb[2]) * 100 + Number(pb[1]); return ka - kb }
-              return String(a.mes).localeCompare(String(b.mes))
-            })
-            return sort(arr)
-          })()
-          const rbt12_original_calc = rowRBT12?.total || (receitaPA || 0)
-          const rbt12_atual_calc = (() => {
-            const arr = combinedSeries
-            if (arr.length >= 12) {
-              const last12 = arr.slice(arr.length - 12)
-              const soma12 = last12.reduce((acc, p) => acc + (Number(p.valor || 0)), 0)
-              const oldest = Number(last12[0]?.valor || 0)
-              return soma12 - oldest + (receitaPA || 0)
-            }
-            return rbt12_original_calc
-          })()
-          const meta = {
-            anexo_principal: cenarioTexto === 'servicos' ? 3 : 1,
-            rpa_atual: receitaPA,
-            rbt12_original: rbt12_original_calc,
-            rbt12_atual: rbt12_atual_calc,
-          }
-          return {
-            meta,
-            por_anexo: [
-              {
-                anexo: 1,
-                rbt12_original: meta.rbt12_original,
-                rbt12_atual: meta.rbt12_atual,
-                faixa_original: pickFaixa(1, meta.rbt12_original),
-                faixa_atual: pickFaixa(1, meta.rbt12_atual),
-                aliquota_efetiva_original_percent: (() => { const f = pickFaixa(1, meta.rbt12_original); return f ? +(f.aliquota_efetiva * 100).toFixed(4) : +Number(aliqMerc || 0).toFixed(4) })(),
-                aliquota_efetiva_atual_percent: (() => { const f = pickFaixa(1, meta.rbt12_atual); return f ? +(f.aliquota_efetiva * 100).toFixed(4) : +Number(aliqMerc || 0).toFixed(4) })(),
-              },
-              {
-                anexo: 3,
-                rbt12_original: meta.rbt12_original,
-                rbt12_atual: meta.rbt12_atual,
-                faixa_original: pickFaixa(3, meta.rbt12_original),
-                faixa_atual: pickFaixa(3, meta.rbt12_atual),
-                aliquota_efetiva_original_percent: (() => { const f = pickFaixa(3, meta.rbt12_original); return f ? +(f.aliquota_efetiva * 100).toFixed(4) : +Number(aliqServ || 0).toFixed(4) })(),
-                aliquota_efetiva_atual_percent: (() => { const f = pickFaixa(3, meta.rbt12_atual); return f ? +(f.aliquota_efetiva * 100).toFixed(4) : +Number(aliqServ || 0).toFixed(4) })(),
-              },
-            ],
-          }
-        })(),
       },
       historico: { mercadoInterno: pares, mercadoExterno: paresME },
     },
