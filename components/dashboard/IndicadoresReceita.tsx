@@ -1,4 +1,4 @@
-import { memo, useMemo } from "react"
+import { memo, useMemo, useState } from "react"
 import { DollarSign, FileText, TrendingUp } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { formatCurrency } from "@/lib/utils"
@@ -51,6 +51,17 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
   }, [calculos])
   const margemLiquida = useMemo(() => (calculos?.margemLiquida || calculos?.margemLiquidaPercent || 0), [calculos])
 
+  const [editOrigLabel, setEditOrigLabel] = useState<string | null>(null)
+  const [editAtualLabel, setEditAtualLabel] = useState<string | null>(null)
+  const [overrideOrig, setOverrideOrig] = useState<Record<string, number>>({})
+  const [overrideAtual, setOverrideAtual] = useState<Record<string, number>>({})
+  const [manualItems, setManualItems] = useState<any[]>([])
+  const [showAdd, setShowAdd] = useState(false)
+  const [newAnexo, setNewAnexo] = useState<string>("")
+  const [newTipo, setNewTipo] = useState<string>("Serviços")
+  const [newOrig, setNewOrig] = useState<string>("")
+  const [newAtual, setNewAtual] = useState<string>("")
+
   const aliquotaItems = useMemo(() => {
     const c: any = calculos || {}
     const arr: any[] = (
@@ -60,20 +71,33 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
     return arr
   }, [calculos])
 
+  const combinedItems = useMemo(() => {
+    return [ ...(aliquotaItems || []), ...(manualItems || []) ]
+  }, [aliquotaItems, manualItems])
+
   // Removido cálculo: os cards usam os valores exatamente como vierem do n8n
 
   const rowsOriginal = useMemo(() => {
     const labelForItem = (it: any): string => {
       const an = it?.anexo ?? it?.anexo_numero
-      if (an != null) return `Anexo ${an}`
-      const t = String(it?.tipo || '').toLowerCase()
-      return t ? t.charAt(0).toUpperCase() + t.slice(1) : 'Item'
+      const tRaw = String(it?.tipo || '').toLowerCase()
+      const tInf = (() => {
+        if (tRaw) return tRaw.charAt(0).toUpperCase() + tRaw.slice(1)
+        const n = Number(an)
+        if (Number.isFinite(n)) {
+          if (n === 1 || n === 2) return 'Mercadorias'
+          if (n === 3 || n === 4 || n === 5) return 'Serviços'
+        }
+        return ''
+      })()
+      if (an != null) return `Anexo ${an}${tInf ? ' — ' + tInf : ''}`
+      return tInf || 'Item'
     }
-    return (aliquotaItems || []).map((it: any) => ({
+    return (combinedItems || []).map((it: any) => ({
       label: labelForItem(it),
       value: it?.aliquota_efetiva_original_percent
     })).filter((r: any) => r.value != null)
-  }, [aliquotaItems])
+  }, [combinedItems])
 
   
   const tipoServPresent = useMemo(() => {
@@ -99,15 +123,31 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
   const rowsAtual = useMemo(() => {
     const labelForItem = (it: any): string => {
       const an = it?.anexo ?? it?.anexo_numero
-      if (an != null) return `Anexo ${an}`
-      const t = String(it?.tipo || '').toLowerCase()
-      return t ? t.charAt(0).toUpperCase() + t.slice(1) : 'Item'
+      const tRaw = String(it?.tipo || '').toLowerCase()
+      const tInf = (() => {
+        if (tRaw) return tRaw.charAt(0).toUpperCase() + tRaw.slice(1)
+        const n = Number(an)
+        if (Number.isFinite(n)) {
+          if (n === 1 || n === 2) return 'Mercadorias'
+          if (n === 3 || n === 4 || n === 5) return 'Serviços'
+        }
+        return ''
+      })()
+      if (an != null) return `Anexo ${an}${tInf ? ' — ' + tInf : ''}`
+      return tInf || 'Item'
     }
-    return (aliquotaItems || []).map((it: any) => ({
-      label: labelForItem(it),
-      value: it?.aliquota_efetiva_atual_percent
-    })).filter((r: any) => r.value != null)
-  }, [aliquotaItems])
+    return (combinedItems || []).map((it: any) => {
+      const label = labelForItem(it)
+      const value = it?.aliquota_efetiva_atual_percent
+      const isManual = !!it?.__manual
+      let manualIndex = -1
+      if (isManual) {
+        const id = it?.__id
+        manualIndex = manualItems.findIndex((mi: any) => mi?.__id === id)
+      }
+      return { label, value, manualIndex }
+    }).filter((r: any) => r.value != null)
+  }, [combinedItems, manualItems])
 
   const nextPeriodoLabel = useMemo(() => {
     const s = String(periodoApuracao || '').trim()
@@ -143,6 +183,13 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
     if (mmYYYY) return `${mmYYYY[1]}/${mmYYYY[2]}`
     return ''
   }, [periodoApuracao])
+
+  const aliquotaDasSobreRpa = useMemo(() => {
+    const rpa = Number(receitaPA || 0)
+    const das = Number(totalDAS || 0)
+    if (rpa > 0) return (das / rpa) * 100
+    return 0
+  }, [receitaPA, totalDAS])
 
   if (!receitas || !calculos) return null
 
@@ -208,29 +255,73 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
           <div className="mt-1 space-y-1">
             {rowsOriginal.map((r: any, i: number) => (
               <div key={i} className="flex items-center justify-between">
-                <span className="text-[11px] sm:text-xs opacity-90">{r.label}</span>
-                <span className="text-base sm:text-lg font-bold font-sans">
-                  {String(r.value)}%
-                </span>
-              </div>
-            ))}
+                <span className="text-[10px] sm:text-[11px] opacity-90">{r.label}</span>
+                <span className="text-base sm:text-lg font-bold font-sans">{String(r.value)}%</span>
+                </div>
+              ))}
+          </div>
+          <div className="mt-2 border-t border-white/25 pt-1">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] sm:text-[11px] opacity-75">Alíquota efetiva</span>
+              <span className="text-[12px] sm:text-sm font-semibold">{`${aliquotaDasSobreRpa.toFixed(4).replace('.', ',')}%`}</span>
+            </div>
           </div>
         </CardContent>
       </Card>
 
       {/* Alíquota do Próximo Mês - Roxo */}
       <Card className="bg-gradient-to-br from-purple-600 to-purple-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200 py-1">
-        <CardHeader className="pb-0.5 p-1 sm:p-2">
+        <CardHeader className="pb-0.5 p-1 sm:p-2 flex flex-row items-center justify-between">
           <CardTitle className="text-[11px] sm:text-xs font-bold">Alíquota {nextPeriodoLabel}</CardTitle>
+          <span
+            role="button"
+            aria-label="Adicionar anexo"
+            className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-white/10 text-white/80 text-[12px] hover:bg-white/15 hover:text-white/100"
+            onClick={() => setShowAdd(true)}
+          >+</span>
         </CardHeader>
         <CardContent className="p-1 sm:p-2 pt-0">
+          {showAdd && (
+            <div className="flex flex-wrap items-center gap-2 w-full mb-2">
+                <input type="number" placeholder="Anexo" className="text-black text-xs px-2 py-1 rounded w-16" value={newAnexo} onChange={(e) => setNewAnexo(e.target.value)} />
+                <select className="text-black text-xs px-2 py-1 rounded" value={newTipo} onChange={(e) => setNewTipo(e.target.value)}>
+                  <option>Serviços</option>
+                  <option>Mercadorias</option>
+                </select>
+                <input type="number" step="0.00001" placeholder="Alíquota atual (%)" className="text-black text-xs px-2 py-1 rounded w-32" value={newOrig} onChange={(e) => setNewOrig(e.target.value)} />
+                <input type="number" step="0.00001" placeholder="Alíquota próxima (%)" className="text-black text-xs px-2 py-1 rounded w-36" value={newAtual} onChange={(e) => setNewAtual(e.target.value)} />
+                <button className="text-[10px] bg-white/15 px-2 py-0.5 rounded" onClick={() => {
+                  const an = newAnexo ? Number(newAnexo) : undefined
+                  const it: any = {
+                    __manual: true,
+                    __id: String(Date.now()) + Math.random().toString(36).slice(2),
+                    anexo: an,
+                    tipo: newTipo.toLowerCase(),
+                    aliquota_efetiva_original_percent: newOrig ? Number(newOrig) : undefined,
+                    aliquota_efetiva_atual_percent: newAtual ? Number(newAtual) : undefined,
+                  }
+                  setManualItems([...manualItems, it])
+                  setNewAnexo(""); setNewTipo("Serviços"); setNewOrig(""); setNewAtual(""); setShowAdd(false)
+                }}>Adicionar</button>
+                <button className="text-[10px] bg-white/15 px-2 py-0.5 rounded" onClick={() => { setShowAdd(false); }}>Cancelar</button>
+            </div>
+          )}
           <div className="mt-1 space-y-1">
             {rowsAtual.map((r: any, i: number) => (
-              <div key={i} className="flex items-center justify-between">
-                <span className="text-[11px] sm:text-xs opacity-90">{r.label}</span>
-                <span className="text-base sm:text-lg font-bold font-sans">
-                  {String(r.value)}%
-                </span>
+              <div key={i} className="relative flex items-center justify-between pr-5">
+                <span className="text-[10px] sm:text-[11px] opacity-90">{r.label}</span>
+                <span className="text-base sm:text-lg font-bold font-sans">{String(r.value)}%</span>
+                {r.manualIndex >= 0 && (
+                  <span
+                    role="button"
+                    aria-label="Apagar"
+                    className="absolute right-1 top-1/2 -translate-y-1/2 inline-flex items-center justify-center w-4 h-4 rounded-full bg-white/10 text-white/70 text-[10px] hover:bg-white/15 hover:text-white/100"
+                    onClick={() => {
+                      const next = manualItems.filter((_, idx) => idx !== r.manualIndex)
+                      setManualItems(next)
+                    }}
+                  >×</span>
+                )}
               </div>
             ))}
           </div>
