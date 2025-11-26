@@ -78,7 +78,7 @@ export const AnaliseAliquotaParcelas = memo(function AnaliseAliquotaParcelas({ d
           <div className="grid grid-cols-1 gap-3">
             {detalhe.map((item: any, idx: number) => {
               const anexo = item?.anexo ?? item?.anexo_numero
-              const titulo = `Anexo ${anexo} - Serviços`
+              const titulo = `Anexo ${anexo}`
               const fxO = item?.faixa_original
               const fxA = item?.faixa_atual
               const rbt12Orig = Number(item?.rbt12_original ?? item?.rbt12 ?? NaN)
@@ -117,18 +117,78 @@ export const AnaliseAliquotaParcelas = memo(function AnaliseAliquotaParcelas({ d
                 const trunc = String(base).split(',')[0].trim()
                 const text = [first?.nome, first?.atividade_nome, first?.descricao].filter(Boolean).map(String).join(' ')
                 const n = norm(text)
-          const rs = (() => {
-            if (n.includes('sem retencao') || n.includes('sem reten')) return 'sem retenção'
-            if (n.includes('com retencao') || n.includes('com reten') || n.includes('substituicao tributaria de iss')) return 'com retenção'
-            return ''
-          })()
-          const withIss = trunc.includes('Prestação de Serviços') && rs
-          return rs ? `${trunc} — ${rs}${withIss ? ' ISS' : ''}` : trunc
-        })()
+                const rs = (() => {
+                  if (n.includes('sem retencao') || n.includes('sem reten')) return 'sem retenção'
+                  if (n.includes('com retencao') || n.includes('com reten') || n.includes('substituicao tributaria de iss')) return 'com retenção'
+                  return ''
+                })()
+                const withIss = trunc.includes('Prestação de Serviços') && rs
+                return rs ? `${trunc} — ${rs}${withIss ? ' ISS' : ''}` : trunc
+              })()
+              const computeAct = (p: any): string => {
+                const tipo = String(p?.tipo_regra || "").toLowerCase()
+                const mc = matchCanonical(p)
+                if (mc) return mc
+                const desc = String(p?.descricao ?? '').trim()
+                const nome = String(p?.atividade_nome ?? '').trim()
+                let trunc = String(desc ? desc : (nome ? nome : "-")).split(',')[0].trim()
+                if (tipo === "geral") {
+                  const candidates = [
+                    "Prestação de Serviços",
+                    "Revenda de mercadorias",
+                    "Venda de mercadorias industrializadas",
+                  ]
+                  const norm2 = (s: any) => String(s || "").normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+                  const src = norm2(p?.atividade_nome)
+                  for (const c of candidates) {
+                    if (src.includes(norm2(c))) { trunc = c; break }
+                  }
+                }
+                const text = [p?.nome, p?.atividade_nome, p?.descricao].filter(Boolean).map(String).join(' ')
+                const n2 = norm(text)
+                const rs2 = (() => {
+                  if (n2.includes('sem retencao') || n2.includes('sem reten')) return 'sem retenção'
+                  if (n2.includes('com retencao') || n2.includes('com reten') || n2.includes('substituicao tributaria de iss')) return 'com retenção'
+                  return ''
+                })()
+                const withIss2 = trunc.includes('Prestação de Serviços') && rs2
+                return rs2 ? `${trunc} — ${rs2}${withIss2 ? ' ISS' : ''}` : trunc
+              }
+              const headerActivity = (() => {
+                const catOrder = ['Transporte','Serviços','Mercadorias','Comunicação']
+                const toCat = (p: any): string | null => {
+                  const tipo = String(p?.tipo_regra || '').toLowerCase()
+                  const text = [p?.nome, p?.atividade_nome, p?.descricao].filter(Boolean).map(String).join(' ')
+                  const n = norm(text)
+                  const mc = matchCanonical(p)
+                  if (mc && norm(mc).includes('transporte')) return 'Transporte'
+                  if (mc && norm(mc).includes('comunicacao')) return 'Comunicação'
+                  if (tipo === 'servicos_comunicacao') {
+                    if (n.includes('transporte')) return 'Transporte'
+                    if (n.includes('comunicacao')) return 'Comunicação'
+                    return 'Comunicação'
+                  }
+                  if (n.includes('prestacao de servicos') || n.includes('servicos')) return 'Serviços'
+                  if (n.includes('revenda de mercadorias') || n.includes('mercadorias') || n.includes('industrializadas')) return 'Mercadorias'
+                  return null
+                }
+                const cats = new Set<string>()
+                for (const p of parcelas) {
+                  const v = Number(p?.valor || 0)
+                  if (!(v >= 0)) continue
+                  const c = toCat(p)
+                  if (c) cats.add(c)
+                }
+                if (!cats.size) {
+                  return atividadeFromNome
+                }
+                const list = catOrder.filter(c => cats.has(c))
+                return list.join('/')
+              })()
               return (
                 <div key={idx} className="border rounded-lg p-3 w-full">
                   <div className="flex items-center justify-between">
-                    <div className="text-sm font-semibold text-slate-800">{titulo}</div>
+                    <div className="text-sm font-semibold text-slate-800">{`${titulo} - ${headerActivity}`}</div>
                   </div>
                   <div className="mt-2 grid grid-cols-2 gap-2">
                     <div className="bg-slate-50 rounded p-2">
@@ -159,15 +219,21 @@ export const AnaliseAliquotaParcelas = memo(function AnaliseAliquotaParcelas({ d
                           </tr>
                         </thead>
                         <tbody>
-                          {/* Linhas separadas para serviços de comunicação: Transporte sem ST e com ST */}
+                          {/* Linhas separadas para serviços de comunicação: Comunicação e Transporte (sem ST e com ST) */}
                           {hasComunic && (() => {
-                            const partsSem = comunicParts.filter(p => matchCanonical(p) === 'Transporte sem substituição tributária de ICMS')
-                            const partsCom = comunicParts.filter(p => matchCanonical(p) === 'Transporte com substituição tributária de ICMS')
+                            const transpSem = comunicParts.filter(p => matchCanonical(p) === 'Transporte sem substituição tributária de ICMS')
+                            const transpCom = comunicParts.filter(p => matchCanonical(p) === 'Transporte com substituição tributária de ICMS')
+                            const comunSem = comunicParts.filter(p => matchCanonical(p) === 'Comunicação sem substituição tributária de ICMS')
+                            const comunCom = comunicParts.filter(p => matchCanonical(p) === 'Comunicação com substituição tributária de ICMS')
                             const sumVals = (arr: any[]) => arr.reduce((acc, p) => acc + Number(p?.valor || 0), 0)
-                            const totalSem = sumVals(partsSem)
-                            const totalCom = sumVals(partsCom)
-                            const firstSem = partsSem[0]
-                            const firstCom = partsCom[0]
+                            const totalTS = sumVals(transpSem)
+                            const totalTC = sumVals(transpCom)
+                            const totalCS = sumVals(comunSem)
+                            const totalCC = sumVals(comunCom)
+                            const firstTS = transpSem[0]
+                            const firstTC = transpCom[0]
+                            const firstCS = comunSem[0]
+                            const firstCC = comunCom[0]
                             const sumSafe = (...vals: number[]) => {
                               const nums = vals.filter(v => Number.isFinite(v))
                               if (!nums.length) return NaN
@@ -175,29 +241,61 @@ export const AnaliseAliquotaParcelas = memo(function AnaliseAliquotaParcelas({ d
                               return Number(s.toFixed(4))
                             }
                             const rows: { v: number; act: string; aO: number; aA: number }[] = []
-                            if (totalSem > 0) {
-                              const semIssOrig = round4(firstSem?.aliquota_efetiva_original_sem_iss_percent)
-                              const icmsOrig = round4(firstSem?.aliquota_efetiva_original_icms_anexo1_percent)
-                              const semIssAtual = round4(firstSem?.aliquota_efetiva_atual_sem_iss_percent)
-                              const icmsAtual = round4(firstSem?.aliquota_efetiva_atual_icms_anexo1_percent)
+                            if (totalCS > 0) {
+                              const semIssOrig = round4(firstCS?.aliquota_efetiva_original_sem_iss_percent)
+                              const icmsOrig = round4(firstCS?.aliquota_efetiva_original_icms_anexo1_percent)
+                              const semIssAtual = round4(firstCS?.aliquota_efetiva_atual_sem_iss_percent)
+                              const icmsAtual = round4(firstCS?.aliquota_efetiva_atual_icms_anexo1_percent)
                               rows.push({
-                                v: totalSem,
+                                v: totalCS,
+                                act: 'Comunicação sem substituição tributária de ICMS',
+                                aO: sumSafe(semIssOrig, icmsOrig),
+                                aA: sumSafe(semIssAtual, icmsAtual),
+                              })
+                            }
+                            if (totalCC > 0) {
+                              const aOrig = round4(firstCC?.aliquota_efetiva_original_sem_iss_percent)
+                              const aAtual = round4(firstCC?.aliquota_efetiva_atual_sem_iss_percent)
+                              rows.push({
+                                v: totalCC,
+                                act: 'Comunicação com substituição tributária de ICMS',
+                                aO: aOrig,
+                                aA: aAtual,
+                              })
+                            }
+                            if (totalTS > 0) {
+                              const semIssOrig = round4(firstTS?.aliquota_efetiva_original_sem_iss_percent)
+                              const icmsOrig = round4(firstTS?.aliquota_efetiva_original_icms_anexo1_percent)
+                              const semIssAtual = round4(firstTS?.aliquota_efetiva_atual_sem_iss_percent)
+                              const icmsAtual = round4(firstTS?.aliquota_efetiva_atual_icms_anexo1_percent)
+                              rows.push({
+                                v: totalTS,
                                 act: 'Transporte sem substituição tributária de ICMS',
                                 aO: sumSafe(semIssOrig, icmsOrig),
                                 aA: sumSafe(semIssAtual, icmsAtual),
                               })
                             }
-                            if (totalCom > 0) {
-                              const aOrig = round4(firstCom?.aliquota_efetiva_original_sem_iss_percent)
-                              const aAtual = round4(firstCom?.aliquota_efetiva_atual_sem_iss_percent)
+                            if (totalTC > 0) {
+                              const aOrig = round4(firstTC?.aliquota_efetiva_original_sem_iss_percent)
+                              const aAtual = round4(firstTC?.aliquota_efetiva_atual_sem_iss_percent)
                               rows.push({
-                                v: totalCom,
+                                v: totalTC,
                                 act: 'Transporte com substituição tributária de ICMS',
                                 aO: aOrig,
                                 aA: aAtual,
                               })
                             }
-                            return rows.map((r, i) => (
+                            const grouped = (() => {
+                              const m = new Map<string, { v: number; act: string; aO: number; aA: number }>()
+                              for (const r of rows) {
+                                const k = `${r.act}|${Number.isFinite(r.aO) ? r.aO.toFixed(4) : 'null'}|${Number.isFinite(r.aA) ? r.aA.toFixed(4) : 'null'}`
+                                const prev = m.get(k)
+                                if (prev) prev.v += r.v
+                                else m.set(k, { ...r })
+                              }
+                              return Array.from(m.values())
+                            })()
+                            return grouped.map((r, i) => (
                               <tr key={`comunic-${i}`} className="border-t">
                                 <td className="px-2 py-1 whitespace-nowrap">{formatCurrency(r.v)}</td>
                                 <td className="px-2 py-1">{r.act}</td>
@@ -207,59 +305,73 @@ export const AnaliseAliquotaParcelas = memo(function AnaliseAliquotaParcelas({ d
                             ))
                           })()}
                           {/* Outras parcelas (exceto serviços de comunicação) */}
-                          {otherParts.map((p: any, i: number) => {
-                            const tipo = String(p?.tipo_regra || "").toLowerCase()
-                            const actName = (() => {
-                              const mc = matchCanonical(p)
-                              if (mc) return mc
-                              const desc = String(p?.descricao ?? '').trim()
-                              const nome = String(p?.atividade_nome ?? '').trim()
-                              let trunc = String(desc ? desc : (nome ? nome : "-")).split(',')[0].trim()
-                              if (tipo === "geral") {
-                                const candidates = [
-                                  "Prestação de Serviços",
-                                  "Revenda de mercadorias",
-                                  "Venda de mercadorias industrializadas",
-                                ]
-                                const norm = (s: any) => String(s || "").normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
-                                const src = norm(p?.atividade_nome)
-                                for (const c of candidates) {
-                                  if (src.includes(norm(c))) { trunc = c; break }
+                          {(() => {
+                            const rows: { v: number; act: string; aO: number; aA: number }[] = []
+                            for (const p of otherParts) {
+                              const tipo = String(p?.tipo_regra || "").toLowerCase()
+                              const actName = (() => {
+                                const mc = matchCanonical(p)
+                                if (mc) return mc
+                                const desc = String(p?.descricao ?? '').trim()
+                                const nome = String(p?.atividade_nome ?? '').trim()
+                                let trunc = String(desc ? desc : (nome ? nome : "-")).split(',')[0].trim()
+                                if (tipo === "geral") {
+                                  const candidates = [
+                                    "Prestação de Serviços",
+                                    "Revenda de mercadorias",
+                                    "Venda de mercadorias industrializadas",
+                                  ]
+                                  const norm2 = (s: any) => String(s || "").normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+                                  const src = norm2(p?.atividade_nome)
+                                  for (const c of candidates) {
+                                    if (src.includes(norm2(c))) { trunc = c; break }
+                                  }
                                 }
+                                const text = [p?.nome, p?.atividade_nome, p?.descricao].filter(Boolean).map(String).join(' ')
+                                const n = norm(text)
+                                const rs = (() => {
+                                  if (n.includes('sem retencao') || n.includes('sem reten')) return 'sem retenção'
+                                  if (n.includes('com retencao') || n.includes('com reten') || n.includes('substituicao tributaria de iss')) return 'com retenção'
+                                  return ''
+                                })()
+                                const withIss = trunc.includes('Prestação de Serviços') && rs
+                                return rs ? `${trunc} — ${rs}${withIss ? ' ISS' : ''}` : trunc
+                              })()
+                              const val = Number(p?.valor || 0)
+                              let aOrigAdj = round4(p?.aliquota_efetiva_original_ajustada_percent)
+                              let aAtualAdj = round4(p?.aliquota_efetiva_atual_ajustada_percent)
+                              const canonical = matchCanonical(p)
+                              if (canonical === 'Transporte com substituição tributária de ICMS') {
+                                aOrigAdj = round4(p?.aliquota_efetiva_original_sem_iss_percent)
+                                aAtualAdj = round4(p?.aliquota_efetiva_atual_sem_iss_percent)
                               }
-                              const text = [p?.nome, p?.atividade_nome, p?.descricao].filter(Boolean).map(String).join(' ')
-                              const n = norm(text)
-                        const rs = (() => {
-                          if (n.includes('sem retencao') || n.includes('sem reten')) return 'sem retenção'
-                          if (n.includes('com retencao') || n.includes('com reten') || n.includes('substituicao tributaria de iss')) return 'com retenção'
-                          return ''
-                        })()
-                        const withIss = trunc.includes('Prestação de Serviços') && rs
-                        return rs ? `${trunc} — ${rs}${withIss ? ' ISS' : ''}` : trunc
-                      })()
-                            const val = Number(p?.valor || 0)
-                            let aOrigAdj = round4(p?.aliquota_efetiva_original_ajustada_percent)
-                            let aAtualAdj = round4(p?.aliquota_efetiva_atual_ajustada_percent)
-                            const canonical = matchCanonical(p)
-                            if (canonical === 'Transporte com substituição tributária de ICMS') {
-                              aOrigAdj = round4(p?.aliquota_efetiva_original_sem_iss_percent)
-                              aAtualAdj = round4(p?.aliquota_efetiva_atual_sem_iss_percent)
+                              if (actName.includes('Prestação de Serviços') && actName.includes('com retenção')) {
+                                const o = round4(p?.aliquota_efetiva_original_sem_iss_percent)
+                                const a = round4(p?.aliquota_efetiva_atual_sem_iss_percent)
+                                if (Number.isFinite(o)) aOrigAdj = o
+                                if (Number.isFinite(a)) aAtualAdj = a
+                              }
+                              rows.push({ v: val, act: actName, aO: aOrigAdj, aA: aAtualAdj })
                             }
-                            if (actName.includes('Prestação de Serviços') && actName.includes('com retenção')) {
-                              const o = round4(p?.aliquota_efetiva_original_sem_iss_percent)
-                              const a = round4(p?.aliquota_efetiva_atual_sem_iss_percent)
-                              if (Number.isFinite(o)) aOrigAdj = o
-                              if (Number.isFinite(a)) aAtualAdj = a
-                            }
-                            return (
-                               <tr key={i} className="border-t">
-                                 <td className="px-2 py-1 whitespace-nowrap">{formatCurrency(val)}</td>
-                                 <td className="px-2 py-1">{actName}</td>
-                                 <td className="px-2 py-1 whitespace-nowrap">{Number.isFinite(aOrigAdj) ? fmtPct4(aOrigAdj) : "-"}</td>
-                                 <td className="px-2 py-1 whitespace-nowrap">{Number.isFinite(aAtualAdj) ? fmtPct4(aAtualAdj) : "-"}</td>
-                               </tr>
-                            )
-                          })}
+                            const grouped = (() => {
+                              const m = new Map<string, { v: number; act: string; aO: number; aA: number }>()
+                              for (const r of rows) {
+                                const k = `${r.act}|${Number.isFinite(r.aO) ? r.aO.toFixed(4) : 'null'}|${Number.isFinite(r.aA) ? r.aA.toFixed(4) : 'null'}`
+                                const prev = m.get(k)
+                                if (prev) prev.v += r.v
+                                else m.set(k, { ...r })
+                              }
+                              return Array.from(m.values())
+                            })()
+                            return grouped.map((r, i) => (
+                              <tr key={`other-${i}`} className="border-t">
+                                <td className="px-2 py-1 whitespace-nowrap">{formatCurrency(r.v)}</td>
+                                <td className="px-2 py-1">{r.act}</td>
+                                <td className="px-2 py-1 whitespace-nowrap">{Number.isFinite(r.aO) ? fmtPct4(r.aO) : "-"}</td>
+                                <td className="px-2 py-1 whitespace-nowrap">{Number.isFinite(r.aA) ? fmtPct4(r.aA) : "-"}</td>
+                              </tr>
+                            ))
+                          })()}
                         </tbody>
                       </table>
                     </div>

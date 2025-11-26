@@ -455,12 +455,33 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
               {(() => {
                 const r = data?.receitas || ({} as any)
                 const me = r?.mercadoExterno || ({} as any)
-                const miRpa = Number(r?.receitaPA || 0) - Number(me?.rpa || 0)
-                const miRbt12 = Number(r?.rbt12 || 0) - Number(me?.rbt12 || 0)
-                const miRba = Number(r?.rba || 0) - Number(me?.rba || 0)
-                const miRbaa = Number(r?.rbaa || 0) - Number(me?.rbaa || 0)
-                const extVals = [Number(me?.rpa || 0), Number(me?.rbt12 || 0), Number(me?.rba || 0), Number(me?.rbaa || 0)]
+                const getNum = (v: any) => Number(v || 0)
+                const getFirst = (...vals: any[]) => {
+                  for (const v of vals) { const n = Number(v); if (isFinite(n) && n !== 0) return n }
+                  const z = Number(vals[0]); return isFinite(z) ? z : 0
+                }
+                const rpaTot = getNum(r?.receitaPA)
+                const rbt12Tot = getNum(r?.rbt12)
+                const rbaTot = getNum(r?.rba)
+                const rbaaTot = getNum(r?.rbaa)
+                const rbt12pTot = getFirst((r as any)?.rbt12p, (r as any)?.rbt12_parcial, (r as any)?.RBT12p)
+                const miRpa = rpaTot - getNum(me?.rpa)
+                const miRbt12 = rbt12Tot - getNum(me?.rbt12)
+                const miRba = rbaTot - getNum(me?.rba)
+                const miRbaa = rbaaTot - getNum(me?.rbaa)
+                const miRbt12p = rbt12pTot - getNum((me as any)?.rbt12p ?? (me as any)?.rbt12_parcial)
+                const extVals = [getNum(me?.rpa), getNum(me?.rbt12), getNum(me?.rba), getNum(me?.rbaa), getNum((me as any)?.rbt12p ?? (me as any)?.rbt12_parcial)]
                 const showExternal = extVals.some(v => v > 0)
+                const rows: { label: string; mi: number; me?: number; total: number }[] = []
+                const addRow = (label: string, mi: number, me: number, total: number) => {
+                  if (total > 0) rows.push({ label, mi, me, total })
+                }
+                addRow('Receita Bruta do PA (RPA) - Competência', miRpa, getNum(me?.rpa), rpaTot)
+                addRow('Receita bruta acumulada dos 12 meses anteriores ao PA (RBT12)', miRbt12, getNum(me?.rbt12), rbt12Tot)
+                addRow('Receita bruta acumulada parcial (RBT12p)', miRbt12p, getNum((me as any)?.rbt12p ?? (me as any)?.rbt12_parcial), rbt12pTot)
+                addRow('Receita bruta acumulada no ano-calendário corrente (RBA)', miRba, getNum(me?.rba), rbaTot)
+                addRow('Receita bruta acumulada no ano-calendário anterior (RBAA)', miRbaa, getNum(me?.rbaa), rbaaTot)
+                if (!rows.length) return null
                 return (
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
@@ -475,38 +496,16 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                         </tr>
                       </thead>
                       <tbody className="text-slate-900">
-                        <tr className="border-slate-200">
-                          <td className="py-2 px-3">Receita Bruta do PA (RPA) - Competência</td>
-                          <td className="text-right py-2 px-3">{formatCurrency(miRpa)}</td>
-                          {showExternal && (
-                            <td className="text-right py-2 px-3">{formatCurrency(Number(me?.rpa || 0))}</td>
-                          )}
-                          <td className="text-right py-2 px-3">{formatCurrency(Number(r?.receitaPA || 0))}</td>
-                        </tr>
-                        <tr className="border-slate-200">
-                          <td className="py-2 px-3">Receita bruta acumulada dos 12 meses anteriores ao PA (RBT12)</td>
-                          <td className="text-right py-2 px-3">{formatCurrency(miRbt12)}</td>
-                          {showExternal && (
-                            <td className="text-right py-2 px-3">{formatCurrency(Number(me?.rbt12 || 0))}</td>
-                          )}
-                          <td className="text-right py-2 px-3">{formatCurrency(Number(r?.rbt12 || 0))}</td>
-                        </tr>
-                        <tr className="border-slate-200">
-                          <td className="py-2 px-3">Receita bruta acumulada no ano-calendário corrente (RBA)</td>
-                          <td className="text-right py-2 px-3">{formatCurrency(miRba)}</td>
-                          {showExternal && (
-                            <td className="text-right py-2 px-3">{formatCurrency(Number(me?.rba || 0))}</td>
-                          )}
-                          <td className="text-right py-2 px-3">{formatCurrency(Number(r?.rba || 0))}</td>
-                        </tr>
-                        <tr className="border-slate-200">
-                          <td className="py-2 px-3">Receita bruta acumulada no ano-calendário anterior (RBAA)</td>
-                          <td className="text-right py-2 px-3">{formatCurrency(miRbaa)}</td>
-                          {showExternal && (
-                            <td className="text-right py-2 px-3">{formatCurrency(Number(me?.rbaa || 0))}</td>
-                          )}
-                          <td className="text-right py-2 px-3">{formatCurrency(Number(r?.rbaa || 0))}</td>
-                        </tr>
+                        {rows.map((row, i) => (
+                          <tr key={`rec-${i}`} className="border-slate-200">
+                            <td className="py-2 px-3">{row.label}</td>
+                            <td className="text-right py-2 px-3">{formatCurrency(row.mi)}</td>
+                            {showExternal && (
+                              <td className="text-right py-2 px-3">{formatCurrency(getNum(row.me))}</td>
+                            )}
+                            <td className="text-right py-2 px-3">{formatCurrency(row.total)}</td>
+                          </tr>
+                        ))}
                       </tbody>
                     </table>
                   </div>
@@ -559,33 +558,42 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                   return (std / m) * 100
                 })()
                 const pct = (n: number) => `${(n || 0).toFixed(1).replace('.', ',')}%`
+                const mediaTri = getVal(curYY, curMM - 1) + getVal(curYY, curMM - 2) + getVal(curYY, curMM - 3)
                 return (
                   <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-3">
-                    <Card className="bg-emerald-50 border-0">
-                      <CardContent className="p-3">
-                        <p className="text-xs text-emerald-700">Utilização do Limite</p>
-                        <p className="text-lg font-semibold text-emerald-800">{pct(utilizacaoLimite)}</p>
-                      </CardContent>
-                    </Card>
-                    <Card className="bg-blue-50 border-0">
-                      <CardContent className="p-3">
-                        <p className="text-xs text-blue-700">Comparativo de Crescimento</p>
-                        <p className="text-lg font-semibold text-blue-800">{pct(growth)}</p>
-                        <p className="text-[11px] text-blue-700/80">RPA + 2 meses anteriores vs ano anterior</p>
-                      </CardContent>
-                    </Card>
-                    <Card className="bg-violet-50 border-0">
-                      <CardContent className="p-3">
-                        <p className="text-xs text-violet-700">Média no último trimestre</p>
-                        <p className="text-lg font-semibold text-violet-800">{formatCurrency(getVal(curYY, curMM - 1) + getVal(curYY, curMM - 2) + getVal(curYY, curMM - 3))}</p>
-                      </CardContent>
-                    </Card>
-                    <Card className="bg-orange-50 border-0">
-                      <CardContent className="p-3">
-                        <p className="text-xs text-orange-700">Consistência</p>
-                        <p className="text-lg font-semibold text-orange-800">{pct(consistency)}</p>
-                      </CardContent>
-                    </Card>
+                    {utilizacaoLimite > 0 && (
+                      <Card className="bg-emerald-50 border-0">
+                        <CardContent className="p-3">
+                          <p className="text-xs text-emerald-700">Utilização do Limite</p>
+                          <p className="text-lg font-semibold text-emerald-800">{pct(utilizacaoLimite)}</p>
+                        </CardContent>
+                      </Card>
+                    )}
+                    {Math.abs(growth) > 0 && (
+                      <Card className="bg-blue-50 border-0">
+                        <CardContent className="p-3">
+                          <p className="text-xs text-blue-700">Comparativo de Crescimento</p>
+                          <p className="text-lg font-semibold text-blue-800">{pct(growth)}</p>
+                          <p className="text-[11px] text-blue-700/80">RPA + 2 meses anteriores vs ano anterior</p>
+                        </CardContent>
+                      </Card>
+                    )}
+                    {mediaTri > 0 && (
+                      <Card className="bg-violet-50 border-0">
+                        <CardContent className="p-3">
+                          <p className="text-xs text-violet-700">Média no último trimestre</p>
+                          <p className="text-lg font-semibold text-violet-800">{formatCurrency(mediaTri)}</p>
+                        </CardContent>
+                      </Card>
+                    )}
+                    {consistency > 0 && (
+                      <Card className="bg-orange-50 border-0">
+                        <CardContent className="p-3">
+                          <p className="text-xs text-orange-700">Consistência</p>
+                          <p className="text-lg font-semibold text-orange-800">{pct(consistency)}</p>
+                        </CardContent>
+                      </Card>
+                    )}
                   </div>
                 )
               })()}
@@ -663,17 +671,33 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
 
         
         <AnaliseAliquotaParcelas dadosPgdas={{ analise_aliquota: (data?.calculos as any)?.analise_aliquota, identificacao: (data as any)?.identificacao }} />
-        {((data?.graficos?.receitaMensal) || (data?.graficos?.receitaLine) || (data as any)?.historico) && (
-          <Card className="bg-white border-slate-200 py-1 gap-1" style={{ breakInside: 'avoid' }}>
-            <CardHeader className="pt-1 pb-0">
-              <CardTitle className="text-slate-800">Receita Mensal (R$)</CardTitle>
-              <CardDescription>Mercado Interno e Externo</CardDescription>
-            </CardHeader>
-            <CardContent className="pt-0 pb-0">
-              {(() => {
-                const serieA = data.graficos?.receitaMensal
-                const serieMI = data.graficos?.receitaLine
-                const serieME = (data.graficos as any)?.receitaLineExterno
+        {(() => {
+          const serieA = data?.graficos?.receitaMensal
+          const serieMI = data?.graficos?.receitaLine
+          const serieME = (data?.graficos as any)?.receitaLineExterno
+          const historicoMI = (data as any)?.historico?.mercadoInterno as { mes: string; valor: any }[] | undefined
+          const historicoME = (data as any)?.historico?.mercadoExterno as { mes: string; valor: any }[] | undefined
+          const parseNumber = (v: any): number => {
+            if (typeof v === 'number') return v
+            const s = String(v || '').trim().replace(/\./g, '').replace(',', '.')
+            const n = Number(s)
+            return isFinite(n) ? n : 0
+          }
+          const hasHistData = (arr?: { mes: string; valor: any }[]) => Array.isArray(arr) && arr.some(p => parseNumber(p?.valor) > 0)
+          const hasSeriesData = (s?: { labels?: any[]; values?: any[] }) => !!(s && Array.isArray(s.values) && s.values.some(v => parseNumber(v) > 0))
+          const hasData = hasHistData(historicoMI) || hasHistData(historicoME) || hasSeriesData(serieA) || hasSeriesData(serieMI) || hasSeriesData(serieME)
+          if (!hasData) return null
+          return (
+            <Card className="bg-white border-slate-200 py-1 gap-1" style={{ breakInside: 'avoid' }}>
+              <CardHeader className="pt-1 pb-0">
+                <CardTitle className="text-slate-800">Receita Mensal (R$)</CardTitle>
+                <CardDescription>Mercado Interno e Externo</CardDescription>
+              </CardHeader>
+              <CardContent className="pt-0 pb-0">
+                {(() => {
+                  const serieA = data.graficos?.receitaMensal 
+                  const serieMI = data.graficos?.receitaLine
+                  const serieME = (data.graficos as any)?.receitaLineExterno
                 const parseNumber = (v: any): number => {
                   if (typeof v === "number") return v
                   if (typeof v === "string") {
@@ -776,10 +800,11 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                   return <GraficoReceitaMensal data={serieMI} />
                 }
                 return null
-              })()}
-            </CardContent>
-          </Card>
-        )}
+                })()}
+              </CardContent>
+            </Card>
+          )
+        })()}
         {data?.tributos && (
           <Card className="bg-white border-slate-200" style={{ breakInside: 'avoid' }}>
             <CardHeader className="py-2">

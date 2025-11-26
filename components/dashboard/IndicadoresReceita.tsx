@@ -499,14 +499,14 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
             {rowsDocFinal.map((r: any, i: number) => (
               <div key={i} className="flex items-center justify-between">
                 <span className="text-[9px] sm:text-[10px] opacity-90">{r.label}</span>
-                <span className="text-sm sm:text-base font-bold font-sans">{fmtPct4(r.value)}</span>
+                <span className="text-xs sm:text-sm font-bold font-sans">{fmtPct4(r.value)}</span>
               </div>
             ))}
           </div>
           <div className="mt-2 border-t border-white/25 pt-1">
             <div className="flex items-center justify-between">
               <span className="text-[9px] sm:text-[10px] opacity-75">Alíquota efetiva</span>
-              <span className="text-[11px] sm:text-[12px] font-semibold">{`${aliquotaDasSobreRpa.toFixed(4).replace('.', ',')}%`}</span>
+              <span className="text-[9px] sm:text-[10px] font-semibold">{`${aliquotaDasSobreRpa.toFixed(4).replace('.', ',')}%`}</span>
             </div>
           </div>
         </CardContent>
@@ -522,7 +522,7 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
             {rowsNextFinal.map((r: any, i: number) => (
               <div key={i} className="relative flex items-center justify-between pr-5">
                 <span className="text-[9px] sm:text-[10px] opacity-90">{r.label}</span>
-                <span className="text-sm sm:text-base font-bold font-sans">{fmtPct4(r.value)}</span>
+                <span className="text-xs sm:text-sm font-bold font-sans">{fmtPct4(r.value)}</span>
               </div>
             ))}
           </div>
