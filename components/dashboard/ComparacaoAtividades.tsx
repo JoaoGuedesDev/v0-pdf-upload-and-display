@@ -4,53 +4,56 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { UI_CONFIG, ATIVIDADES_COLORS } from "@/lib/constants"
 import { formatCurrency } from "@/lib/utils"
 
-interface AtividadeData {
-  atividade1?: {
-    descricao: string
-    Total: number
-  }
-  atividade2?: {
-    descricao: string
-    Total: number
-  }
-}
-
 interface ComparacaoAtividadesProps {
-  atividades?: AtividadeData
+  atividades?: any
   className?: string
 }
 
 export const ComparacaoAtividades = memo(function ComparacaoAtividades({ atividades, className = "" }: ComparacaoAtividadesProps) {
-  const mercadorias = Number(atividades?.atividade1?.Total || 0)
-  const servicos = Number(atividades?.atividade2?.Total || 0)
+  const listInput: any[] = Array.isArray(atividades) ? atividades : Object.values(atividades || {})
+  const collectNodesWithTotais = (nodes: any[]): any[] => {
+    const out: any[] = []
+    const pushIf = (o: any) => {
+      const t = o?.totais
+      const ex = t && (t.exigivel || t.exigível)
+      if (ex && typeof ex === 'object') out.push(o)
+    }
+    const walk = (o: any) => {
+      if (!o || typeof o !== 'object') return
+      pushIf(o)
+      for (const v of Object.values(o)) {
+        if (Array.isArray(v)) v.forEach(walk)
+        else if (v && typeof v === 'object') walk(v)
+      }
+    }
+    nodes.forEach(walk)
+    return out
+  }
+  const list: any[] = collectNodesWithTotais(listInput)
+  const parseNumber = (v: any): number => {
+    if (typeof v === 'number') return v
+    const n = Number(String(v || '').replace(/\./g, '').replace(',', '.'))
+    return isFinite(n) ? n : 0
+  }
+  const rows = useMemo(() => {
+    return list.map((a: any, idx: number) => {
+      const nome = String(a?.nome || a?.descricao || a?.name || `Atividade ${idx + 1}`)
+      const exig = (a?.totais && (a?.totais.exigivel || a?.totais.exigível)) || {}
+      const exigTotal = parseNumber(exig?.total)
+      const exigSum = [exig?.irpj, exig?.csll, exig?.cofins, exig?.pis, exig?.inss_cpp, exig?.icms, exig?.ipi, exig?.iss]
+        .reduce((acc, v) => acc + parseNumber(v), 0)
+      const trib = a?.tributos || {}
+      const tribTotal = parseNumber(trib?.total)
+      const tribSum = [trib?.irpj, trib?.csll, trib?.cofins, trib?.pis, trib?.inss_cpp, trib?.icms, trib?.ipi, trib?.iss]
+        .reduce((acc, v) => acc + parseNumber(v), 0)
+      const valor = [exigTotal, exigSum, tribTotal, tribSum].find(v => Number(v || 0) > 0) || 0
+      return { nome, valor }
+    }).filter(r => Number(r.valor || 0) > 0)
+  }, [list])
 
-  const total = useMemo(() => mercadorias + servicos, [mercadorias, servicos])
-  
-  const chartData = useMemo(() => [
-    ...(mercadorias > 0
-      ? [{ name: "Mercadorias", value: mercadorias, color: ATIVIDADES_COLORS?.mercadorias || "#3b82f6" }]
-      : []),
-    ...(servicos > 0
-      ? [{ name: "Serviços", value: servicos, color: ATIVIDADES_COLORS?.servicos || "#10b981" }]
-      : []),
-  ], [mercadorias, servicos])
+  const total = useMemo(() => rows.reduce((acc, r) => acc + Number(r.valor || 0), 0), [rows])
 
-  const tableData = useMemo(() => [
-    {
-      key: "mercadorias",
-      label: "Mercadorias",
-      value: mercadorias,
-      color: ATIVIDADES_COLORS?.mercadorias || "#3b82f6",
-    },
-    {
-      key: "servicos",
-      label: "Serviços",
-      value: servicos,
-      color: ATIVIDADES_COLORS?.servicos || "#10b981",
-    },
-  ].filter((item) => item.value > 0), [mercadorias, servicos])
-
-  const hasData = mercadorias > 0 || servicos > 0
+  const hasData = rows.length > 0
   if (!hasData) return null
 
   return (
@@ -63,7 +66,7 @@ export const ComparacaoAtividades = memo(function ComparacaoAtividades({ ativida
             className={`text-base sm:text-[9px] flex items-center gap-2 text-slate-800`}
           >
             <BarChartHorizontal className={`h-5 w-5 text-blue-600`} />
-            Comparativo por Atividade (DAS)
+            Tributos por Atividade (exigível)
           </CardTitle>
           <CardDescription
             className={`text-xs sm:text-[9px] text-slate-500`}
@@ -77,36 +80,22 @@ export const ComparacaoAtividades = memo(function ComparacaoAtividades({ ativida
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Tabela rápida à esquerda (mostrar também no PDF) */}
           <div className="space-y-0.5 print:block">
-            {tableData.map(({ key, label, value, color }) => {
-              const pct = total > 0 ? (value / total) * 100 : 0
+            {rows.map((row, i) => {
+              const pct = total > 0 ? (Number(row.valor || 0) / total) * 100 : 0
               return (
                 <div
-                  key={key}
+                  key={`atv-${i}`}
                   className={`flex items-center justify-between p-2 rounded-lg bg-slate-50 hover:shadow-md transition-all duration-200`}
                 >
                   <div className="flex items-center gap-2">
-                    <div
-                      className="w-4 h-4 rounded-full flex-shrink-0 shadow-sm"
-                      style={{ backgroundColor: color }}
-                    />
+                    <div className="w-4 h-4 rounded-full flex-shrink-0 shadow-sm" style={{ backgroundColor: ATIVIDADES_COLORS?.mercadorias || "#3b82f6" }} />
                     <div>
-                      <div
-                        className={`font-medium text-sm text-slate-800`}
-                      >
-                        {label}
-                      </div>
-                      <div className={`text-xs text-slate-500`}>
-                        {pct.toFixed(5)}%
-                      </div>
+                      <div className={`font-medium text-sm text-slate-800`}>{row.nome}</div>
+                      <div className={`text-xs text-slate-500`}>{pct.toFixed(5)}%</div>
                     </div>
                   </div>
-                  <div
-                    className={`font-bold text-sm text-slate-900`}
-                  >
-                    {formatCurrency(value)}
-                  </div>
+                  <div className={`font-bold text-sm text-slate-900`}>{formatCurrency(Number(row.valor || 0))}</div>
                 </div>
               )
             })}
@@ -128,15 +117,10 @@ export const ComparacaoAtividades = memo(function ComparacaoAtividades({ ativida
                   </div>
                 </div>
               </div>
-              <div
-                className={`font-bold text-lg text-slate-900`}
-              >
-                {formatCurrency(total)}
+                  <div className={`font-bold text-lg text-slate-900`}>{formatCurrency(total)}</div>
               </div>
             </div>
           </div>
-          
-        </div>
       </CardContent>
     </Card>
   )

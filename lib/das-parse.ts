@@ -10,13 +10,33 @@ export function processDasData(textRaw: string) {
       const cab = obj.cabecalho || {}
       const disc = obj.discriminativo_receitas || {}
       const receitasAnt = obj.receitas_anteriores || {}
+      const toNumber = (v: any) => typeof v === 'number' ? v : Number(v) || 0
       const estabs = obj.estabelecimentos || []
       const estab0 = estabs[0] || {}
       const tot = (estab0.totais && estab0.totais.declarado) || null
-      const atividades = Array.isArray(estab0.atividades) ? estab0.atividades : []
+      const sumEstabsExigivel = (() => {
+        const acc = { irpj: 0, csll: 0, cofins: 0, pis: 0, inss_cpp: 0, icms: 0, ipi: 0, iss: 0 }
+        for (const e of estabs) {
+          const te = (e?.totais || {}) as any
+          const ex = te.exigivel || te.exigível
+          const src = ex || te.declarado || null
+          if (src) {
+            acc.irpj += toNumber(src.irpj)
+            acc.csll += toNumber(src.csll)
+            acc.cofins += toNumber(src.cofins)
+            acc.pis += toNumber(src.pis)
+            acc.inss_cpp += toNumber(src.inss_cpp)
+            acc.icms += toNumber(src.icms)
+            acc.ipi += toNumber(src.ipi)
+            acc.iss += toNumber(src.iss)
+          }
+        }
+        const total = acc.irpj + acc.csll + acc.cofins + acc.pis + acc.inss_cpp + acc.icms + acc.ipi + acc.iss
+        return { ...acc, total }
+      })()
+      const atividades = Array.isArray(estabs) ? estabs.flatMap((e: any) => (Array.isArray(e?.atividades) ? e.atividades : [])) : []
 
-      // Utilitário numérico antes de qualquer uso
-      const toNumber = (v: any) => typeof v === 'number' ? v : Number(v) || 0
+      
 
       // Soma dos tributos das atividades, para fallback quando 'declarado' vier zerado
       const somaTributosAtividades = (() => {
@@ -90,27 +110,53 @@ export function processDasData(textRaw: string) {
       const totVals = tot ? [toNumber(tot.irpj), toNumber(tot.csll), toNumber(tot.cofins), toNumber(tot.pis), toNumber(tot.inss_cpp), toNumber(tot.icms), toNumber(tot.ipi), toNumber(tot.iss)] : []
       const totIsZero = !tot || totVals.every((v) => (toNumber(v) || 0) === 0)
 
-      const tribDecl = !totIsZero ? {
-        IRPJ: toNumber(tot!.irpj),
-        CSLL: toNumber(tot!.csll),
-        COFINS: toNumber(tot!.cofins),
-        PIS_Pasep: toNumber(tot!.pis),
-        INSS_CPP: toNumber(tot!.inss_cpp),
-        ICMS: toNumber(tot!.icms),
-        IPI: toNumber(tot!.ipi),
-        ISS: toNumber(tot!.iss),
-        Total: toNumber(tot!.total),
-      } : {
-        IRPJ: toNumber(somaTributosAtividades.irpj),
-        CSLL: toNumber(somaTributosAtividades.csll),
-        COFINS: toNumber(somaTributosAtividades.cofins),
-        PIS_Pasep: toNumber(somaTributosAtividades.pis),
-        INSS_CPP: toNumber(somaTributosAtividades.inss_cpp),
-        ICMS: toNumber(somaTributosAtividades.icms),
-        IPI: toNumber(somaTributosAtividades.ipi),
-        ISS: toNumber(somaTributosAtividades.iss),
-        Total: toNumber(somaTributosAtividades.total),
-      }
+      const totalGeralEmpresa = (obj as any)?.total_geral_empresa || {}
+      const exigivelEmpresa = (totalGeralEmpresa as any)?.exigivel || (totalGeralEmpresa as any)?.exigível
+      const empresaDecl = exigivelEmpresa ? {
+        IRPJ: toNumber(exigivelEmpresa.irpj),
+        CSLL: toNumber(exigivelEmpresa.csll),
+        COFINS: toNumber(exigivelEmpresa.cofins),
+        PIS_Pasep: toNumber(exigivelEmpresa.pis),
+        INSS_CPP: toNumber(exigivelEmpresa.inss_cpp),
+        ICMS: toNumber(exigivelEmpresa.icms),
+        IPI: toNumber(exigivelEmpresa.ipi),
+        ISS: toNumber(exigivelEmpresa.iss),
+        Total: toNumber(exigivelEmpresa.total),
+      } : null
+      const estabsDecl = (sumEstabsExigivel.total > 0) ? {
+        IRPJ: toNumber(sumEstabsExigivel.irpj),
+        CSLL: toNumber(sumEstabsExigivel.csll),
+        COFINS: toNumber(sumEstabsExigivel.cofins),
+        PIS_Pasep: toNumber(sumEstabsExigivel.pis),
+        INSS_CPP: toNumber(sumEstabsExigivel.inss_cpp),
+        ICMS: toNumber(sumEstabsExigivel.icms),
+        IPI: toNumber(sumEstabsExigivel.ipi),
+        ISS: toNumber(sumEstabsExigivel.iss),
+        Total: toNumber(sumEstabsExigivel.total),
+      } : null
+      const tribDecl = empresaDecl && empresaDecl.Total > 0 ? empresaDecl
+        : (estabsDecl && estabsDecl.Total > 0 ? estabsDecl
+        : (!totIsZero ? {
+            IRPJ: toNumber(tot!.irpj),
+            CSLL: toNumber(tot!.csll),
+            COFINS: toNumber(tot!.cofins),
+            PIS_Pasep: toNumber(tot!.pis),
+            INSS_CPP: toNumber(tot!.inss_cpp),
+            ICMS: toNumber(tot!.icms),
+            IPI: toNumber(tot!.ipi),
+            ISS: toNumber(tot!.iss),
+            Total: toNumber(tot!.total),
+          } : {
+            IRPJ: toNumber(somaTributosAtividades.irpj),
+            CSLL: toNumber(somaTributosAtividades.csll),
+            COFINS: toNumber(somaTributosAtividades.cofins),
+            PIS_Pasep: toNumber(somaTributosAtividades.pis),
+            INSS_CPP: toNumber(somaTributosAtividades.inss_cpp),
+            ICMS: toNumber(somaTributosAtividades.icms),
+            IPI: toNumber(somaTributosAtividades.ipi),
+            ISS: toNumber(somaTributosAtividades.iss),
+            Total: toNumber(somaTributosAtividades.total),
+          }))
 
       // Split de tributos por Mercadorias/Serviços e Interno/Externo (JSON)
       const toKey = (s: string) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()

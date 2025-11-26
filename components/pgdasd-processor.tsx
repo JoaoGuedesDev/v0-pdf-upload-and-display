@@ -829,20 +829,26 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                   ['ISS', t.ISS],
                 ] as [string, number][]
                 const getVal = (o: Record<string, number>, label: string) => {
-                  const base = label
-                  const tests = [
-                    base,
-                    base.replace(/\//g, '_'),
-                    base.toUpperCase(),
-                    base.toUpperCase().replace(/\//g, '_'),
-                    base.replace('PIS/PASEP', 'PIS_PASEP'),
-                    base.replace('INSS/CPP', 'INSS_CPP'),
-                    base.replace(/\s+/g, ''),
-                    base.replace(/\s+/g, '_'),
-                  ]
-                  for (const k of tests) {
-                    const v = (o as any)[k]
-                    if (typeof v !== 'undefined') return Number(v || 0)
+                  const norm = (s: string) => s
+                    .replace(/\s+/g, '')
+                    .replace(/\//g, '_')
+                    .toUpperCase()
+                  const target = norm(label)
+                  for (const [k, v] of Object.entries(o || {})) {
+                    if (norm(k) === target) return Number(v || 0)
+                  }
+                  // casos especiais
+                  const aliases: Record<string, string[]> = {
+                    'PIS_PASEP': ['PIS_Pasep','pis_pasep','PIS'],
+                    'INSS_CPP': ['INSS','CPP','inss_cpp'],
+                  }
+                  for (const [t, arr] of Object.entries(aliases)) {
+                    if (target === t) {
+                      for (const ak of arr) {
+                        const v = (o as any)[ak]
+                        if (typeof v !== 'undefined') return Number(v || 0)
+                      }
+                    }
                   }
                   return 0
                 }
@@ -857,12 +863,8 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                   { label: 'Serviços (externo)', get: (lbl: string) => getVal(tsE, lbl), total: totServExt, cls: 'text-indigo-600' },
                 ]
                 const visible = catCols.filter(c => Number(c.total || 0) > 0)
-                const totalGet = (lbl: string) => {
-                  const sum = visible.reduce((acc, c) => acc + Number(c.get(lbl) || 0), 0)
-                  if (sum > 0) return sum
-                  return Number(getVal(t, lbl) || 0)
-                }
-                const totalSum = Number(totMercInt + totMercExt + totServInt + totServExt)
+                const totalGet = (lbl: string) => Number(getVal(t, lbl) || 0)
+                const totalSum = rows.reduce((acc, [lbl]) => acc + Number(getVal(t, lbl) || 0), 0)
                 const cols = [...visible, { label: 'Total', get: totalGet, total: totalSum, cls: 'text-slate-900 font-semibold' }]
                 return (
                   <table className="w-full text-sm">
@@ -883,9 +885,9 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                           <tr key={idx} className="border-slate-200">
                             <td className="py-1 px-2">{label}</td>
                             {cols.map((c, ci) => {
-                              const cv = Number(c.get(label) || 0)
                               const isTotal = c.label === 'Total'
-                              const show = isTotal ? (Number(totalGet(label) || 0) > 0 || globalVal > 0) : cv > 0
+                              const cv = isTotal ? Number(totalGet(label) || 0) : Number(c.get(label) || 0)
+                              const show = isTotal ? (cv > 0 || globalVal > 0) : cv > 0
                               return <td key={ci} className={`text-right py-1 px-2 ${c.cls}`}>{show ? formatCurrency(cv) : ''}</td>
                             })}
                           </tr>
@@ -915,20 +917,25 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
           const mI = (data as any)?.tributosMercadoriasInterno || {}
           const mE = (data as any)?.tributosMercadoriasExterno || {}
           const getVal = (o: Record<string, number>, label: string) => {
-            const base = label
-            const tests = [
-              base,
-              base.replace(/\//g, '_'),
-              base.toUpperCase(),
-              base.toUpperCase().replace(/\//g, '_'),
-              base.replace('PIS/PASEP', 'PIS_PASEP'),
-              base.replace('INSS/CPP', 'INSS_CPP'),
-              base.replace(/\s+/g, ''),
-              base.replace(/\s+/g, '_'),
-            ]
-            for (const k of tests) {
-              const v = (o as any)[k]
-              if (typeof v !== 'undefined') return Number(v || 0)
+            const norm = (s: string) => s
+              .replace(/\s+/g, '')
+              .replace(/\//g, '_')
+              .toUpperCase()
+            const target = norm(label)
+            for (const [k, v] of Object.entries(o || {})) {
+              if (norm(k) === target) return Number(v || 0)
+            }
+            const aliases: Record<string, string[]> = {
+              'PIS_PASEP': ['PIS_Pasep','pis_pasep','PIS'],
+              'INSS_CPP': ['INSS','CPP','inss_cpp'],
+            }
+            for (const [t, arr] of Object.entries(aliases)) {
+              if (target === t) {
+                for (const ak of arr) {
+                  const v = (o as any)[ak]
+                  if (typeof v !== 'undefined') return Number(v || 0)
+                }
+              }
             }
             return 0
           }
@@ -941,12 +948,10 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
             { key: 'ICMS', label: 'ICMS', color: '#06b6d4' },
             { key: 'IPI', label: 'IPI', color: '#ef4444' },
             { key: 'ISS', label: 'ISS', color: '#94a3b8' },
-          ].map(it => {
-            const global = Number((trib as any)?.[it.key] || 0)
-            const cats = Number(getVal(sI, it.label) || 0) + Number(getVal(sE, it.label) || 0) + Number(getVal(mI, it.label) || 0) + Number(getVal(mE, it.label) || 0)
-            const value = global > 0 ? global : cats
-            return { ...it, value }
-          })
+          ].map(it => ({
+            ...it,
+            value: Number((trib as any)?.[it.key] || 0)
+          }))
             .filter(it => it.value > 0)
             .sort((a, b) => b.value - a.value)
           if (!items.length || totalDAS <= 0) return null
