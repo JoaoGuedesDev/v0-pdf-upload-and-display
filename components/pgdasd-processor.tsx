@@ -517,24 +517,44 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                 const limit = Number(r?.limite || 0)
                 const rbt12 = Number(r?.rbt12 || 0)
                 const utilizacaoLimite = limit > 0 ? (rbt12 / limit) * 100 : 0
-                const miSeries = (data?.graficos?.receitaLine?.values || []) as any[]
-                const parse = (v: any) => {
+
+                const parseNumber = (v: any): number => {
                   if (typeof v === 'number') return v
                   const s = String(v || '').trim().replace(/\./g, '').replace(',', '.')
                   const n = Number(s)
                   return isFinite(n) ? n : 0
                 }
-                const vals = miSeries.map(parse)
-                const first3 = vals.slice(0, 3)
-                const last3 = vals.slice(-3)
-                const avgFirst = first3.length ? first3.reduce((a, b) => a + b, 0) / first3.length : 0
-                const avgLast = last3.length ? last3.reduce((a, b) => a + b, 0) / last3.length : 0
-                const growth = (avgFirst > 0) ? ((avgLast - avgFirst) / avgFirst) * 100 : 0
+                const periodo = String((data as any)?.identificacao?.periodoApuracao || '')
+                const mmYYYY = periodo.match(/(\d{2})\/(\d{4})/)
+                const curMM = mmYYYY ? Number(mmYYYY[1]) : 0
+                const curYY = mmYYYY ? Number(mmYYYY[2]) : 0
+                const histMI = (((data as any)?.historico?.mercadoInterno) || []) as { mes: string; valor: any }[]
+                const toKey = (mes: string): number | null => {
+                  const m = mes.match(/(\d{2})\/(\d{4})/)
+                  if (m) { return Number(m[2]) * 100 + Number(m[1]) }
+                  return null
+                }
+                const map: Record<number, number> = {}
+                for (const p of histMI) {
+                  const k = toKey(String(p.mes || ''))
+                  if (k != null) map[k] = parseNumber(p.valor)
+                }
+                const getVal = (yy: number, mm: number): number => {
+                  if (mm <= 0) { yy -= Math.ceil(Math.abs(mm) / 12); mm = ((mm % 12) + 12) % 12; if (mm === 0) mm = 12 }
+                  if (mm > 12) { yy += Math.floor((mm - 1) / 12); mm = ((mm - 1) % 12) + 1 }
+                  const k = yy * 100 + mm
+                  return Number(map[k] || 0)
+                }
+                const receitaPA = Number(r?.receitaPA || 0)
+                const curSum = Number(receitaPA) + getVal(curYY, curMM - 1) + getVal(curYY, curMM - 2)
+                const prevSum = getVal(curYY - 1, curMM) + getVal(curYY - 1, curMM - 1) + getVal(curYY - 1, curMM - 2)
+                const growth = prevSum > 0 ? ((curSum - prevSum) / prevSum) * 100 : 0
                 const consistency = (() => {
-                  const take = vals.slice(-6)
-                  const m = take.length ? take.reduce((a, b) => a + b, 0) / take.length : 0
+                  const last6: number[] = []
+                  for (let i = 0; i < 6; i++) last6.push(getVal(curYY, curMM - i))
+                  const m = last6.length ? last6.reduce((a,b)=>a+b,0) / last6.length : 0
                   if (m <= 0) return 0
-                  const variance = take.reduce((acc, v) => acc + Math.pow(v - m, 2), 0) / take.length
+                  const variance = last6.reduce((acc, v) => acc + Math.pow(v - m, 2), 0) / last6.length
                   const std = Math.sqrt(variance)
                   return (std / m) * 100
                 })()
@@ -551,13 +571,13 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                       <CardContent className="p-3">
                         <p className="text-xs text-blue-700">Comparativo de Crescimento</p>
                         <p className="text-lg font-semibold text-blue-800">{pct(growth)}</p>
-                        <p className="text-[11px] text-blue-700/80">3 últimos vs 3 primeiros</p>
+                        <p className="text-[11px] text-blue-700/80">RPA + 2 meses anteriores vs ano anterior</p>
                       </CardContent>
                     </Card>
                     <Card className="bg-violet-50 border-0">
                       <CardContent className="p-3">
                         <p className="text-xs text-violet-700">Média no último trimestre</p>
-                        <p className="text-lg font-semibold text-violet-800">{formatCurrency(avgLast)}</p>
+                        <p className="text-lg font-semibold text-violet-800">{formatCurrency(getVal(curYY, curMM - 1) + getVal(curYY, curMM - 2) + getVal(curYY, curMM - 3))}</p>
                       </CardContent>
                     </Card>
                     <Card className="bg-orange-50 border-0">
@@ -641,113 +661,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
           )
         })()}
 
-        {(() => {
-          const items = (
-            Array.isArray((data?.calculos as any)?.analise_aliquota?.detalhe) ? (data?.calculos as any).analise_aliquota.detalhe :
-            undefined
-          ) as any[] | undefined
-          if (!Array.isArray(items) || items.length === 0) return null
-          return (
-          <Card className="bg-white border-slate-200" style={{ breakInside: 'avoid' }}>
-            <CardHeader className="py-2">
-              <CardTitle className="text-slate-800">Análise de Alíquota</CardTitle>
-              <CardDescription>Detalhamento por Anexo e Faixa</CardDescription>
-            </CardHeader>
-            <CardContent className="py-2">
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {items.map((item: any, idx: number) => {
-                  const anexo = item?.anexo ?? item?.anexo_numero
-                  const rbt12Original = Number(item?.rbt12_original || item?.rbt12 || 0)
-                  const rbt12Atual = Number(item?.rbt12_atual || 0)
-                  const fxO = item?.faixa_original
-                  const fxA = item?.faixa_atual
-                  const aliqOrigRaw = item?.aliquota_efetiva_original_percent ?? item?.aliquotaEfetivaOriginalPercent ?? item?.aliquota_efetiva
-                  const aliqAtualRaw = item?.aliquota_efetiva_atual_percent ?? item?.aliquotaEfetivaAtualPercent
-                  const fmtPctRaw = (v: any) => v != null ? `${String(v)}` + (String(v).includes('%') ? '' : '%') : ''
-                  const fmtPctFromPercent = (v: number) => `${String(v ?? '')}`
-                  const fmtMoney = (v: number) => formatCurrency(Number(v || 0))
-                  const tipo = (() => {
-                    const t = String(item?.tipo || '').toLowerCase()
-                    if (t) return t === 'servicos' ? 'Serviços' : (t === 'mercadorias' ? 'Mercadorias' : t)
-                    const an = Number(anexo)
-                    if ([3,4].includes(an)) return 'Serviços'
-                    if ([1,2].includes(an)) return 'Mercadorias'
-                    return ''
-                  })()
-                  const getAnexoUrl = (n: number): string | null => {
-                    switch (n) {
-                      case 1: return 'https://www.lsassessoriacontabil.net.br/p/teste.html'
-                      case 2: return 'https://www.lsassessoriacontabil.net.br/p/anexo-2-simples-nacional-beneficios-e.html'
-                      case 3: return 'https://www.lsassessoriacontabil.net.br/p/o-simples-nacional-e-uma-opcao.html'
-                      case 4: return 'https://www.lsassessoriacontabil.net.br/p/anexo-4-simples-nacional-simplificando.html'
-                      case 5: return 'https://www.lsassessoriacontabil.net.br/p/anexo-5-simples-nacional-simplificando.html'
-                      default: return null
-                    }
-                  }
-                  return (
-                    <div key={idx} className="border rounded-lg p-3">
-                      <div className="flex items-center justify-start">
-                        <div className="text-sm font-semibold text-slate-800">Anexo {anexo}</div>
-                        {tipo && (<div className="ml-2 text-xs text-slate-600">{tipo}</div>)}
-                      </div>
-                      <div className="mt-2 grid grid-cols-2 gap-2">
-                        <div className="bg-slate-50 rounded p-2">
-                          <div className="text-[11px] text-slate-600 mt-2">Faixa original</div>
-                          {typeof fxO?.faixa !== 'undefined' && (
-                            <div className="text-xs text-slate-700">Faixa: {fxO?.faixa}</div>
-                          )}
-                          {typeof fxO?.aliquota_nominal !== 'undefined' ? (
-                            <div className="text-xs text-slate-700">Aliq nominal: {fmtPctFromPercent(fxO?.aliquota_nominal as number)}</div>
-                          ) : (typeof item?.aliquota_nominal !== 'undefined' && (
-                            <div className="text-xs text-slate-700">Aliq nominal: {fmtPctFromPercent(item?.aliquota_nominal as number)}</div>
-                          ))}
-                          {typeof fxO?.valor_deduzir !== 'undefined' ? (
-                            <div className="text-xs text-slate-700">Dedução: {fmtMoney(fxO?.valor_deduzir)}</div>
-                          ) : (typeof item?.valor_deduzir !== 'undefined' && (
-                            <div className="text-xs text-slate-700">Dedução: {fmtMoney(item?.valor_deduzir as number)}</div>
-                          ))}
-                          <div className="text-xs text-slate-700 whitespace-nowrap"><span>RBT12 original: </span><span>{fmtMoney(rbt12Original)}</span></div>
-                          <div className="text-xs font-semibold text-slate-900 mt-1">Alíquota efetiva: {fmtPctRaw(aliqOrigRaw)}</div>
-                        </div>
-                        <div className="bg-slate-50 rounded p-2">
-                          <div className="text-[11px] text-slate-600 mt-2">Faixa atual</div>
-                          {typeof fxA?.faixa !== 'undefined' && (
-                            <div className="text-xs text-slate-700">Faixa: {fxA?.faixa}</div>
-                          )}
-                          {typeof fxA?.aliquota_nominal !== 'undefined' ? (
-                            <div className="text-xs text-slate-700">Aliq nominal: {fmtPctFromPercent(fxA?.aliquota_nominal as number)}</div>
-                          ) : (typeof item?.aliquota_nominal !== 'undefined' && (
-                            <div className="text-xs text-slate-700">Aliq nominal: {fmtPctFromPercent(item?.aliquota_nominal as number)}</div>
-                          ))}
-                          {typeof fxA?.valor_deduzir !== 'undefined' ? (
-                            <div className="text-xs text-slate-700">Dedução: {fmtMoney(fxA?.valor_deduzir)}</div>
-                          ) : (typeof item?.valor_deduzir !== 'undefined' && (
-                            <div className="text-xs text-slate-700">Dedução: {fmtMoney(item?.valor_deduzir as number)}</div>
-                          ))}
-                          <div className="text-xs text-slate-700 whitespace-nowrap"><span>RBT12 atual: </span><span>{fmtMoney(rbt12Atual)}</span></div>
-                          <div className="text-xs font-semibold text-slate-900 mt-1">Alíquota efetiva: {fmtPctRaw(aliqAtualRaw)}</div>
-                        </div>
-                      </div>
-                      {(() => {
-                        const url = getAnexoUrl(Number(anexo))
-                        if (!url) return null
-                        return (
-                          <div className="mt-2 flex items-center gap-2">
-                            <Button asChild variant="ghost" size="sm" className="h-6 px-2 text-[11px]">
-                              <a href={url} target="_blank" rel="noreferrer">Explicação do Anexo {anexo}</a>
-                            </Button>
-                          </div>
-                        )
-                      })()}
-                    </div>
-                  )
-                })}
-              </div>
-            </CardContent>
-          </Card>
-          )
-        })()}
+        
         <AnaliseAliquotaParcelas dadosPgdas={{ analise_aliquota: (data?.calculos as any)?.analise_aliquota, identificacao: (data as any)?.identificacao }} />
         {((data?.graficos?.receitaMensal) || (data?.graficos?.receitaLine) || (data as any)?.historico) && (
           <Card className="bg-white border-slate-200 py-1 gap-1" style={{ breakInside: 'avoid' }}>
@@ -1158,6 +1072,22 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                           else mercadoriasTotal += v
                         }
                       }
+                      const norm = (s: string) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+                      const anal = (data as any)?.calculos?.analise_aliquota || (data as any)?.analise_aliquota || (data as any)?.analiseAliquota || {}
+                      const detalhe: any[] = Array.isArray((anal as any)?.detalhe) ? (anal as any).detalhe : []
+                      let transSem = 0
+                      let transCom = 0
+                      for (const it of detalhe) {
+                        const ps: any[] = Array.isArray(it?.parcelas_ajuste) ? it.parcelas_ajuste : []
+                        for (const p of ps) {
+                          const text = [p?.atividade_nome, p?.descricao, p?.nome].filter(Boolean).map(String).join(' ')
+                          const n = norm(text)
+                          const v = Number(p?.valor || 0)
+                          if (!(v > 0)) continue
+                          if (n.includes(norm('Transporte sem substituição tributária de ICMS'))) transSem += v
+                          else if (n.includes(norm('Transporte com substituição tributária de ICMS'))) transCom += v
+                        }
+                      }
                       const showServ = servicosTotal > 0
                       const showMerc = mercadoriasTotal > 0
                       return (
@@ -1176,6 +1106,16 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                               {showMerc && (
                                 <span className="inline-flex items-center rounded-full bg-blue-600/15 text-blue-700 px-2 py-1 text-[11px] font-semibold">
                                   Mercadorias: {formatCurrency(mercadoriasTotal)}
+                                </span>
+                              )}
+                              {transSem > 0 && (
+                                <span className="inline-flex items-center rounded-full bg-purple-600/15 text-purple-700 px-2 py-1 text-[11px] font-semibold">
+                                  Transporte — sem ST: {formatCurrency(transSem)}
+                                </span>
+                              )}
+                              {transCom > 0 && (
+                                <span className="inline-flex items-center rounded-full bg-fuchsia-600/15 text-fuchsia-700 px-2 py-1 text-[11px] font-semibold">
+                                  Transporte — com ST: {formatCurrency(transCom)}
                                 </span>
                               )}
                             </div>

@@ -109,7 +109,7 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
       const ps: any[] = Array.isArray(it?.parcelas_ajuste) ? it.parcelas_ajuste : []
       ps.filter(p => String(p?.tipo_regra || '').toLowerCase() !== 'geral').forEach((p: any) => {
         const src = norm(p?.atividade_nome)
-        let label = p?.descricao ?? p?.atividade_nome ?? 'Atividade'
+        let label = (p?.descricao && String(p.descricao).trim()) ? p.descricao : ((p?.atividade_nome && String(p.atividade_nome).trim()) ? p.atividade_nome : 'Atividade')
         for (const c of canonicalComunic) { if (src.includes(norm(c))) { label = c; break } }
         const semIssOrig = parsePercent(p?.aliquota_efetiva_original_sem_iss_percent)
         const icmsOrig = parsePercent(p?.aliquota_efetiva_original_icms_anexo1_percent)
@@ -212,6 +212,55 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
     'Venda de mercadorias industrializadas',
   ]
 
+  const retStatus = (p: any): string => {
+    const text = [p?.nome, p?.atividade_nome, p?.descricao].filter(Boolean).map(String).join(' ')
+    const n = norm(text)
+    if (!n) return ''
+    if (n.includes('sem retencao') || n.includes('sem reten')) return 'sem retenção'
+    if (n.includes('com retencao') || n.includes('com reten') || n.includes('substituicao tributaria de iss')) return 'com retenção'
+    return ''
+  }
+
+  const normalizeValKey = (v: any): string => {
+    const n = parsePercent(v)
+    return Number.isFinite(n) ? n.toFixed(5) : String(v ?? '')
+  }
+  const isComunicacaoLabel = (label: string): boolean => {
+    const nlab = norm(label)
+    return nlab.includes('comunicacao')
+  }
+  const isPrestServLabel = (label: string): boolean => {
+    const nlab = norm(label)
+    return nlab.includes('prestacao de servicos')
+  }
+  const dedupRowsByValue = (rows: { label: string; value: any }[]): { label: string; value: any }[] => {
+    const seen = new Set<string>()
+    const out: { label: string; value: any }[] = []
+    for (const r of (rows || [])) {
+      const base = normalizeValKey(r.value)
+      const isFiniteVal = Number.isFinite(parsePercent(r.value))
+      const k = isFiniteVal
+        ? ((isComunicacaoLabel(String(r.label)) || isPrestServLabel(String(r.label))) ? `${base}::${String(r.label)}` : base)
+        : `${String(r.label)}::${base}`
+      if (seen.has(k)) continue
+      seen.add(k)
+      out.push(r)
+    }
+    return out
+  }
+
+  const matchCanonical = (p: any): string | null => {
+    const targets = [p?.nome, p?.atividade_nome, p?.descricao]
+    for (const t of targets) {
+      const n = norm(t)
+      if (!n) continue
+      for (const canon of comunicCanon) {
+        if (n.includes(norm(canon))) return canon
+      }
+    }
+    return null
+  }
+
   const sumSafe = (...vals: number[]): number => {
     const nums = vals.filter(v => Number.isFinite(v))
     if (!nums.length) return NaN
@@ -219,65 +268,129 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
     return Number(s.toFixed(4))
   }
 
-  const buildRowsAjustadoDoc = (items: any[]): { label: string; value: number }[] => {
-    const out: { label: string; value: number }[] = [];
-    (items || []).forEach((it: any) => {
+  const buildRowsAjustadoDoc = (items: any[]): { label: string; value: number; valor?: number }[] => {
+    const out: { label: string; value: number; valor?: number }[] = []
+    ;(items || []).forEach((it: any) => {
       const parcelas: any[] = Array.isArray(it?.parcelas_ajuste) ? it.parcelas_ajuste : []
-      const comunicParts = parcelas.filter(p => String(p?.tipo_regra || '').toLowerCase() === 'servicos_comunicacao')
-      if (comunicParts.length) {
-        const first = comunicParts[0]
-        const src = norm(first?.atividade_nome)
-        let label = first?.descricao ?? first?.atividade_nome ?? 'Serviços de comunicação'
-        for (const c of comunicCanon) { if (src.includes(norm(c))) { label = c; break } }
-        const semIssOrig = parsePercent(first?.aliquota_efetiva_original_sem_iss_percent)
-        const icmsOrig = parsePercent(first?.aliquota_efetiva_original_icms_anexo1_percent)
-        const val = sumSafe(semIssOrig, icmsOrig)
-        out.push({ label, value: val })
-      }
-      const geralParts = parcelas.filter(p => String(p?.tipo_regra || '').toLowerCase() === 'geral')
-      if (geralParts.length || !parcelas.length) {
-        const src = norm((geralParts[0]?.atividade_nome) || it?.tipo || '')
-        let label = (geralParts[0]?.descricao ?? geralParts[0]?.atividade_nome) || 'Prestação de Serviços'
+      if (parcelas.length) {
+        parcelas.forEach((p: any) => {
+          const tipo = String(p?.tipo_regra || '').toLowerCase()
+          const canonical = matchCanonical(p)
+          let label = canonical
+          if (!label) {
+            label = ((String(p?.descricao ?? '').trim()) || (String(p?.atividade_nome ?? '').trim()) || 'Prestação de Serviços')
+          }
+          label = String(label).split(',')[0].trim()
+          const rs = retStatus(p)
+          if (rs) label = `${label} — ${rs}${label.includes('Prestação de Serviços') ? ' ISS' : ''}`
+          let val: number
+          if (canonical === 'Transporte com substituição tributária de ICMS') {
+            val = parsePercent(p?.aliquota_efetiva_original_sem_iss_percent)
+          } else if (label.includes('Prestação de Serviços') && rs === 'com retenção') {
+            const semIss = parsePercent(p?.aliquota_efetiva_original_sem_iss_percent)
+            const adj = parsePercent(p?.aliquota_efetiva_original_ajustada_percent)
+            const pad = parsePercent(p?.aliquota_efetiva_original_percent)
+            val = Number.isFinite(semIss) ? semIss : (Number.isFinite(adj) ? adj : pad)
+          } else if (tipo === 'servicos_comunicacao') {
+            const semIssOrig = parsePercent(p?.aliquota_efetiva_original_sem_iss_percent)
+            const icmsOrig = parsePercent(p?.aliquota_efetiva_original_icms_anexo1_percent)
+            if (label.includes('Transporte sem substituição tributária de ICMS')) {
+              val = sumSafe(semIssOrig, icmsOrig)
+            } else if (label.includes('Transporte com substituição tributária de ICMS')) {
+              val = semIssOrig
+            } else {
+              val = sumSafe(semIssOrig, icmsOrig)
+            }
+          } else {
+            val = parsePercent(p?.aliquota_efetiva_original_ajustada_percent)
+            if (!Number.isFinite(val)) val = parsePercent(p?.aliquota_efetiva_original_percent)
+          }
+          if (Number.isFinite(val) || (String(label).includes('Prestação de Serviços') && rs === 'com retenção')) out.push({ label, value: val, valor: Number(p?.valor || 0) })
+        })
+      } else {
+        const src = norm(it?.tipo || '')
+        let label = 'Prestação de Serviços'
         for (const c of geralCanon) { if (src.includes(norm(c))) { label = c; break } }
-        let val = parsePercent(geralParts[0]?.aliquota_efetiva_original_ajustada_percent)
-        if (!Number.isFinite(val)) val = parsePercent(it?.aliquota_efetiva_original_percent)
-        out.push({ label, value: val })
+        label = String(label).split(',')[0].trim()
+        const val = parsePercent(it?.aliquota_efetiva_original_percent)
+        if (Number.isFinite(val)) out.push({ label, value: val })
       }
     })
-    const allowed = ['Comunicação sem substituição tributária de ICMS', 'Prestação de Serviços']
-    return out.filter(r => Number.isFinite(r.value) && allowed.includes(r.label))
+    return out
   }
   const rowsAjustadoDoc = buildRowsAjustadoDoc(aliquotaItems || [])
+  const principalAnexo = useMemo(() => {
+    const c: any = calculos || {}
+    const meta: any = c?.analiseAliquotaMeta ?? c?.analise_aliquota?.meta
+    const fromMeta = Number(meta?.anexo_principal || 0)
+    if (fromMeta > 0) return fromMeta
+    if (Array.isArray(aliquotaItems) && aliquotaItems.length > 0) {
+      const uniq = Array.from(new Set(aliquotaItems.map((it: any) => Number(it?.anexo || it?.anexo_numero || 0)).filter(Boolean)))
+      if (uniq.length === 1) return uniq[0]
+    }
+    return undefined
+  }, [calculos, aliquotaItems])
+  const principalItem = useMemo(() => {
+    if (principalAnexo) {
+      const it = (aliquotaItems || []).find((x: any) => Number(x?.anexo ?? x?.anexo_numero) === principalAnexo)
+      if (it) return it
+    }
+    return (aliquotaItems || [])[0]
+  }, [aliquotaItems, principalAnexo])
+  const rowsDocFinal = dedupRowsByValue(rowsAjustadoDoc)
 
-  const buildRowsAjustadoNext = (items: any[]): { label: string; value: number }[] => {
-    const out: { label: string; value: number }[] = [];
-    (items || []).forEach((it: any) => {
+  const buildRowsAjustadoNext = (items: any[]): { label: string; value: number; valor?: number }[] => {
+    const out: { label: string; value: number; valor?: number }[] = []
+    ;(items || []).forEach((it: any) => {
       const parcelas: any[] = Array.isArray(it?.parcelas_ajuste) ? it.parcelas_ajuste : []
-      const comunicParts = parcelas.filter(p => String(p?.tipo_regra || '').toLowerCase() === 'servicos_comunicacao')
-      if (comunicParts.length) {
-        const first = comunicParts[0]
-        const src = norm(first?.atividade_nome)
-        let label = first?.descricao ?? first?.atividade_nome ?? 'Serviços de comunicação'
-        for (const c of comunicCanon) { if (src.includes(norm(c))) { label = c; break } }
-        const semIssAtual = parsePercent(first?.aliquota_efetiva_atual_sem_iss_percent)
-        const icmsAtual = parsePercent(first?.aliquota_efetiva_atual_icms_anexo1_percent)
-        const val = sumSafe(semIssAtual, icmsAtual)
-        out.push({ label, value: val })
-      }
-      const geralParts = parcelas.filter(p => String(p?.tipo_regra || '').toLowerCase() === 'geral')
-      if (geralParts.length || !parcelas.length) {
-        const src = norm((geralParts[0]?.atividade_nome) || it?.tipo || '')
-        let label = (geralParts[0]?.descricao ?? geralParts[0]?.atividade_nome) || 'Prestação de Serviços'
+      if (parcelas.length) {
+        parcelas.forEach((p: any) => {
+          const tipo = String(p?.tipo_regra || '').toLowerCase()
+          const canonical = matchCanonical(p)
+          let label = canonical
+          if (!label) {
+            label = ((String(p?.descricao ?? '').trim()) || (String(p?.atividade_nome ?? '').trim()) || 'Prestação de Serviços')
+          }
+          label = String(label).split(',')[0].trim()
+          const rs = retStatus(p)
+          if (rs) label = `${label} — ${rs}${label.includes('Prestação de Serviços') ? ' ISS' : ''}`
+          let val: number
+          if (canonical === 'Transporte com substituição tributária de ICMS') {
+            val = parsePercent(p?.aliquota_efetiva_atual_sem_iss_percent)
+          } else if (label.includes('Prestação de Serviços') && rs === 'com retenção') {
+            const semIss = parsePercent(p?.aliquota_efetiva_atual_sem_iss_percent)
+            const adj = parsePercent(p?.aliquota_efetiva_atual_ajustada_percent)
+            const pad = parsePercent(p?.aliquota_efetiva_atual_percent)
+            val = Number.isFinite(semIss) ? semIss : (Number.isFinite(adj) ? adj : pad)
+          } else if (tipo === 'servicos_comunicacao') {
+            const semIssAtual = parsePercent(p?.aliquota_efetiva_atual_sem_iss_percent)
+            const icmsAtual = parsePercent(p?.aliquota_efetiva_atual_icms_anexo1_percent)
+            if (label.includes('Transporte sem substituição tributária de ICMS')) {
+              val = sumSafe(semIssAtual, icmsAtual)
+            } else if (label.includes('Transporte com substituição tributária de ICMS')) {
+              val = semIssAtual
+            } else {
+              val = sumSafe(semIssAtual, icmsAtual)
+            }
+          } else {
+            val = parsePercent(p?.aliquota_efetiva_atual_ajustada_percent)
+            if (!Number.isFinite(val)) val = parsePercent(p?.aliquota_efetiva_atual_percent)
+          }
+          if (Number.isFinite(val) || (String(label).includes('Prestação de Serviços') && rs === 'com retenção')) out.push({ label, value: val, valor: Number(p?.valor || 0) })
+        })
+      } else {
+        const src = norm(it?.tipo || '')
+        let label = 'Prestação de Serviços'
         for (const c of geralCanon) { if (src.includes(norm(c))) { label = c; break } }
-        let val = parsePercent(geralParts[0]?.aliquota_efetiva_atual_ajustada_percent)
-        if (!Number.isFinite(val)) val = parsePercent(it?.aliquota_efetiva_atual_percent)
-        out.push({ label, value: val })
+        label = String(label).split(',')[0].trim()
+        const val = parsePercent(it?.aliquota_efetiva_atual_percent)
+        if (Number.isFinite(val)) out.push({ label, value: val })
       }
     })
-    const allowed = ['Comunicação sem substituição tributária de ICMS', 'Prestação de Serviços']
-    return out.filter(r => Number.isFinite(r.value) && allowed.includes(r.label))
+    return out
   }
   const rowsAjustadoNext = buildRowsAjustadoNext(aliquotaItems || [])
+  const rowsNextFinal = dedupRowsByValue(rowsAjustadoNext)
 
   const nextPeriodoLabel = useMemo(() => {
     const s = String(periodoApuracao || '').trim()
@@ -383,17 +496,17 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
         </CardHeader>
         <CardContent className="p-1 sm:p-2 pt-0">
           <div className="mt-1 space-y-1">
-            {rowsAjustadoDoc.map((r: any, i: number) => (
+            {rowsDocFinal.map((r: any, i: number) => (
               <div key={i} className="flex items-center justify-between">
-                <span className="text-[10px] sm:text-[11px] opacity-90">{r.label}</span>
-                <span className="text-base sm:text-lg font-bold font-sans">{fmtPct4(r.value)}</span>
-                </div>
-              ))}
+                <span className="text-[9px] sm:text-[10px] opacity-90">{r.label}</span>
+                <span className="text-sm sm:text-base font-bold font-sans">{fmtPct4(r.value)}</span>
+              </div>
+            ))}
           </div>
           <div className="mt-2 border-t border-white/25 pt-1">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] sm:text-[11px] opacity-75">Alíquota efetiva</span>
-              <span className="text-[12px] sm:text-sm font-semibold">{`${aliquotaDasSobreRpa.toFixed(4).replace('.', ',')}%`}</span>
+              <span className="text-[9px] sm:text-[10px] opacity-75">Alíquota efetiva</span>
+              <span className="text-[11px] sm:text-[12px] font-semibold">{`${aliquotaDasSobreRpa.toFixed(4).replace('.', ',')}%`}</span>
             </div>
           </div>
         </CardContent>
@@ -406,10 +519,10 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
         </CardHeader>
         <CardContent className="p-1 sm:p-2 pt-0">
           <div className="mt-1 space-y-1">
-            {rowsAjustadoNext.map((r: any, i: number) => (
+            {rowsNextFinal.map((r: any, i: number) => (
               <div key={i} className="relative flex items-center justify-between pr-5">
-                <span className="text-[10px] sm:text-[11px] opacity-90">{r.label}</span>
-                <span className="text-base sm:text-lg font-bold font-sans">{fmtPct4(r.value)}</span>
+                <span className="text-[9px] sm:text-[10px] opacity-90">{r.label}</span>
+                <span className="text-sm sm:text-base font-bold font-sans">{fmtPct4(r.value)}</span>
               </div>
             ))}
           </div>
@@ -420,12 +533,11 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
 })
   const fmtPct4 = (v: any): string => {
     const num = ((): number | null => {
-      if (typeof v === 'number') return v
+      if (typeof v === 'number') return Number.isFinite(v) ? v : null
       const s = String(v ?? '').replace(',', '.')
       const n = Number(s)
       return Number.isFinite(n) ? n : null
     })()
     if (num != null) return `${num.toFixed(4).replace('.', ',')}%`
-    const s = String(v ?? '')
-    return s.includes('%') ? s : `${s}%`
+    return '-'
   }
