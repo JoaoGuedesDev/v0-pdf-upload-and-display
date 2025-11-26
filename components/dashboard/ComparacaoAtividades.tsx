@@ -37,7 +37,9 @@ export const ComparacaoAtividades = memo(function ComparacaoAtividades({ ativida
   }
   const rows = useMemo(() => {
     return list.map((a: any, idx: number) => {
-      const nome = String(a?.nome || a?.descricao || a?.name || `Atividade ${idx + 1}`)
+      const rawNome = String(a?.nome || a?.descricao || a?.name || `Atividade ${idx + 1}`)
+      const alvo = 'Revenda de mercadorias para o exterior'
+      const nome = rawNome.toLowerCase().includes(alvo.toLowerCase()) ? alvo : rawNome
       const exig = (a?.totais && (a?.totais.exigivel || a?.totais.exigível)) || {}
       const exigTotal = parseNumber(exig?.total)
       const exigSum = [exig?.irpj, exig?.csll, exig?.cofins, exig?.pis, exig?.inss_cpp, exig?.icms, exig?.ipi, exig?.iss]

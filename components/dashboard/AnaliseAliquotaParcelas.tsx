@@ -110,6 +110,12 @@ export const AnaliseAliquotaParcelas = memo(function AnaliseAliquotaParcelas({ d
                   const mc = matchCanonical(p)
                   if (mc) return mc
                 }
+                const alvo = 'Revenda de mercadorias para o exterior'
+                const hasAlvo = [...comunicParts, ...otherParts].some((p) => {
+                  const t = [p?.nome, p?.atividade_nome, p?.descricao].filter(Boolean).map(String).join(' ')
+                  return norm(t).includes(norm(alvo))
+                })
+                if (hasAlvo) return alvo
                 const first = comunicParts[0]
                 const d = String(first?.descricao ?? '').trim()
                 const a = String(first?.atividade_nome ?? '').trim()
@@ -137,6 +143,7 @@ export const AnaliseAliquotaParcelas = memo(function AnaliseAliquotaParcelas({ d
                     "Prestação de Serviços",
                     "Revenda de mercadorias",
                     "Venda de mercadorias industrializadas",
+                    "Revenda de mercadorias para o exterior",
                   ]
                   const norm2 = (s: any) => String(s || "").normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
                   const src = norm2(p?.atividade_nome)
