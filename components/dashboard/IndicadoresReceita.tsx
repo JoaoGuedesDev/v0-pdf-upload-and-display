@@ -51,16 +51,7 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
   }, [calculos])
   const margemLiquida = useMemo(() => (calculos?.margemLiquida || calculos?.margemLiquidaPercent || 0), [calculos])
 
-  const [editOrigLabel, setEditOrigLabel] = useState<string | null>(null)
-  const [editAtualLabel, setEditAtualLabel] = useState<string | null>(null)
-  const [overrideOrig, setOverrideOrig] = useState<Record<string, number>>({})
-  const [overrideAtual, setOverrideAtual] = useState<Record<string, number>>({})
-  const [manualItems, setManualItems] = useState<any[]>([])
-  const [showAdd, setShowAdd] = useState(false)
-  const [newAnexo, setNewAnexo] = useState<string>("")
-  const [newTipo, setNewTipo] = useState<string>("Serviços")
-  const [newOrig, setNewOrig] = useState<string>("")
-  const [newAtual, setNewAtual] = useState<string>("")
+  
 
   const aliquotaItems = useMemo(() => {
     const c: any = calculos || {}
@@ -71,9 +62,17 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
     return arr
   }, [calculos])
 
-  const combinedItems = useMemo(() => {
-    return [ ...(aliquotaItems || []), ...(manualItems || []) ]
-  }, [aliquotaItems, manualItems])
+  const parsePercent = (v: any): number => {
+    if (typeof v === 'number') return v
+    const s = String(v ?? '').trim()
+    if (!s) return NaN
+    let cleaned = s.replace('%', '').trim()
+    if (cleaned.includes(',')) cleaned = cleaned.replace(/\./g, '').replace(',', '.')
+    const n = Number(cleaned)
+    return Number.isFinite(n) ? n : NaN
+  }
+
+  
 
   // Removido cálculo: os cards usam os valores exatamente como vierem do n8n
 
@@ -81,23 +80,54 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
     const labelForItem = (it: any): string => {
       const an = it?.anexo ?? it?.anexo_numero
       const tRaw = String(it?.tipo || '').toLowerCase()
-      const tInf = (() => {
-        if (tRaw) return tRaw.charAt(0).toUpperCase() + tRaw.slice(1)
-        const n = Number(an)
+      const n = Number(an)
+      const tipo = (() => {
+        if (tRaw) return tRaw
         if (Number.isFinite(n)) {
-          if (n === 1 || n === 2) return 'Mercadorias'
-          if (n === 3 || n === 4 || n === 5) return 'Serviços'
+          if (n === 1 || n === 2) return 'mercadorias'
+          if (n === 3 || n === 4 || n === 5) return 'servicos'
         }
         return ''
       })()
-      if (an != null) return `Anexo ${an}${tInf ? ' — ' + tInf : ''}`
-      return tInf || 'Item'
+      if (tipo === 'servicos') return 'Prestação de Serviços'
+      if (tipo === 'mercadorias') return 'Mercadorias'
+      return 'Item'
     }
-    return (combinedItems || []).map((it: any) => ({
+    const base = (aliquotaItems || []).map((it: any) => ({
       label: labelForItem(it),
       value: it?.aliquota_efetiva_original_percent
     })).filter((r: any) => r.value != null)
-  }, [combinedItems])
+    const norm = (s: any) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    const canonicalComunic = [
+      'Comunicação sem substituição tributária de ICMS',
+      'Comunicação com substituição tributária de ICMS',
+      'Transporte sem substituição tributária de ICMS',
+      'Transporte com substituição tributária de ICMS',
+    ]
+    const extrasMap: Record<string, { orig: number; atual: number }> = {}
+    ;(aliquotaItems || []).forEach((it: any) => {
+      const ps: any[] = Array.isArray(it?.parcelas_ajuste) ? it.parcelas_ajuste : []
+      ps.filter(p => String(p?.tipo_regra || '').toLowerCase() !== 'geral').forEach((p: any) => {
+        const src = norm(p?.atividade_nome)
+        let label = p?.descricao ?? p?.atividade_nome ?? 'Atividade'
+        for (const c of canonicalComunic) { if (src.includes(norm(c))) { label = c; break } }
+        const semIssOrig = parsePercent(p?.aliquota_efetiva_original_sem_iss_percent)
+        const icmsOrig = parsePercent(p?.aliquota_efetiva_original_icms_anexo1_percent)
+        const semIssAtual = parsePercent(p?.aliquota_efetiva_atual_sem_iss_percent)
+        const icmsAtual = parsePercent(p?.aliquota_efetiva_atual_icms_anexo1_percent)
+        const calcAdjOrig = (Number.isFinite(semIssOrig) ? semIssOrig : NaN) + (Number.isFinite(icmsOrig) ? icmsOrig : 0)
+        const calcAdjAtual = (Number.isFinite(semIssAtual) ? semIssAtual : NaN) + (Number.isFinite(icmsAtual) ? icmsAtual : 0)
+        const adjOrigFallback = parsePercent(p?.aliquota_efetiva_original_ajustada_percent)
+        const adjAtualFallback = parsePercent(p?.aliquota_efetiva_atual_ajustada_percent)
+        const adjOrig = Number.isFinite(calcAdjOrig) ? calcAdjOrig : adjOrigFallback
+        const adjAtual = Number.isFinite(calcAdjAtual) ? calcAdjAtual : adjAtualFallback
+        const cur = extrasMap[label] || { orig: 0, atual: 0 }
+        extrasMap[label] = { orig: cur.orig + (Number.isFinite(adjOrig) ? adjOrig : 0), atual: cur.atual + (Number.isFinite(adjAtual) ? adjAtual : 0) }
+      })
+    })
+    const extras = Object.entries(extrasMap).map(([label, vals]) => ({ label, value: vals.orig }))
+    return [...base, ...extras]
+  }, [aliquotaItems])
 
   
   const tipoServPresent = useMemo(() => {
@@ -124,30 +154,130 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
     const labelForItem = (it: any): string => {
       const an = it?.anexo ?? it?.anexo_numero
       const tRaw = String(it?.tipo || '').toLowerCase()
-      const tInf = (() => {
-        if (tRaw) return tRaw.charAt(0).toUpperCase() + tRaw.slice(1)
-        const n = Number(an)
+      const n = Number(an)
+      const tipo = (() => {
+        if (tRaw) return tRaw
         if (Number.isFinite(n)) {
-          if (n === 1 || n === 2) return 'Mercadorias'
-          if (n === 3 || n === 4 || n === 5) return 'Serviços'
+          if (n === 1 || n === 2) return 'mercadorias'
+          if (n === 3 || n === 4 || n === 5) return 'servicos'
         }
         return ''
       })()
-      if (an != null) return `Anexo ${an}${tInf ? ' — ' + tInf : ''}`
-      return tInf || 'Item'
+      if (tipo === 'servicos') return 'Prestação de Serviços'
+      if (tipo === 'mercadorias') return 'Mercadorias'
+      return 'Item'
     }
-    return (combinedItems || []).map((it: any) => {
+    const base = (aliquotaItems || []).map((it: any) => {
       const label = labelForItem(it)
       const value = it?.aliquota_efetiva_atual_percent
-      const isManual = !!it?.__manual
-      let manualIndex = -1
-      if (isManual) {
-        const id = it?.__id
-        manualIndex = manualItems.findIndex((mi: any) => mi?.__id === id)
-      }
-      return { label, value, manualIndex }
+      return { label, value }
     }).filter((r: any) => r.value != null)
-  }, [combinedItems, manualItems])
+    const norm = (s: any) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    const canonicalComunic = [
+      'Comunicação sem substituição tributária de ICMS',
+      'Comunicação com substituição tributária de ICMS',
+      'Transporte sem substituição tributária de ICMS',
+      'Transporte com substituição tributária de ICMS',
+    ]
+    const extras: { label: string; value: number }[] = []
+    ;(aliquotaItems || []).forEach((it: any) => {
+      const ps: any[] = Array.isArray(it?.parcelas_ajuste) ? it.parcelas_ajuste : []
+      const acc: Record<string, number> = {}
+      ps.filter(p => String(p?.tipo_regra || '').toLowerCase() !== 'geral').forEach((p: any) => {
+        const src = norm(p?.atividade_nome)
+        let label = p?.descricao ?? p?.atividade_nome ?? 'Atividade'
+        for (const c of canonicalComunic) { if (src.includes(norm(c))) { label = c; break } }
+        const semIssAtual = parsePercent(p?.aliquota_efetiva_atual_sem_iss_percent)
+        const icmsAtual = parsePercent(p?.aliquota_efetiva_atual_icms_anexo1_percent)
+        const calcAdjAtual = (Number.isFinite(semIssAtual) ? semIssAtual : NaN) + (Number.isFinite(icmsAtual) ? icmsAtual : 0)
+        const adjAtualFallback = parsePercent(p?.aliquota_efetiva_atual_ajustada_percent)
+        const adjAtual = Number.isFinite(calcAdjAtual) ? calcAdjAtual : adjAtualFallback
+        acc[label] = (acc[label] || 0) + (Number.isFinite(adjAtual) ? adjAtual : 0)
+      })
+      Object.entries(acc).forEach(([label, value]) => extras.push({ label, value }))
+    })
+    return [...base, ...extras]
+  }, [aliquotaItems])
+
+  const norm = (s: any) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+  const comunicCanon = [
+    'Comunicação sem substituição tributária de ICMS',
+    'Comunicação com substituição tributária de ICMS',
+    'Transporte sem substituição tributária de ICMS',
+    'Transporte com substituição tributária de ICMS',
+  ]
+  const geralCanon = [
+    'Prestação de Serviços',
+    'Revenda de mercadorias',
+    'Venda de mercadorias industrializadas',
+  ]
+
+  const sumSafe = (...vals: number[]): number => {
+    const nums = vals.filter(v => Number.isFinite(v))
+    if (!nums.length) return NaN
+    const s = nums.reduce((a,b)=>a+b,0)
+    return Number(s.toFixed(4))
+  }
+
+  const buildRowsAjustadoDoc = (items: any[]): { label: string; value: number }[] => {
+    const out: { label: string; value: number }[] = [];
+    (items || []).forEach((it: any) => {
+      const parcelas: any[] = Array.isArray(it?.parcelas_ajuste) ? it.parcelas_ajuste : []
+      const comunicParts = parcelas.filter(p => String(p?.tipo_regra || '').toLowerCase() === 'servicos_comunicacao')
+      if (comunicParts.length) {
+        const first = comunicParts[0]
+        const src = norm(first?.atividade_nome)
+        let label = first?.descricao ?? first?.atividade_nome ?? 'Serviços de comunicação'
+        for (const c of comunicCanon) { if (src.includes(norm(c))) { label = c; break } }
+        const semIssOrig = parsePercent(first?.aliquota_efetiva_original_sem_iss_percent)
+        const icmsOrig = parsePercent(first?.aliquota_efetiva_original_icms_anexo1_percent)
+        const val = sumSafe(semIssOrig, icmsOrig)
+        out.push({ label, value: val })
+      }
+      const geralParts = parcelas.filter(p => String(p?.tipo_regra || '').toLowerCase() === 'geral')
+      if (geralParts.length || !parcelas.length) {
+        const src = norm((geralParts[0]?.atividade_nome) || it?.tipo || '')
+        let label = (geralParts[0]?.descricao ?? geralParts[0]?.atividade_nome) || 'Prestação de Serviços'
+        for (const c of geralCanon) { if (src.includes(norm(c))) { label = c; break } }
+        let val = parsePercent(geralParts[0]?.aliquota_efetiva_original_ajustada_percent)
+        if (!Number.isFinite(val)) val = parsePercent(it?.aliquota_efetiva_original_percent)
+        out.push({ label, value: val })
+      }
+    })
+    const allowed = ['Comunicação sem substituição tributária de ICMS', 'Prestação de Serviços']
+    return out.filter(r => Number.isFinite(r.value) && allowed.includes(r.label))
+  }
+  const rowsAjustadoDoc = buildRowsAjustadoDoc(aliquotaItems || [])
+
+  const buildRowsAjustadoNext = (items: any[]): { label: string; value: number }[] => {
+    const out: { label: string; value: number }[] = [];
+    (items || []).forEach((it: any) => {
+      const parcelas: any[] = Array.isArray(it?.parcelas_ajuste) ? it.parcelas_ajuste : []
+      const comunicParts = parcelas.filter(p => String(p?.tipo_regra || '').toLowerCase() === 'servicos_comunicacao')
+      if (comunicParts.length) {
+        const first = comunicParts[0]
+        const src = norm(first?.atividade_nome)
+        let label = first?.descricao ?? first?.atividade_nome ?? 'Serviços de comunicação'
+        for (const c of comunicCanon) { if (src.includes(norm(c))) { label = c; break } }
+        const semIssAtual = parsePercent(first?.aliquota_efetiva_atual_sem_iss_percent)
+        const icmsAtual = parsePercent(first?.aliquota_efetiva_atual_icms_anexo1_percent)
+        const val = sumSafe(semIssAtual, icmsAtual)
+        out.push({ label, value: val })
+      }
+      const geralParts = parcelas.filter(p => String(p?.tipo_regra || '').toLowerCase() === 'geral')
+      if (geralParts.length || !parcelas.length) {
+        const src = norm((geralParts[0]?.atividade_nome) || it?.tipo || '')
+        let label = (geralParts[0]?.descricao ?? geralParts[0]?.atividade_nome) || 'Prestação de Serviços'
+        for (const c of geralCanon) { if (src.includes(norm(c))) { label = c; break } }
+        let val = parsePercent(geralParts[0]?.aliquota_efetiva_atual_ajustada_percent)
+        if (!Number.isFinite(val)) val = parsePercent(it?.aliquota_efetiva_atual_percent)
+        out.push({ label, value: val })
+      }
+    })
+    const allowed = ['Comunicação sem substituição tributária de ICMS', 'Prestação de Serviços']
+    return out.filter(r => Number.isFinite(r.value) && allowed.includes(r.label))
+  }
+  const rowsAjustadoNext = buildRowsAjustadoNext(aliquotaItems || [])
 
   const nextPeriodoLabel = useMemo(() => {
     const s = String(periodoApuracao || '').trim()
@@ -253,10 +383,10 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
         </CardHeader>
         <CardContent className="p-1 sm:p-2 pt-0">
           <div className="mt-1 space-y-1">
-            {rowsOriginal.map((r: any, i: number) => (
+            {rowsAjustadoDoc.map((r: any, i: number) => (
               <div key={i} className="flex items-center justify-between">
                 <span className="text-[10px] sm:text-[11px] opacity-90">{r.label}</span>
-                <span className="text-base sm:text-lg font-bold font-sans">{String(r.value)}%</span>
+                <span className="text-base sm:text-lg font-bold font-sans">{fmtPct4(r.value)}</span>
                 </div>
               ))}
           </div>
@@ -273,55 +403,13 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
       <Card className="bg-gradient-to-br from-purple-600 to-purple-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200 py-1">
         <CardHeader className="pb-0.5 p-1 sm:p-2 flex flex-row items-center justify-between">
           <CardTitle className="text-[11px] sm:text-xs font-bold">Alíquota {nextPeriodoLabel}</CardTitle>
-          <span
-            role="button"
-            aria-label="Adicionar anexo"
-            className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-white/10 text-white/80 text-[12px] hover:bg-white/15 hover:text-white/100"
-            onClick={() => setShowAdd(true)}
-          >+</span>
         </CardHeader>
         <CardContent className="p-1 sm:p-2 pt-0">
-          {showAdd && (
-            <div className="flex flex-wrap items-center gap-2 w-full mb-2">
-                <input type="number" placeholder="Anexo" className="text-black text-xs px-2 py-1 rounded w-16" value={newAnexo} onChange={(e) => setNewAnexo(e.target.value)} />
-                <select className="text-black text-xs px-2 py-1 rounded" value={newTipo} onChange={(e) => setNewTipo(e.target.value)}>
-                  <option>Serviços</option>
-                  <option>Mercadorias</option>
-                </select>
-                <input type="number" step="0.00001" placeholder="Alíquota atual (%)" className="text-black text-xs px-2 py-1 rounded w-32" value={newOrig} onChange={(e) => setNewOrig(e.target.value)} />
-                <input type="number" step="0.00001" placeholder="Alíquota próxima (%)" className="text-black text-xs px-2 py-1 rounded w-36" value={newAtual} onChange={(e) => setNewAtual(e.target.value)} />
-                <button className="text-[10px] bg-white/15 px-2 py-0.5 rounded" onClick={() => {
-                  const an = newAnexo ? Number(newAnexo) : undefined
-                  const it: any = {
-                    __manual: true,
-                    __id: String(Date.now()) + Math.random().toString(36).slice(2),
-                    anexo: an,
-                    tipo: newTipo.toLowerCase(),
-                    aliquota_efetiva_original_percent: newOrig ? Number(newOrig) : undefined,
-                    aliquota_efetiva_atual_percent: newAtual ? Number(newAtual) : undefined,
-                  }
-                  setManualItems([...manualItems, it])
-                  setNewAnexo(""); setNewTipo("Serviços"); setNewOrig(""); setNewAtual(""); setShowAdd(false)
-                }}>Adicionar</button>
-                <button className="text-[10px] bg-white/15 px-2 py-0.5 rounded" onClick={() => { setShowAdd(false); }}>Cancelar</button>
-            </div>
-          )}
           <div className="mt-1 space-y-1">
-            {rowsAtual.map((r: any, i: number) => (
+            {rowsAjustadoNext.map((r: any, i: number) => (
               <div key={i} className="relative flex items-center justify-between pr-5">
                 <span className="text-[10px] sm:text-[11px] opacity-90">{r.label}</span>
-                <span className="text-base sm:text-lg font-bold font-sans">{String(r.value)}%</span>
-                {r.manualIndex >= 0 && (
-                  <span
-                    role="button"
-                    aria-label="Apagar"
-                    className="absolute right-1 top-1/2 -translate-y-1/2 inline-flex items-center justify-center w-4 h-4 rounded-full bg-white/10 text-white/70 text-[10px] hover:bg-white/15 hover:text-white/100"
-                    onClick={() => {
-                      const next = manualItems.filter((_, idx) => idx !== r.manualIndex)
-                      setManualItems(next)
-                    }}
-                  >×</span>
-                )}
+                <span className="text-base sm:text-lg font-bold font-sans">{fmtPct4(r.value)}</span>
               </div>
             ))}
           </div>
@@ -330,3 +418,14 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
     </div>
   )
 })
+  const fmtPct4 = (v: any): string => {
+    const num = ((): number | null => {
+      if (typeof v === 'number') return v
+      const s = String(v ?? '').replace(',', '.')
+      const n = Number(s)
+      return Number.isFinite(n) ? n : null
+    })()
+    if (num != null) return `${num.toFixed(4).replace('.', ',')}%`
+    const s = String(v ?? '')
+    return s.includes('%') ? s : `${s}%`
+  }

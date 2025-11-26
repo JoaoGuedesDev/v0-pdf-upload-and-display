@@ -8,6 +8,7 @@ import { ConfiguracaoProcessamento } from "@/components/dashboard/ConfiguracaoPr
 import { IndicadoresReceita } from "@/components/dashboard/IndicadoresReceita"
 import { GraficoReceitaMensal } from "@/components/dashboard/GraficoReceitaMensal"
 import { ComparacaoAtividades } from "@/components/dashboard/ComparacaoAtividades"
+import { AnaliseAliquotaParcelas } from "@/components/dashboard/AnaliseAliquotaParcelas"
 import { formatCurrency, computeTotalDAS } from "@/lib/utils"
 import { Doughnut } from 'react-chartjs-2'
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, Title } from 'chart.js'
@@ -747,6 +748,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
           </Card>
           )
         })()}
+        <AnaliseAliquotaParcelas dadosPgdas={{ analise_aliquota: (data?.calculos as any)?.analise_aliquota, identificacao: (data as any)?.identificacao }} />
         {((data?.graficos?.receitaMensal) || (data?.graficos?.receitaLine) || (data as any)?.historico) && (
           <Card className="bg-white border-slate-200 py-1 gap-1" style={{ breakInside: 'avoid' }}>
             <CardHeader className="pt-1 pb-0">
