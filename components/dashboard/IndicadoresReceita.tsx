@@ -439,9 +439,9 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
   return (
     <div className={`grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-2 ${className}`}>
       {/* Receita Bruta PA - Azul escuro */}
-      <Card className="bg-gradient-to-br from-slate-700 to-slate-800 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200 py-1">
+      <Card className="bg-gradient-to-br from-slate-700 to-slate-800 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200 py-1 rounded-2xl">
         <CardHeader className="pb-0.5 p-1 sm:p-2 flex flex-row items-center justify-between space-y-0">
-          <CardTitle className="text-[11px] sm:text-xs font-bold">Receita Bruta PA</CardTitle>
+          <CardTitle className="text-[12px] sm:text-sm font-semibold tracking-tight">Receita Bruta PA</CardTitle>
           <DollarSign className="h-4 w-4" />
         </CardHeader>
         <CardContent className="p-1 sm:p-2 pt-0">
@@ -457,17 +457,17 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
               </span>
             )}
           </div>
-          <p className="text-base sm:text-lg font-bold break-words">{formatCurrency(receitaPA)}</p>
-          <p className="text-[10px] sm:text-[11px] opacity-75 mt-1 flex items-center gap-1">
+          <p className="text-lg sm:text-xl font-bold break-words tracking-tight">{formatCurrency(receitaPA)}</p>
+          <p className="text-[10px] sm:text-[11px] opacity-85 mt-1 flex items-center gap-1">
             <span className="inline-block w-3 h-3 rounded-full bg-slate-400" /> Período de apuração
           </p>
         </CardContent>
       </Card>
 
       {/* Total DAS - Azul médio */}
-      <Card className="bg-gradient-to-br from-blue-600 to-blue-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200">
+      <Card className="bg-gradient-to-br from-blue-600 to-blue-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200 rounded-2xl">
         <CardHeader className="pb-0.5 p-1 sm:p-2 flex flex-row items-center justify-between space-y-0">
-          <CardTitle className="text-[11px] sm:text-xs font-bold">Total DAS</CardTitle>
+          <CardTitle className="text-[12px] sm:text-sm font-semibold tracking-tight">Total DAS</CardTitle>
           <FileText className="h-4 w-4" />
         </CardHeader>
         <CardContent className="p-1 sm:p-2 pt-0">
@@ -483,46 +483,46 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
               </span>
             )}
           </div>
-          <p className="text-base sm:text-lg font-bold break-words">{formatCurrency(totalDAS)}</p>
-          <p className="text-[10px] sm:text-[11px] opacity-75 mt-1">Total de tributos pagos</p>
+          <p className="text-lg sm:text-xl font-bold break-words tracking-tight">{formatCurrency(totalDAS)}</p>
+          <p className="text-[10px] sm:text-[11px] opacity-85 mt-1">Total de tributos pagos</p>
         </CardContent>
       </Card>
 
       {/* Alíquota do Período Atual - Laranja */}
-      <Card className="bg-gradient-to-br from-orange-500 to-orange-600 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200 py-1">
+      <Card className="bg-gradient-to-br from-orange-500 to-orange-600 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200 py-1 rounded-2xl">
         <CardHeader className="pb-0.5 p-1 sm:p-2 flex flex-row items-center justify-between space-y-0">
-          <CardTitle className="text-[11px] sm:text-xs font-bold">Alíquota {currentPeriodoLabel}</CardTitle>
+          <CardTitle className="text-[12px] sm:text-sm font-semibold tracking-tight">Alíquota {currentPeriodoLabel}</CardTitle>
           <TrendingUp className="h-4 w-4" />
         </CardHeader>
         <CardContent className="p-1 sm:p-2 pt-0">
           <div className="mt-1 space-y-1">
             {rowsDocFinal.map((r: any, i: number) => (
               <div key={i} className="flex items-center justify-between">
-                <span className="text-[9px] sm:text-[10px] opacity-90">{r.label}</span>
-                <span className="text-xs sm:text-sm font-bold font-sans">{fmtPct4(r.value)}</span>
+                <span className="text-[10px] sm:text-xs opacity-90">{r.label}</span>
+                <span className="text-xs sm:text-sm font-semibold font-sans">{fmtPct4(r.value)}</span>
               </div>
             ))}
           </div>
           <div className="mt-2 border-t border-white/25 pt-1">
             <div className="flex items-center justify-between">
-              <span className="text-[9px] sm:text-[10px] opacity-75">Alíquota efetiva</span>
-              <span className="text-[9px] sm:text-[10px] font-semibold">{`${aliquotaDasSobreRpa.toFixed(4).replace('.', ',')}%`}</span>
+              <span className="text-[10px] sm:text-xs opacity-85">Alíquota efetiva</span>
+              <span className="text-[10px] sm:text-xs font-semibold">{`${aliquotaDasSobreRpa.toFixed(4).replace('.', ',')}%`}</span>
             </div>
           </div>
         </CardContent>
       </Card>
 
       {/* Alíquota do Próximo Mês - Roxo */}
-      <Card className="bg-gradient-to-br from-purple-600 to-purple-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200 py-1">
+      <Card className="bg-gradient-to-br from-purple-600 to-purple-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200 py-1 rounded-2xl">
         <CardHeader className="pb-0.5 p-1 sm:p-2 flex flex-row items-center justify-between">
-          <CardTitle className="text-[11px] sm:text-xs font-bold">Alíquota {nextPeriodoLabel}</CardTitle>
+          <CardTitle className="text-[12px] sm:text-sm font-semibold tracking-tight">Alíquota {nextPeriodoLabel}</CardTitle>
         </CardHeader>
         <CardContent className="p-1 sm:p-2 pt-0">
           <div className="mt-1 space-y-1">
             {rowsNextFinal.map((r: any, i: number) => (
               <div key={i} className="relative flex items-center justify-between pr-5">
-                <span className="text-[9px] sm:text-[10px] opacity-90">{r.label}</span>
-                <span className="text-xs sm:text-sm font-bold font-sans">{fmtPct4(r.value)}</span>
+                <span className="text-[10px] sm:text-xs opacity-90">{r.label}</span>
+                <span className="text-xs sm:text-sm font-semibold font-sans">{fmtPct4(r.value)}</span>
               </div>
             ))}
           </div>

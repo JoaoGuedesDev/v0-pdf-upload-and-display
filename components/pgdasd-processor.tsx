@@ -14,6 +14,7 @@ import { Doughnut } from 'react-chartjs-2'
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, Title } from 'chart.js'
 import ChartDataLabels from 'chartjs-plugin-datalabels'
 import { CHART_CONFIG } from '@/lib/constants'
+import { MessageCircle, Mail } from 'lucide-react'
 
 ChartJS.register(ArcElement, Tooltip, Legend, Title, ChartDataLabels)
 interface DASData {
@@ -424,6 +425,16 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
               onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/integra-logo.svg' }}
             />
           </div>
+          <div className="print:hidden">
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-full bg-white/70 text-slate-700 hover:bg-white border-slate-200"
+              onClick={() => window.location.assign('/')}
+            >
+              Processar Novo PDF
+            </Button>
+          </div>
         </div>
 
         
@@ -557,7 +568,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                 const growth = prevSum > 0 ? ((curSum - prevSum) / prevSum) * 100 : 0
                 const media3 = getVal(curYY, curMM - 1) + getVal(curYY, curMM - 2) + getVal(curYY, curMM - 3)
                 const mediaTri = media3 / 3
-                const consistency = mediaTri > 0 ? (Number(receitaPA) / mediaTri) * 100 : 0
+                const consistency = mediaTri > 0 ? ((Number(receitaPA) / mediaTri) * 100) - 100 : 0
                 const pct = (n: number) => `${(n || 0).toFixed(1).replace('.', ',')}%`
                 return (
                   <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-3">
@@ -960,21 +971,42 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
             datasets: [{
               data: items.map(i => i.value),
               backgroundColor: items.map(i => i.color),
-              borderColor: undefined,
-              borderWidth: 0,
-              cutout: '65%',
-              radius: '85%',
+              borderColor: '#ffffff',
+              borderWidth: 1,
+              hoverOffset: 6,
+              spacing: 2,
+              cutout: '62%',
+              radius: '86%',
             }]
           }
           const options = {
             ...CHART_CONFIG,
-            layout: { padding: { top: 8, bottom: 0, left: 0, right: 0 } },
-            animation: false,
+            responsive: true,
+            maintainAspectRatio: false,
+            devicePixelRatio: 2,
+            layout: { padding: { top: 12, bottom: 0, left: 0, right: 0 } },
+            animation: { duration: 400, easing: 'easeOutQuart' },
             plugins: {
               ...CHART_CONFIG.plugins,
               datalabels: { display: false },
               legend: { display: false },
-              tooltip: { enabled: true },
+              tooltip: {
+                enabled: true,
+                padding: 10,
+                titleColor: '#0f172a',
+                bodyColor: '#0f172a',
+                backgroundColor: 'rgba(255,255,255,0.95)',
+                borderColor: '#e2e8f0',
+                borderWidth: 1,
+                callbacks: {
+                  label: (ctx: any) => {
+                    const lbl = String(ctx?.label || '')
+                    const v = Number(ctx?.parsed || ctx?.raw || 0)
+                    const fmt = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
+                    return `${lbl}: ${fmt}`
+                  },
+                },
+              },
             },
             scales: {},
           } as any
@@ -988,9 +1020,9 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
               ctx.save()
               ctx.textAlign = 'center'
               ctx.fillStyle = '#111827'
-              ctx.font = '700 10px system-ui'
-              ctx.fillText('Total Tributos', cx, cy -7)
-              ctx.font = '700 10px system-ui'
+              ctx.font = '600 12px Inter, system-ui, -apple-system, Segoe UI'
+              ctx.fillText('Total de Tributos', cx, cy - 10)
+              ctx.font = '700 12px Inter, system-ui, -apple-system, Segoe UI'
               ctx.fillText(formatCurrency(totalDAS), cx, cy + 14)
               ctx.restore()
             }
@@ -1030,7 +1062,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
               }
               const resolveSide = (side: 'left' | 'right') => {
                 const arr = nodes.filter(n => (side === 'right' ? n.right : !n.right)).sort((a, b) => a.ly - b.ly)
-                const gap = 16
+                const gap = 18
                 for (let i = 1; i < arr.length; i++) {
                   const prev = arr[i - 1]
                   const cur = arr[i]
@@ -1042,7 +1074,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
               ctx.save()
               for (const n of nodes) {
                 ctx.strokeStyle = String(n.color || '#475569')
-                ctx.lineWidth = 1
+                ctx.lineWidth = 1.25
                 ctx.beginPath()
                 ctx.moveTo(n.ax, n.ay)
                 ctx.lineTo(n.ex, n.ey)
@@ -1050,8 +1082,8 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                 ctx.stroke()
                 ctx.textAlign = n.right ? 'left' : 'right'
                 ctx.fillStyle = String(n.color || '#111827')
-                ctx.font = '500 11px system-ui'
-                const txt = `${n.label}: ${formatCurrency(Number(n.value || 0))} (${n.pct.toFixed(2)}%)`
+                ctx.font = '600 12px Inter, system-ui, -apple-system, Segoe UI'
+                const txt = `${n.label}: ${formatCurrency(Number(n.value || 0))} (${n.pct.toFixed(1)}%)`
                 ctx.fillText(txt, n.lx, n.ly - 2)
               }
               ctx.restore()
@@ -1240,32 +1272,34 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
           </Card>
         )}
 
-        <Card className="bg-white border-slate-200" style={{ breakInside: 'avoid' }}>
+        <Card className="bg-white border-slate-200 rounded-2xl" style={{ breakInside: 'avoid' }}>
           <CardHeader className="py-2">
-            <CardTitle className="text-slate-800">Contato e Ações</CardTitle>
-            <CardDescription>Caso queira uma análise mais completa e personalizada</CardDescription>
+            <CardTitle className="text-slate-800 tracking-tight">Contato e Ações</CardTitle>
+            <CardDescription className="leading-relaxed">Caso queira uma análise mais completa e personalizada</CardDescription>
           </CardHeader>
           <CardContent className="py-2">
             <div className="grid md:grid-cols-2 gap-4">
-              <div>
-                <ul className="text-slate-700">
-                  <li>• Cenários comparativos entre regimes tributários</li>
-                  <li>• Simulações de economia fiscal</li>
-                  <li>• Recomendações exclusivas para o seu ramo</li>
-                </ul>
+              <div className="space-y-2">
+                <div className="rounded-xl p-3 bg-slate-50">
+                  <ul className="space-y-2 text-slate-700">
+                    <li className="flex items-start gap-2"><span className="mt-1 inline-block w-1.5 h-1.5 rounded-full bg-blue-600" />Cenários comparativos entre regimes tributários</li>
+                    <li className="flex items-start gap-2"><span className="mt-1 inline-block w-1.5 h-1.5 rounded-full bg-indigo-600" />Simulações de economia fiscal</li>
+                    <li className="flex items-start gap-2"><span className="mt-1 inline-block w-1.5 h-1.5 rounded-full bg-emerald-600" />Recomendações exclusivas para o seu ramo</li>
+                  </ul>
+                </div>
               </div>
               <div>
-                <div className={`rounded-lg p-3 bg-slate-50 text-slate-800`}>
-                  <p>Fale com a Integra:</p>
-                  <p><a className="underline" href="https://wa.me/559481264638" target="_blank" rel="noreferrer">WhatsApp: 94 8126-4638</a></p>
-                  <p><a className="underline" href="mailto:atendimento@integratecnologia.inf.br">E-mail: atendimento@integratecnologia.inf.br</a></p>
-                  <p>Integra Soluções Empresariais</p>
+                <div className={`rounded-xl p-4 bg-slate-100/70 text-slate-800 border border-slate-200`}>
+                  <p className="font-semibold text-slate-900 mb-2">Fale com a Integra</p>
+                  <div className="space-y-2">
+                    <a className="flex items-center gap-2 hover:text-emerald-700" href="https://wa.me/559481264638" target="_blank" rel="noreferrer"><MessageCircle className="h-4 w-4 text-emerald-600" />WhatsApp: 94 8126-4638</a>
+                    <a className="flex items-center gap-2 hover:text-blue-700" href="mailto:atendimento@integratecnologia.inf.br"><Mail className="h-4 w-4 text-blue-600" />E-mail: atendimento@integratecnologia.inf.br</a>
+                  </div>
                 </div>
               </div>
             </div>
             {!hideDownloadButton && (
-              <div className="flex flex-wrap gap-2 justify-center mt-4 print:hidden">
-                <Button variant="secondary" onClick={() => window.location.assign('/')}>Processar Novo PDF</Button>
+              <div className="flex justify-end mt-4 print:hidden">
                 <Button onClick={handleDownloadPDF}>Baixar PDF</Button>
               </div>
             )}

@@ -46,7 +46,7 @@ export const GraficoReceitaMensal = memo(function GraficoReceitaMensal({
   data, 
   title = '',
   description = 'Evolução de Receitas',
-  height = 370 
+  height = 400 
 }: GraficoReceitaMensalProps) {
   const chartData = (() => {
     if (!data || !data.labels || !data.values) {
@@ -155,12 +155,12 @@ export const GraficoReceitaMensal = memo(function GraficoReceitaMensal({
       {
         label: 'Mercado Externo',
         data: externaSorted,
-        backgroundColor: '#a183f573',
-        borderColor: '#000000ff',
+        backgroundColor: 'rgba(139, 92, 246, 0.45)',
+        borderColor: '#8b5cf6',
         borderWidth: 1,
         borderRadius: 4,
         borderSkipped: false,
-        maxBarThickness: 24,
+        maxBarThickness: 26,
         barPercentage: 0.7,
         categoryPercentage: 0.8,
         stack: 'receita',
@@ -168,12 +168,12 @@ export const GraficoReceitaMensal = memo(function GraficoReceitaMensal({
       {
         label: 'Mercado Interno',
         data: internaSorted,
-        backgroundColor: '#61a0f1ff',
-        borderColor: '#200466ff',
+        backgroundColor: 'rgba(59, 130, 246, 0.85)',
+        borderColor: '#3b82f6',
         borderWidth: 0,
         borderRadius: 99,
         borderSkipped: false,
-        maxBarThickness: 24,
+        maxBarThickness: 26,
         barPercentage: .6,
         categoryPercentage: 0.7,
         stack: 'receita',
@@ -185,7 +185,10 @@ export const GraficoReceitaMensal = memo(function GraficoReceitaMensal({
 
   const options: ChartOptions<'bar'> = ({
     ...CHART_CONFIG,
-    animation: false,
+    responsive: true,
+    maintainAspectRatio: false,
+    devicePixelRatio: 2,
+    animation: { duration: 450, easing: 'easeOutQuart' },
     layout: { padding: { top: 70, bottom: -7 } },
     plugins: {
       ...CHART_CONFIG.plugins,
@@ -220,6 +223,10 @@ export const GraficoReceitaMensal = memo(function GraficoReceitaMensal({
         },
       },
       tooltip: {
+        padding: 10,
+        backgroundColor: 'rgba(255,255,255,0.95)',
+        borderColor: '#e2e8f0',
+        borderWidth: 1,
         callbacks: {
           label: (context: any) => {
             const label = String(context.dataset?.label || '')
@@ -241,16 +248,16 @@ export const GraficoReceitaMensal = memo(function GraficoReceitaMensal({
       datalabels: {
         clamp: true,
         clip: false,
-        offset: 4,
+        offset: 3,
         anchor: 'end',
         align: 'end',
-        rotation: -45,
+        rotation: -30,
         color: (ctx: Context) => {
           const isExterno = (ctx?.datasetIndex ?? 0) === 0
           if (isExterno) return '#200466ff'
           return '#0e0e0fff'
         },
-        font: { size: 10, weight: 'bold' },
+        font: { size: 11, weight: '600' },
         formatter: (value: unknown, ctx: Context) => {
           const i = ctx?.dataIndex ?? 0
           const chart = ctx.chart
@@ -274,7 +281,7 @@ export const GraficoReceitaMensal = memo(function GraficoReceitaMensal({
           const labelsCount = chart?.data?.labels?.length ?? 0
           const areaWidth = chart?.chartArea ? (chart.chartArea.right - chart.chartArea.left) : 0
           const perBar = labelsCount > 0 ? areaWidth / labelsCount : areaWidth
-          const minLabelWidth = 70
+          const minLabelWidth = 68
           const step = perBar > 0 ? Math.max(1, Math.ceil(minLabelWidth / perBar)) : 1
 
           const ds = chart?.data?.datasets as any[]
