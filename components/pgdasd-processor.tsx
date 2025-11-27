@@ -513,9 +513,8 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
               })()}
               {(() => {
                 const r = data?.receitas || ({} as any)
-                const limit = Number(r?.limite || 0)
-                const rbt12 = Number(r?.rbt12 || 0)
-                const utilizacaoLimite = limit > 0 ? (rbt12 / limit) * 100 : 0
+                const rba = Number(r?.rba || 0)
+                const utilizacaoLimite = rba > 0 ? (rba / 4800000) * 100 : 0
 
                 const parseNumber = (v: any): number => {
                   if (typeof v === 'number') return v
@@ -528,16 +527,24 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                 const curMM = mmYYYY ? Number(mmYYYY[1]) : 0
                 const curYY = mmYYYY ? Number(mmYYYY[2]) : 0
                 const histMI = (((data as any)?.historico?.mercadoInterno) || []) as { mes: string; valor: any }[]
+                const histME = (((data as any)?.historico?.mercadoExterno) || []) as { mes: string; valor: any }[]
                 const toKey = (mes: string): number | null => {
                   const m = mes.match(/(\d{2})\/(\d{4})/)
                   if (m) { return Number(m[2]) * 100 + Number(m[1]) }
                   return null
                 }
                 const map: Record<number, number> = {}
-                for (const p of histMI) {
-                  const k = toKey(String(p.mes || ''))
-                  if (k != null) map[k] = parseNumber(p.valor)
+                const pushAll = (arr: { mes: string; valor: any }[] = []) => {
+                  for (const p of arr) {
+                    const k = toKey(String(p.mes || ''))
+                    if (k != null) {
+                      const val = parseNumber(p.valor)
+                      map[k] = (map[k] || 0) + val
+                    }
+                  }
                 }
+                pushAll(histMI)
+                pushAll(histME)
                 const getVal = (yy: number, mm: number): number => {
                   if (mm <= 0) { yy -= Math.ceil(Math.abs(mm) / 12); mm = ((mm % 12) + 12) % 12; if (mm === 0) mm = 12 }
                   if (mm > 12) { yy += Math.floor((mm - 1) / 12); mm = ((mm - 1) % 12) + 1 }
@@ -548,17 +555,10 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                 const curSum = Number(receitaPA) + getVal(curYY, curMM - 1) + getVal(curYY, curMM - 2)
                 const prevSum = getVal(curYY - 1, curMM) + getVal(curYY - 1, curMM - 1) + getVal(curYY - 1, curMM - 2)
                 const growth = prevSum > 0 ? ((curSum - prevSum) / prevSum) * 100 : 0
-                const consistency = (() => {
-                  const last6: number[] = []
-                  for (let i = 0; i < 6; i++) last6.push(getVal(curYY, curMM - i))
-                  const m = last6.length ? last6.reduce((a,b)=>a+b,0) / last6.length : 0
-                  if (m <= 0) return 0
-                  const variance = last6.reduce((acc, v) => acc + Math.pow(v - m, 2), 0) / last6.length
-                  const std = Math.sqrt(variance)
-                  return (std / m) * 100
-                })()
+                const media3 = getVal(curYY, curMM - 1) + getVal(curYY, curMM - 2) + getVal(curYY, curMM - 3)
+                const mediaTri = media3 / 3
+                const consistency = mediaTri > 0 ? (Number(receitaPA) / mediaTri) * 100 : 0
                 const pct = (n: number) => `${(n || 0).toFixed(1).replace('.', ',')}%`
-                const mediaTri = getVal(curYY, curMM - 1) + getVal(curYY, curMM - 2) + getVal(curYY, curMM - 3)
                 return (
                   <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-3">
                     {utilizacaoLimite > 0 && (
