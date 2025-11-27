@@ -585,7 +585,6 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                         <CardContent className="p-3">
                           <p className="text-xs text-blue-700">Comparativo de Crescimento</p>
                           <p className="text-lg font-semibold text-blue-800">{pct(growth)}</p>
-                          <p className="text-[11px] text-blue-700/80">RPA + 2 meses anteriores vs ano anterior</p>
                         </CardContent>
                       </Card>
                     )}
