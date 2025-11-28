@@ -596,7 +596,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                         </CardContent>
                       </Card>
                     )}
-                    {consistency > 0 && (
+                    {consistency !== 0 && (
                       <Card className="bg-orange-50 border-0">
                         <CardContent className="p-3">
                           <p className="text-xs text-orange-700">Consistência</p>

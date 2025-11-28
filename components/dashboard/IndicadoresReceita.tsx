@@ -233,14 +233,21 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
     const nlab = norm(label)
     return nlab.includes('prestacao de servicos')
   }
-  const dedupRowsByValue = (rows: { label: string; value: any }[]): { label: string; value: any }[] => {
+  const simplifyRevendaLabel = (s: string): string => {
+    const nlab = norm(s)
+    if (!nlab) return s
+    if (nlab.includes(norm('revenda de mercadorias para o exterior'))) return 'Revenda de Mercadorias para o exterior'
+    if (nlab.includes('revenda de mercadorias')) return 'Revenda de Mercadorias'
+    return s
+  }
+  const dedupRowsByValue = (rows: { label: string; value: any; fromParcela?: boolean }[]): { label: string; value: any; fromParcela?: boolean }[] => {
     const seen = new Set<string>()
-    const out: { label: string; value: any }[] = []
+    const out: { label: string; value: any; fromParcela?: boolean }[] = []
     for (const r of (rows || [])) {
       const base = normalizeValKey(r.value)
       const isFiniteVal = Number.isFinite(parsePercent(r.value))
       const k = isFiniteVal
-        ? ((isComunicacaoLabel(String(r.label)) || isPrestServLabel(String(r.label))) ? `${base}::${String(r.label)}` : base)
+        ? ((r?.fromParcela || isComunicacaoLabel(String(r.label)) || isPrestServLabel(String(r.label))) ? `${base}::${String(r.label)}` : base)
         : `${String(r.label)}::${base}`
       if (seen.has(k)) continue
       seen.add(k)
@@ -268,19 +275,22 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
     return Number(s.toFixed(4))
   }
 
-  const buildRowsAjustadoDoc = (items: any[]): { label: string; value: number; valor?: number }[] => {
-    const out: { label: string; value: number; valor?: number }[] = []
+  const buildRowsAjustadoDoc = (items: any[]): { label: string; value: number; valor?: number; fromParcela?: boolean }[] => {
+    const out: { label: string; value: number; valor?: number; fromParcela?: boolean }[] = []
     ;(items || []).forEach((it: any) => {
       const parcelas: any[] = Array.isArray(it?.parcelas_ajuste) ? it.parcelas_ajuste : []
       if (parcelas.length) {
         parcelas.forEach((p: any) => {
           const tipo = String(p?.tipo_regra || '').toLowerCase()
           const canonical = matchCanonical(p)
-          let label = canonical
-          if (!label) {
-            label = ((String(p?.descricao ?? '').trim()) || (String(p?.atividade_nome ?? '').trim()) || 'Prestação de Serviços')
-          }
-          label = String(label).split(',')[0].trim()
+          let label = (() => {
+            const desc = String(p?.descricao ?? '').trim()
+            if (desc) return desc
+            if (canonical) return canonical
+            const nome = String(p?.atividade_nome ?? '').trim()
+            return nome || 'Prestação de Serviços'
+          })()
+          label = simplifyRevendaLabel(label)
           const rs = retStatus(p)
           if (rs) label = `${label} — ${rs}${label.includes('Prestação de Serviços') ? ' ISS' : ''}`
           let val: number
@@ -305,15 +315,15 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
             val = parsePercent(p?.aliquota_efetiva_original_ajustada_percent)
             if (!Number.isFinite(val)) val = parsePercent(p?.aliquota_efetiva_original_percent)
           }
-          if (Number.isFinite(val) || (String(label).includes('Prestação de Serviços') && rs === 'com retenção')) out.push({ label, value: val, valor: Number(p?.valor || 0) })
+          if (Number.isFinite(val) || (String(label).includes('Prestação de Serviços') && rs === 'com retenção')) out.push({ label, value: val, valor: Number(p?.valor || 0), fromParcela: true })
         })
       } else {
         const src = norm(it?.tipo || '')
         let label = 'Prestação de Serviços'
         for (const c of geralCanon) { if (src.includes(norm(c))) { label = c; break } }
-        label = String(label).split(',')[0].trim()
+        label = simplifyRevendaLabel(String(label).split(',')[0].trim())
         const val = parsePercent(it?.aliquota_efetiva_original_percent)
-        if (Number.isFinite(val)) out.push({ label, value: val })
+        if (Number.isFinite(val)) out.push({ label, value: val, fromParcela: false })
       }
     })
     return out
@@ -339,19 +349,22 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
   }, [aliquotaItems, principalAnexo])
   const rowsDocFinal = dedupRowsByValue(rowsAjustadoDoc)
 
-  const buildRowsAjustadoNext = (items: any[]): { label: string; value: number; valor?: number }[] => {
-    const out: { label: string; value: number; valor?: number }[] = []
+  const buildRowsAjustadoNext = (items: any[]): { label: string; value: number; valor?: number; fromParcela?: boolean }[] => {
+    const out: { label: string; value: number; valor?: number; fromParcela?: boolean }[] = []
     ;(items || []).forEach((it: any) => {
       const parcelas: any[] = Array.isArray(it?.parcelas_ajuste) ? it.parcelas_ajuste : []
       if (parcelas.length) {
         parcelas.forEach((p: any) => {
           const tipo = String(p?.tipo_regra || '').toLowerCase()
           const canonical = matchCanonical(p)
-          let label = canonical
-          if (!label) {
-            label = ((String(p?.descricao ?? '').trim()) || (String(p?.atividade_nome ?? '').trim()) || 'Prestação de Serviços')
-          }
-          label = String(label).split(',')[0].trim()
+          let label = (() => {
+            const desc = String(p?.descricao ?? '').trim()
+            if (desc) return desc
+            if (canonical) return canonical
+            const nome = String(p?.atividade_nome ?? '').trim()
+            return nome || 'Prestação de Serviços'
+          })()
+          label = simplifyRevendaLabel(label)
           const rs = retStatus(p)
           if (rs) label = `${label} — ${rs}${label.includes('Prestação de Serviços') ? ' ISS' : ''}`
           let val: number
@@ -376,15 +389,15 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
             val = parsePercent(p?.aliquota_efetiva_atual_ajustada_percent)
             if (!Number.isFinite(val)) val = parsePercent(p?.aliquota_efetiva_atual_percent)
           }
-          if (Number.isFinite(val) || (String(label).includes('Prestação de Serviços') && rs === 'com retenção')) out.push({ label, value: val, valor: Number(p?.valor || 0) })
+          if (Number.isFinite(val) || (String(label).includes('Prestação de Serviços') && rs === 'com retenção')) out.push({ label, value: val, valor: Number(p?.valor || 0), fromParcela: true })
         })
       } else {
         const src = norm(it?.tipo || '')
         let label = 'Prestação de Serviços'
         for (const c of geralCanon) { if (src.includes(norm(c))) { label = c; break } }
-        label = String(label).split(',')[0].trim()
+        label = simplifyRevendaLabel(String(label).split(',')[0].trim())
         const val = parsePercent(it?.aliquota_efetiva_atual_percent)
-        if (Number.isFinite(val)) out.push({ label, value: val })
+        if (Number.isFinite(val)) out.push({ label, value: val, fromParcela: false })
       }
     })
     return out
@@ -498,7 +511,7 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
           <div className="mt-1 space-y-1">
             {rowsDocFinal.map((r: any, i: number) => (
               <div key={i} className="flex items-center justify-between">
-                <span className="text-[10px] sm:text-xs opacity-90">{r.label}</span>
+                <span className={`${(r?.fromParcela ? 'text-[8px] sm:text-[10px]' : 'text-[10px] sm:text-xs')} opacity-90 break-words whitespace-normal leading-tight`}>{r.label}</span>
                 <span className="text-xs sm:text-sm font-semibold font-sans">{fmtPct4(r.value)}</span>
               </div>
             ))}
@@ -521,7 +534,7 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
           <div className="mt-1 space-y-1">
             {rowsNextFinal.map((r: any, i: number) => (
               <div key={i} className="relative flex items-center justify-between pr-5">
-                <span className="text-[10px] sm:text-xs opacity-90">{r.label}</span>
+                <span className={`${(r?.fromParcela ? 'text-[8px] sm:text-[10px]' : 'text-[10px] sm:text-xs')} opacity-90 break-words whitespace-normal leading-tight`}>{r.label}</span>
                 <span className="text-xs sm:text-sm font-semibold font-sans">{fmtPct4(r.value)}</span>
               </div>
             ))}

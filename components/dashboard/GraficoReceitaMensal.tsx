@@ -257,7 +257,7 @@ export const GraficoReceitaMensal = memo(function GraficoReceitaMensal({
           if (isExterno) return '#200466ff'
           return '#0e0e0fff'
         },
-        font: { size: 11, weight: '600' },
+        font: { size: 11, weight: 600 },
         formatter: (value: unknown, ctx: Context) => {
           const i = ctx?.dataIndex ?? 0
           const chart = ctx.chart
