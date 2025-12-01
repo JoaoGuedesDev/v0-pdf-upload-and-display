@@ -569,7 +569,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                 const media3 = getVal(curYY, curMM - 1) + getVal(curYY, curMM - 2) + getVal(curYY, curMM - 3)
                 const mediaTri = media3 / 3
                 const consistency = mediaTri > 0 ? ((Number(receitaPA) / mediaTri) * 100) - 100 : 0
-                const pct = (n: number) => `${(n || 0).toFixed(1).replace('.', ',')}%`
+                const pct = (n: number) => `${(n || 0).toFixed(2).replace('.', ',')}%`
                 return (
                   <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-3">
                     {utilizacaoLimite > 0 && (

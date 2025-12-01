@@ -62,6 +62,18 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
     return arr
   }, [calculos])
 
+  const simulacaoTodosAnexos = useMemo(() => {
+    const c: any = calculos || {}
+    const pick = (o: any): any[] => (Array.isArray(o) ? o : [])
+    const candidates: any[][] = [
+      pick(c?.simulacao_todos_anexos),
+      pick(c?.analise_aliquota?.simulacao_todos_anexos),
+      pick((c as any)?.analiseAliquota?.simulacao_todos_anexos),
+    ]
+    const found = candidates.find(arr => Array.isArray(arr) && arr.length > 0)
+    return found || []
+  }, [calculos])
+
   const parsePercent = (v: any): number => {
     if (typeof v === 'number') return v
     const s = String(v ?? '').trim()
@@ -405,6 +417,68 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
   const rowsAjustadoNext = buildRowsAjustadoNext(aliquotaItems || [])
   const rowsNextFinal = dedupRowsByValue(rowsAjustadoNext)
 
+  const rbt12Valor = useMemo(() => Number(receitas?.rbt12 || 0), [receitas])
+  const faixaFromRBT12 = useMemo(() => {
+    const simFaixas = (simulacaoTodosAnexos || []).map((it: any) => Number(it?.faixa)).filter(Number.isFinite)
+    if (simFaixas.length > 0) {
+      const counts: Record<number, number> = {}
+      for (const f of simFaixas) counts[f] = (counts[f] || 0) + 1
+      const best = Object.entries(counts).sort((a,b) => b[1] - a[1])[0]
+      return best ? Number(best[0]) : undefined
+    }
+    const v = rbt12Valor
+    if (!(v > 0)) return undefined
+    if (v <= 180000) return 1
+    if (v <= 360000) return 2
+    if (v <= 720000) return 3
+    if (v <= 1800000) return 4
+    if (v <= 3600000) return 5
+    if (v <= 4800000) return 6
+    return 6
+  }, [rbt12Valor, simulacaoTodosAnexos])
+
+  const nextByAnexo = useMemo(() => {
+    const parseSimPercent = (v: any): number | undefined => {
+      if (typeof v === 'number') return Number.isFinite(v) ? v : undefined
+      const s = String(v ?? '').trim()
+      if (!s) return undefined
+      const cleaned = s.includes(',') ? s.replace(/\./g, '').replace(',', '.') : s
+      const n = Number(cleaned)
+      if (!Number.isFinite(n)) return undefined
+      if (n > 0 && n <= 1) return n * 100
+      return n
+    }
+    const bySim: Record<number, { value?: number; faixa?: number }> = {}
+    ;(simulacaoTodosAnexos || []).forEach((it: any) => {
+      const an = Number(it?.anexo)
+      const v = parseSimPercent(it?.aliquota_efetiva_percent)
+      const f = Number(it?.faixa)
+      if (!Number.isFinite(an)) return
+      if (v != null) bySim[an] = { ...(bySim[an] || {}), value: v }
+      if (Number.isFinite(f)) bySim[an] = { ...(bySim[an] || {}), faixa: f }
+    })
+    if (Object.keys(bySim).length >= 1) {
+      return [1,2,3,4,5].map(an => ({ anexo: an, value: bySim[an]?.value, faixa: bySim[an]?.faixa }))
+    }
+    const groups: Record<number, { w: number; sum: number }> = {}
+    ;(aliquotaItems || []).forEach((it: any) => {
+      const an = Number(it?.anexo ?? it?.anexo_numero)
+      const v = parsePercent(it?.aliquota_efetiva_atual_percent)
+      const valor = Number(it?.valor || 0)
+      if (!Number.isFinite(an) || !Number.isFinite(v)) return
+      const weight = valor > 0 ? valor : 1
+      const g = groups[an] || { w: 0, sum: 0 }
+      g.w += weight
+      g.sum += v * weight
+      groups[an] = g
+    })
+    return [1,2,3,4,5].map(an => {
+      const g = groups[an]
+      const val = g && g.w > 0 ? g.sum / g.w : undefined
+      return { anexo: an, value: val }
+    })
+  }, [aliquotaItems, simulacaoTodosAnexos])
+
   const nextPeriodoLabel = useMemo(() => {
     const s = String(periodoApuracao || '').trim()
     const mmYYYY = s.match(/(\d{2})\/(\d{4})/)
@@ -532,10 +606,16 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
         </CardHeader>
         <CardContent className="p-1 sm:p-2 pt-0">
           <div className="mt-1 space-y-1">
-            {rowsNextFinal.map((r: any, i: number) => (
-              <div key={i} className="relative flex items-center justify-between pr-5">
-                <span className={`${(r?.fromParcela ? 'text-[8px] sm:text-[10px]' : 'text-[10px] sm:text-xs')} opacity-90 break-words whitespace-normal leading-tight`}>{r.label}</span>
-                <span className="text-xs sm:text-sm font-semibold font-sans">{fmtPct4(r.value)}</span>
+            {faixaFromRBT12 != null && (
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] sm:text-xs opacity-90">Faixa baseada no RBT12</span>
+                <span className="text-[10px] sm:text-xs font-semibold">Faixa {faixaFromRBT12}</span>
+              </div>
+            )}
+            {nextByAnexo.map((row, i) => (
+              <div key={`anexo-next-${i}`} className="flex items-center justify-between">
+                <span className="text-[10px] sm:text-xs opacity-90">Anexo {row.anexo}{(row as any)?.faixa ? ` — Faixa ${(row as any)?.faixa}` : (faixaFromRBT12 ? ` — Faixa ${faixaFromRBT12}` : '')}</span>
+                <span className="text-xs sm:text-sm font-semibold font-sans">{fmtPct4(row.value)}</span>
               </div>
             ))}
           </div>
@@ -547,7 +627,9 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
   const fmtPct4 = (v: any): string => {
     const num = ((): number | null => {
       if (typeof v === 'number') return Number.isFinite(v) ? v : null
-      const s = String(v ?? '').replace(',', '.')
+      const s0 = String(v ?? '')
+      const s = s0.trim().length === 0 ? '' : s0.replace(',', '.')
+      if (s.length === 0) return null
       const n = Number(s)
       return Number.isFinite(n) ? n : null
     })()
