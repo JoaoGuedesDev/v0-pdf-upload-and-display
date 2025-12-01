@@ -289,26 +289,55 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
 
   const buildRowsAjustadoDoc = (items: any[]): { label: string; value: number; valor?: number; fromParcela?: boolean }[] => {
     const out: { label: string; value: number; valor?: number; fromParcela?: boolean }[] = []
+    const activityLabel = (p: any): string => {
+      const tipo = String(p?.tipo_regra || '').toLowerCase()
+      const desc = String(p?.descricao ?? '').trim()
+      const canonical = matchCanonical(p)
+      const nome = String(p?.atividade_nome ?? '').trim()
+      let trunc = String(desc ? desc : (canonical ? canonical : (nome ? nome : 'Prestação de Serviços'))).split(',')[0].trim()
+      if (!desc && !canonical && tipo === 'geral') {
+        const candidates = [
+          'Prestação de Serviços',
+          'Revenda de mercadorias',
+          'Venda de mercadorias industrializadas',
+        ]
+        const src = norm(p?.atividade_nome)
+        for (const c of candidates) { if (src.includes(norm(c))) { trunc = c; break } }
+      }
+      trunc = simplifyRevendaLabel(trunc)
+      const text = [p?.nome, p?.atividade_nome, p?.descricao].filter(Boolean).map(String).join(' ')
+      const n = norm(text)
+      const rs = (() => {
+        if (n.includes('sem retencao') || n.includes('sem reten')) return 'sem retenção'
+        if (n.includes('com retencao') || n.includes('com reten') || n.includes('substituicao tributaria de iss')) return 'com retenção'
+        return ''
+      })()
+      const withIss = trunc.includes('Prestação de Serviços') && rs
+      let base = rs ? `${trunc} — ${rs}${withIss ? ' ISS' : ''}` : trunc
+      const isRevenda = base.includes('Revenda de mercadorias') || base.includes('Venda de mercadorias industrializadas') || base.includes('Revenda de Mercadorias para o exterior')
+      if (isRevenda) {
+        const nd = norm(desc)
+        const extras: string[] = []
+        if (nd.includes('substituicao tributaria de icms')) extras.push('Substituição tributária de: ICMS.')
+        if (nd.includes('monofasica') || nd.includes('monofásica')) {
+          const tribs = [nd.includes('cofins') ? 'COFINS' : null, nd.includes('pis') ? 'PIS' : null].filter(Boolean).join(', ')
+          if (tribs) extras.push(`Tributação monofásica de: ${tribs}.`)
+        }
+        if (extras.length) base = `${extras.join(' ')} ${base}`
+      }
+      return base
+    }
     ;(items || []).forEach((it: any) => {
       const parcelas: any[] = Array.isArray(it?.parcelas_ajuste) ? it.parcelas_ajuste : []
       if (parcelas.length) {
         parcelas.forEach((p: any) => {
           const tipo = String(p?.tipo_regra || '').toLowerCase()
           const canonical = matchCanonical(p)
-          let label = (() => {
-            const desc = String(p?.descricao ?? '').trim()
-            if (desc) return desc
-            if (canonical) return canonical
-            const nome = String(p?.atividade_nome ?? '').trim()
-            return nome || 'Prestação de Serviços'
-          })()
-          label = simplifyRevendaLabel(label)
-          const rs = retStatus(p)
-          if (rs) label = `${label} — ${rs}${label.includes('Prestação de Serviços') ? ' ISS' : ''}`
+          let label = activityLabel(p)
           let val: number
           if (canonical === 'Transporte com substituição tributária de ICMS') {
             val = parsePercent(p?.aliquota_efetiva_original_sem_iss_percent)
-          } else if (label.includes('Prestação de Serviços') && rs === 'com retenção') {
+          } else if (label.includes('Prestação de Serviços') && norm(label).includes('com reten')) {
             const semIss = parsePercent(p?.aliquota_efetiva_original_sem_iss_percent)
             const adj = parsePercent(p?.aliquota_efetiva_original_ajustada_percent)
             const pad = parsePercent(p?.aliquota_efetiva_original_percent)
@@ -363,26 +392,55 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
 
   const buildRowsAjustadoNext = (items: any[]): { label: string; value: number; valor?: number; fromParcela?: boolean }[] => {
     const out: { label: string; value: number; valor?: number; fromParcela?: boolean }[] = []
+    const activityLabel = (p: any): string => {
+      const tipo = String(p?.tipo_regra || '').toLowerCase()
+      const desc = String(p?.descricao ?? '').trim()
+      const canonical = matchCanonical(p)
+      const nome = String(p?.atividade_nome ?? '').trim()
+      let trunc = String(desc ? desc : (canonical ? canonical : (nome ? nome : 'Prestação de Serviços'))).split(',')[0].trim()
+      if (!desc && !canonical && tipo === 'geral') {
+        const candidates = [
+          'Prestação de Serviços',
+          'Revenda de mercadorias',
+          'Venda de mercadorias industrializadas',
+        ]
+        const src = norm(p?.atividade_nome)
+        for (const c of candidates) { if (src.includes(norm(c))) { trunc = c; break } }
+      }
+      trunc = simplifyRevendaLabel(trunc)
+      const text = [p?.nome, p?.atividade_nome, p?.descricao].filter(Boolean).map(String).join(' ')
+      const n = norm(text)
+      const rs = (() => {
+        if (n.includes('sem retencao') || n.includes('sem reten')) return 'sem retenção'
+        if (n.includes('com retencao') || n.includes('com reten') || n.includes('substituicao tributaria de iss')) return 'com retenção'
+        return ''
+      })()
+      const withIss = trunc.includes('Prestação de Serviços') && rs
+      let base = rs ? `${trunc} — ${rs}${withIss ? ' ISS' : ''}` : trunc
+      const isRevenda = base.includes('Revenda de mercadorias') || base.includes('Venda de mercadorias industrializadas') || base.includes('Revenda de Mercadorias para o exterior')
+      if (isRevenda) {
+        const nd = norm(desc)
+        const extras: string[] = []
+        if (nd.includes('substituicao tributaria de icms')) extras.push('Substituição tributária de: ICMS.')
+        if (nd.includes('monofasica') || nd.includes('monofásica')) {
+          const tribs = [nd.includes('cofins') ? 'COFINS' : null, nd.includes('pis') ? 'PIS' : null].filter(Boolean).join(', ')
+          if (tribs) extras.push(`Tributação monofásica de: ${tribs}.`)
+        }
+        if (extras.length) base = `${extras.join(' ')} ${base}`
+      }
+      return base
+    }
     ;(items || []).forEach((it: any) => {
       const parcelas: any[] = Array.isArray(it?.parcelas_ajuste) ? it.parcelas_ajuste : []
       if (parcelas.length) {
         parcelas.forEach((p: any) => {
           const tipo = String(p?.tipo_regra || '').toLowerCase()
           const canonical = matchCanonical(p)
-          let label = (() => {
-            const desc = String(p?.descricao ?? '').trim()
-            if (desc) return desc
-            if (canonical) return canonical
-            const nome = String(p?.atividade_nome ?? '').trim()
-            return nome || 'Prestação de Serviços'
-          })()
-          label = simplifyRevendaLabel(label)
-          const rs = retStatus(p)
-          if (rs) label = `${label} — ${rs}${label.includes('Prestação de Serviços') ? ' ISS' : ''}`
+          let label = activityLabel(p)
           let val: number
           if (canonical === 'Transporte com substituição tributária de ICMS') {
             val = parsePercent(p?.aliquota_efetiva_atual_sem_iss_percent)
-          } else if (label.includes('Prestação de Serviços') && rs === 'com retenção') {
+          } else if (label.includes('Prestação de Serviços') && norm(label).includes('com reten')) {
             const semIss = parsePercent(p?.aliquota_efetiva_atual_sem_iss_percent)
             const adj = parsePercent(p?.aliquota_efetiva_atual_ajustada_percent)
             const pad = parsePercent(p?.aliquota_efetiva_atual_percent)
