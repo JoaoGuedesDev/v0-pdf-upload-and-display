@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import './globals.css'
 import { Toaster as AppToaster } from '@/components/ui/toaster'
+import { SpeedInsights } from '@vercel/speed-insights/next'
 
 const _geist = Geist({ subsets: ["latin"], preload: true });
 const _geistMono = Geist_Mono({ subsets: ["latin"], preload: true });
@@ -26,7 +27,7 @@ export default function RootLayout({
       <body className={`${_geist.className} ${_geistMono.className} font-sans antialiased bg-background text-foreground`}>
         {children}
         <AppToaster />
-        
+        <SpeedInsights />
       </body>
     </html>
   )
