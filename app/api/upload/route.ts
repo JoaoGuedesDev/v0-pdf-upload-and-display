@@ -41,6 +41,19 @@ export async function POST(req: NextRequest) {
     } catch {}
 
     const urlObj = new URL(req.url)
+    const N8N_WEBHOOK_TOKEN = process.env.N8N_WEBHOOK_TOKEN || ""
+    const N8N_BASIC_USER = process.env.N8N_BASIC_USER || ""
+    const N8N_BASIC_PASS = process.env.N8N_BASIC_PASS || ""
+    const buildAuthHeader = (): Record<string, string> => {
+      if (N8N_BASIC_USER && N8N_BASIC_PASS) {
+        const creds = Buffer.from(`${N8N_BASIC_USER}:${N8N_BASIC_PASS}`).toString("base64")
+        return { Authorization: `Basic ${creds}` }
+      }
+      if (N8N_WEBHOOK_TOKEN) {
+        return { Authorization: `Bearer ${N8N_WEBHOOK_TOKEN}` }
+      }
+      return {}
+    }
     const forceN8N = ['1','true','yes','n8n'].includes(String(urlObj.searchParams.get('n8n') || '').toLowerCase())
       || ['n8n','1','true','yes'].includes(String(urlObj.searchParams.get('use') || '').toLowerCase())
     const webhookFromQuery = String(urlObj.searchParams.get('webhook') || '').trim()
@@ -66,7 +79,12 @@ export async function POST(req: NextRequest) {
       fd.append('mimetype', mime)
       fd.append('size', String(size))
       fd.append('source', 'dashboard-das')
-      const r2 = await fetch(String(target), { method: 'POST', body: fd, redirect: 'follow', headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } })
+      const r2 = await fetch(String(target), {
+        method: 'POST',
+        body: fd,
+        redirect: 'follow',
+        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest', ...buildAuthHeader(), 'X-Source': 'vercel' },
+      })
       const loc = r2.headers.get('Location')
       if (r2.redirected && r2.url) {
         return NextResponse.redirect(r2.url, { status: 303 })

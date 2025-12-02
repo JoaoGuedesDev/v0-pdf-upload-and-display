@@ -60,14 +60,14 @@ export async function POST(request: NextRequest) {
           headers['X-Source'] = 'vercel'
           headers['User-Agent'] = 'pgdasd-dashboard/1.0'
           headers['X-Request-ID'] = crypto.randomUUID?.() || Math.random().toString(36).slice(2)
-          // Tentativa 0: probe
+          // Tentativa 0: probe com HEAD (alguns webhooks não aceitam GET)
           let probeOk = false
           try {
             const controllerProbe = new AbortController()
             const toProbe = setTimeout(() => controllerProbe.abort(new Error(`timeout ${Math.min(N8N_TIMEOUT_MS, 5000)}ms`)), Math.min(N8N_TIMEOUT_MS, 5000))
-            const probe = await fetch(N8N_WEBHOOK_URL, { method: "GET", headers: { ...headers, 'X-Health-Check': '1' }, signal: controllerProbe.signal })
+            const probe = await fetch(N8N_WEBHOOK_URL, { method: "HEAD", headers: { ...headers, 'X-Health-Check': '1' }, signal: controllerProbe.signal })
             clearTimeout(toProbe)
-            probeOk = probe.ok || probe.status < 500
+            probeOk = probe.ok
           } catch {}
           // Tentativa 1: multipart/form-data
           let controller = new AbortController()
