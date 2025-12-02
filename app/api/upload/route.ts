@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
       || ''
     ).trim()
     const publicWebhook = String(process.env.NEXT_PUBLIC_N8N_UPLOAD_WEBHOOK_URL || '').trim()
-    const defaultWebhook = 'https://n8n.jjinnovai.me/webhook/processar-pgdasd'
+    const defaultWebhook = 'https://master-plan6x.up.railway.app/webhook/processar-pgdasd'
     const webhook = (webhookFromQuery || webhookCandidate || publicWebhook)
     const target = webhook || (forceN8N ? defaultWebhook : '')
     if (target) {
