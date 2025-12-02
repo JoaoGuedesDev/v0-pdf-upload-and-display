@@ -14,7 +14,7 @@ export default function Home() {
       const res = await fetch("/api/process-pdf", { method: "POST", body: form })
       if (!res.ok) throw new Error("Falha ao processar PDF via n8n")
       const data = await res.json().catch(() => null)
-      const url2 = data?.dashboardUrl || data?.redirect || data?.url
+      const url2 = data?.dashboardAdminUrl || data?.dashboardUrl || data?.redirect || data?.url
       const id = data?.dashboardCode || data?.id || data?.shareId || data?.dashboardId
       if (url2) {
         const target = (() => {

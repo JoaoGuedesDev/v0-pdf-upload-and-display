@@ -356,7 +356,7 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
             val = parsePercent(p?.aliquota_efetiva_original_ajustada_percent)
             if (!Number.isFinite(val)) val = parsePercent(p?.aliquota_efetiva_original_percent)
           }
-          if (Number.isFinite(val) || (String(label).includes('Prestação de Serviços') && rs === 'com retenção')) out.push({ label, value: val, valor: Number(p?.valor || 0), fromParcela: true })
+          if (Number.isFinite(val) || (String(label).includes('Prestação de Serviços') && norm(label).includes('com reten'))) out.push({ label, value: val, valor: Number(p?.valor || 0), fromParcela: true })
         })
       } else {
         const src = norm(it?.tipo || '')
@@ -459,7 +459,7 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
             val = parsePercent(p?.aliquota_efetiva_atual_ajustada_percent)
             if (!Number.isFinite(val)) val = parsePercent(p?.aliquota_efetiva_atual_percent)
           }
-          if (Number.isFinite(val) || (String(label).includes('Prestação de Serviços') && rs === 'com retenção')) out.push({ label, value: val, valor: Number(p?.valor || 0), fromParcela: true })
+          if (Number.isFinite(val) || (String(label).includes('Prestação de Serviços') && norm(label).includes('com reten'))) out.push({ label, value: val, valor: Number(p?.valor || 0), fromParcela: true })
         })
       } else {
         const src = norm(it?.tipo || '')

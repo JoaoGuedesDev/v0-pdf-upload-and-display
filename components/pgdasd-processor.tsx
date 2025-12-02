@@ -1,5 +1,5 @@
 "use client"
-import { useState, useEffect, memo, useMemo, useCallback } from "react"
+import { useState, useEffect, useRef, memo, useMemo, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -119,9 +119,45 @@ interface PGDASDProcessorProps {
   initialData?: DASData
   shareId?: string
   hideDownloadButton?: boolean
+  isOwner?: boolean
 }
 
-export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shareId, hideDownloadButton }: PGDASDProcessorProps) {
+export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shareId, hideDownloadButton, isOwner }: PGDASDProcessorProps) {
+  const [owner, setOwner] = useState<boolean>(!!isOwner)
+  const chartRef = useRef<any>(null)
+  const [chartImage, setChartImage] = useState<string>("")
+  useEffect(() => {
+    try {
+      if (owner) return
+      const params = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '')
+      if (params.has('admin')) setOwner(true)
+    } catch {}
+  }, [owner])
+  useEffect(() => {
+    try {
+      const fn = () => {
+        try {
+          const img = chartRef.current?.toBase64Image?.() || chartRef.current?.canvas?.toDataURL?.()
+          if (img) setChartImage(String(img))
+        } catch {}
+      }
+      const t = setTimeout(fn, 300)
+      return () => clearTimeout(t)
+    } catch {}
+  }, [initialData])
+  useEffect(() => {
+    try {
+      if (typeof window === 'undefined') return
+      const u = new URL(window.location.href)
+      if (u.searchParams.has('admin')) {
+        u.searchParams.delete('admin')
+        const q = u.searchParams.toString()
+        const next = `${u.pathname}${q ? `?${q}` : ''}${u.hash}`
+        window.history.replaceState(null, '', next)
+      }
+    } catch {}
+  }, [owner, shareId])
+  const hideDownloadEffective = owner ? false : !!hideDownloadButton
   const [data, setData] = useState<DASData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -425,16 +461,18 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
               onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/integra-logo.svg' }}
             />
           </div>
-          <div className="print:hidden">
-            <Button
-              variant="outline"
-              size="sm"
-              className="rounded-full bg-white/70 text-slate-700 hover:bg-white border-slate-200"
-              onClick={() => window.location.assign('/')}
-            >
-              Processar Novo PDF
-            </Button>
-          </div>
+          {(!shareId || owner) && (
+            <div className="print:hidden">
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-full bg-white/70 text-slate-700 hover:bg-white border-slate-200"
+                onClick={() => window.location.assign('/')}
+              >
+                Processar Novo PDF
+              </Button>
+            </div>
+          )}
         </div>
 
         
@@ -1095,7 +1133,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
               </CardHeader>
               <CardContent className="py-2">
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
-                  <div className="md:col-span-3 lg:col-span-3 space-y-3">
+                  <div className="md:col-span-3 lg:col-span-3 space-y-3 print:hidden">
                     {items.map((it, i) => {
                       const pct = totalDAS > 0 ? ((it.value / totalDAS) * 100) : 0
                       return (
@@ -1189,8 +1227,15 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                       )
                     })()}
                   </div>
-                  <div className="md:col-span-9 lg:col-span-9 min-h-[300px] flex items-center justify-center w-full">
-                    <Doughnut data={dataChart} options={options} plugins={[centerText, labelLeaders]} style={{ backgroundColor: 'transparent' }} />
+                  <div className="md:col-span-9 lg:col-span-9 min-h-[300px] flex items-center justify-center w-full print:hidden">
+                    <Doughnut ref={chartRef} data={dataChart} options={options} plugins={[centerText, labelLeaders]} style={{ backgroundColor: 'transparent' }} />
+                  </div>
+                  <div className="md:col-span-12 lg:col-span-12 hidden print:flex items-center justify-center w-full">
+                    {chartImage ? (
+                      <img src={chartImage} alt="Distribuição de Tributos" style={{ maxWidth: '100%', height: 'auto' }} />
+                    ) : (
+                      <div style={{ height: 320 }} />
+                    )}
                   </div>
                 </div>
               </CardContent>
@@ -1297,7 +1342,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                 </div>
               </div>
             </div>
-            {!hideDownloadButton && (
+            {!hideDownloadEffective && (
               <div className="flex justify-end mt-4 print:hidden">
                 <Button onClick={handleDownloadPDF}>Baixar PDF</Button>
               </div>

@@ -1,11 +1,12 @@
 // Página de servidor padrão
 
-import { getDashboard } from '@/lib/store'
-import { headers } from 'next/headers'
+import { getDashboard, computeOwnerSecret } from '@/lib/store'
+import { headers, cookies } from 'next/headers'
+import { redirect } from 'next/navigation'
 import { PGDASDProcessor } from '@/components/pgdasd-processor'
 export const dynamic = 'force-dynamic'
 
-export default async function Page({ params }: any) {
+export default async function Page({ params, searchParams }: any) {
   const p = typeof params?.then === 'function' ? await params : params
   const raw = ((p?.id ?? '') as string).toString()
   const id = raw.replace(/[^a-z0-9-]/gi, '')
@@ -53,17 +54,42 @@ export default async function Page({ params }: any) {
     )
   }
 
+  const name = `dash_admin_${id}`
+  const ck = await cookies()
+  const hasCookie = !!ck.get(name)
+  const adminParam = (searchParams?.admin ?? '').toString()
+  const adminValid = !!adminParam && adminParam === computeOwnerSecret(id)
+  if (adminValid) {
+    try {
+      const expStr = String((data as any)?.metadata?.expiresAt || (data as any)?.dados?.metadata?.expiresAt || '')
+      const expDate = expStr ? new Date(expStr) : null
+      const opts: any = { httpOnly: true, sameSite: 'lax', path: '/' }
+      if (expDate && !isNaN(expDate.getTime())) {
+        opts.expires = expDate
+      } else {
+        opts.maxAge = 7 * 24 * 60 * 60
+      }
+    ck.set(name, '1', opts)
+  } catch {
+    ck.set(name, '1', { maxAge: 7 * 24 * 60 * 60, httpOnly: true, sameSite: 'lax', path: '/' })
+  }
+    // Limpa o parâmetro admin da URL para evitar compartilhamento acidental
+    redirect(`/d/${id}`)
+  }
+  const isOwner = hasCookie || adminValid
+
   const initialData = data && data.dados ? {
     ...data.dados,
     graficos: data.graficos || {},
     debug: (data as any)?.debug,
     calculos: (data as any)?.calculos ?? (data as any)?.dados?.calculos,
+    metadata: (data as any)?.metadata,
   } : undefined
 
   return (
     <main className="px-6 py-4">
       <div className="mt-4">
-        <PGDASDProcessor initialData={initialData as any} shareId={id} />
+        <PGDASDProcessor initialData={initialData as any} shareId={id} isOwner={isOwner} hideDownloadButton={!isOwner} />
       </div>
     </main>
   )
