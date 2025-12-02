@@ -66,6 +66,7 @@ export async function POST(req: NextRequest) {
     const defaultWebhook = 'https://valere-tech.up.railway.app/webhook/processar-pgdasd'
     const webhook = (webhookFromQuery || webhookCandidate || publicWebhook)
     const target = webhook || (forceN8N ? defaultWebhook : '')
+    const fallback = defaultWebhook
     if (target) {
       const fd = new FormData()
       const name = (file as any).name || 'documento.pdf'
@@ -79,12 +80,22 @@ export async function POST(req: NextRequest) {
       fd.append('mimetype', mime)
       fd.append('size', String(size))
       fd.append('source', 'dashboard-das')
-      const r2 = await fetch(String(target), {
-        method: 'POST',
-        body: fd,
-        redirect: 'follow',
-        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest', ...buildAuthHeader(), 'X-Source': 'vercel' },
-      })
+      let r2: Response
+      try {
+        r2 = await fetch(String(target), {
+          method: 'POST',
+          body: fd,
+          redirect: 'follow',
+          headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest', ...buildAuthHeader(), 'X-Source': 'vercel' },
+        })
+      } catch (e) {
+        r2 = await fetch(String(fallback), {
+          method: 'POST',
+          body: fd,
+          redirect: 'follow',
+          headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest', ...buildAuthHeader(), 'X-Source': 'vercel' },
+        })
+      }
       const loc = r2.headers.get('Location')
       if (r2.redirected && r2.url) {
         return NextResponse.redirect(r2.url, { status: 303 })

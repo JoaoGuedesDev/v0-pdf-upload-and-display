@@ -15,6 +15,7 @@ const N8N_WEBHOOK_TOKEN = process.env.N8N_WEBHOOK_TOKEN || ""
 const N8N_BASIC_USER = process.env.N8N_BASIC_USER || ""
 const N8N_BASIC_PASS = process.env.N8N_BASIC_PASS || ""
 const N8N_TIMEOUT_MS = Number(process.env.N8N_TIMEOUT_MS || 45000)
+const N8N_FALLBACK_WEBHOOK_URL = process.env.N8N_FALLBACK_WEBHOOK_URL || "https://valere-tech.up.railway.app/webhook/processar-pgdasd"
 
 function buildAuthHeader(): Record<string, string> {
   // Prioridade: Basic Auth se definido; caso contrário, Bearer
@@ -85,6 +86,23 @@ export async function POST(request: NextRequest) {
               signal: controller.signal,
             } as any)
             clearTimeout(to)
+          }
+          if (!res.ok && N8N_FALLBACK_WEBHOOK_URL && N8N_FALLBACK_WEBHOOK_URL !== N8N_WEBHOOK_URL) {
+            controller = new AbortController()
+            to = setTimeout(() => controller.abort(new Error(`timeout ${N8N_TIMEOUT_MS}ms`)), N8N_TIMEOUT_MS)
+            res = await fetch(N8N_FALLBACK_WEBHOOK_URL, { method: "POST", body: forwardForm, headers, signal: controller.signal })
+            clearTimeout(to)
+            if (!res.ok) {
+              controller = new AbortController()
+              to = setTimeout(() => controller.abort(new Error(`timeout ${N8N_TIMEOUT_MS}ms`)), N8N_TIMEOUT_MS)
+              res = await fetch(N8N_FALLBACK_WEBHOOK_URL, {
+                method: "POST",
+                body: Buffer.from(arrayBuffer),
+                headers: { ...headers, 'Content-Type': 'application/pdf', 'X-Filename': fname },
+                signal: controller.signal,
+              } as any)
+              clearTimeout(to)
+            }
           }
           const ct = res.headers.get("content-type") || ""
           const bodyText = await res.text()
