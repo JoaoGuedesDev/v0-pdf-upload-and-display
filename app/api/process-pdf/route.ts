@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
       if (useN8N) {
         try {
           const forwardForm = new FormData()
-          // Compatível com ambientes serverless (converte para Blob) e envia com nomes alternativos
+          // Compatível com environments serverless: usa Blob com nome
           const arrayBuffer = await file.arrayBuffer()
           const blob = new Blob([arrayBuffer], { type: (file as File).type || 'application/pdf' })
           const fname = (file as File).name || 'upload.pdf'
@@ -58,11 +58,25 @@ export async function POST(request: NextRequest) {
           forwardForm.append("filename", fname)
           const headers: Record<string, string> = { ...buildAuthHeader() }
           headers['X-Source'] = 'vercel'
+          headers['User-Agent'] = 'pgdasd-dashboard/1.0'
           headers['X-Request-ID'] = crypto.randomUUID?.() || Math.random().toString(36).slice(2)
-          const controller = new AbortController()
-          const to = setTimeout(() => controller.abort(new Error(`timeout ${N8N_TIMEOUT_MS}ms`)), N8N_TIMEOUT_MS)
-          const res = await fetch(N8N_WEBHOOK_URL, { method: "POST", body: forwardForm, headers, signal: controller.signal })
+          // Tentativa 1: multipart/form-data
+          let controller = new AbortController()
+          let to = setTimeout(() => controller.abort(new Error(`timeout ${N8N_TIMEOUT_MS}ms`)), N8N_TIMEOUT_MS)
+          let res = await fetch(N8N_WEBHOOK_URL, { method: "POST", body: forwardForm, headers, signal: controller.signal, cache: 'no-store' as any })
           clearTimeout(to)
+          if (!res.ok) {
+            // Tentativa 2: binário puro
+            controller = new AbortController()
+            to = setTimeout(() => controller.abort(new Error(`timeout ${N8N_TIMEOUT_MS}ms`)), N8N_TIMEOUT_MS)
+            res = await fetch(N8N_WEBHOOK_URL, {
+              method: "POST",
+              body: Buffer.from(arrayBuffer),
+              headers: { ...headers, 'Content-Type': 'application/pdf', 'X-Filename': fname },
+              signal: controller.signal,
+            } as any)
+            clearTimeout(to)
+          }
           const ct = res.headers.get("content-type") || ""
           const bodyText = await res.text()
           if (!res.ok) {
