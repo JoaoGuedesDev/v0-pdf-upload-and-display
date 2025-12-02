@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
       || ''
     ).trim()
     const publicWebhook = String(process.env.NEXT_PUBLIC_N8N_UPLOAD_WEBHOOK_URL || '').trim()
-    const defaultWebhook = 'https://primary-production-498b5.up.railway.app/webhook/pgdasd'
+    const defaultWebhook = 'https://valere-tech.up.railway.app/webhook/processar-pgdasd'
     const webhook = (webhookFromQuery || webhookCandidate || publicWebhook)
     const target = webhook || (forceN8N ? defaultWebhook : '')
     if (target) {

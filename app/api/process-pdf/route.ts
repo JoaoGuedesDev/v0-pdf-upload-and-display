@@ -10,7 +10,7 @@ import crypto from "node:crypto"
 import { saveDashboard } from "@/lib/store"
 
 // Configuração para encaminhar ao n8n (default apontando para seu endpoint)
-const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL || "https://primary-production-498b5.up.railway.app/webhook/pgdasd"
+const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL || "https://valere-tech.up.railway.app/webhook/processar-pgdasd"
 const N8N_WEBHOOK_TOKEN = process.env.N8N_WEBHOOK_TOKEN || ""
 const N8N_BASIC_USER = process.env.N8N_BASIC_USER || ""
 const N8N_BASIC_PASS = process.env.N8N_BASIC_PASS || ""
