@@ -14,7 +14,7 @@ const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL || "https://valere-tech.up.r
 const N8N_WEBHOOK_TOKEN = process.env.N8N_WEBHOOK_TOKEN || ""
 const N8N_BASIC_USER = process.env.N8N_BASIC_USER || ""
 const N8N_BASIC_PASS = process.env.N8N_BASIC_PASS || ""
-const N8N_TIMEOUT_MS = Number(process.env.N8N_TIMEOUT_MS || 15000)
+const N8N_TIMEOUT_MS = Number(process.env.N8N_TIMEOUT_MS || 45000)
 
 function buildAuthHeader(): Record<string, string> {
   // Prioridade: Basic Auth se definido; caso contrário, Bearer
@@ -49,9 +49,16 @@ export async function POST(request: NextRequest) {
       if (useN8N) {
         try {
           const forwardForm = new FormData()
-          // Enviar com nome explícito para compatibilidade com parsers de multipart
-          forwardForm.append("file", file, (file as File).name || "upload.pdf")
+          // Compatível com ambientes serverless (converte para Blob) e envia com nomes alternativos
+          const arrayBuffer = await file.arrayBuffer()
+          const blob = new Blob([arrayBuffer], { type: (file as File).type || 'application/pdf' })
+          const fname = (file as File).name || 'upload.pdf'
+          forwardForm.append("file", blob, fname)
+          forwardForm.append("binary", blob, fname)
+          forwardForm.append("filename", fname)
           const headers: Record<string, string> = { ...buildAuthHeader() }
+          headers['X-Source'] = 'vercel'
+          headers['X-Request-ID'] = crypto.randomUUID?.() || Math.random().toString(36).slice(2)
           const controller = new AbortController()
           const to = setTimeout(() => controller.abort(new Error(`timeout ${N8N_TIMEOUT_MS}ms`)), N8N_TIMEOUT_MS)
           const res = await fetch(N8N_WEBHOOK_URL, { method: "POST", body: forwardForm, headers, signal: controller.signal })
