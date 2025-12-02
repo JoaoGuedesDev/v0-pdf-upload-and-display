@@ -131,7 +131,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
       if (owner) return
       const params = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '')
       if (params.has('admin')) setOwner(true)
-    } catch {}
+    } catch { }
   }, [owner])
   useEffect(() => {
     try {
@@ -139,11 +139,11 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
         try {
           const img = chartRef.current?.toBase64Image?.() || chartRef.current?.canvas?.toDataURL?.()
           if (img) setChartImage(String(img))
-        } catch {}
+        } catch { }
       }
       const t = setTimeout(fn, 300)
       return () => clearTimeout(t)
-    } catch {}
+    } catch { }
   }, [initialData])
   useEffect(() => {
     try {
@@ -155,7 +155,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
         const next = `${u.pathname}${q ? `?${q}` : ''}${u.hash}`
         window.history.replaceState(null, '', next)
       }
-    } catch {}
+    } catch { }
   }, [owner, shareId])
   const hideDownloadEffective = owner ? false : !!hideDownloadButton
   const [data, setData] = useState<DASData | null>(null)
@@ -241,26 +241,26 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
   const handleProcessPDF = useCallback(async (file: File) => {
     setLoading(true)
     setError(null)
-    
+
     try {
       const formData = new FormData()
       formData.append("file", file)
-      
+
       const response = await fetch("/api/process-pdf", {
         method: "POST",
         body: formData,
       })
-      
+
       if (!response.ok) {
         throw new Error("Erro ao processar PDF")
       }
-      
+
       const result = await response.json()
       if (result.error) throw new Error(result.error)
 
       const dados = (result?.dados || result?.data || {}) as any
       const graficos = (result?.graficos || dados?.graficos || undefined) as any
-      
+
       // Calculate additional fields
       const receitaPA = Number(dados?.receitas?.receitaPA || 0)
       const totalDAS = computeTotalDAS({
@@ -274,7 +274,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
       const margemLiquida = (receitaPA > 0)
         ? ((receitaPA - totalDAS) / receitaPA) * 100
         : Number((dados?.calculos as any)?.margemLiquida || 0)
-      
+
       const processedData: DASData = {
         identificacao: dados?.identificacao || {},
         receitas: dados?.receitas || {},
@@ -342,22 +342,22 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
         tributosServicosInterno: dados?.tributosServicosInterno,
         tributosServicosExterno: dados?.tributosServicosExterno,
       }
-      
+
       setData(processedData)
       const code = (result?.dashboardCode || result?.code || null) as string | null
       if (code) setShareCode(code)
-      toast({ 
-        title: "PDF processado com sucesso!", 
-        description: "Dados carregados e prontos para análise." 
+      toast({
+        title: "PDF processado com sucesso!",
+        description: "Dados carregados e prontos para análise."
       })
-      
+
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Erro desconhecido"
       setError(errorMessage)
-      toast({ 
-        title: "Erro ao processar PDF", 
-        description: errorMessage, 
-        variant: "destructive" 
+      toast({
+        title: "Erro ao processar PDF",
+        description: errorMessage,
+        variant: "destructive"
       })
     } finally {
       setLoading(false)
@@ -385,7 +385,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
             <AlertDescription>{error}</AlertDescription>
           </Alert>
           <div className="mt-4">
-            <ConfiguracaoProcessamento 
+            <ConfiguracaoProcessamento
               onProcess={handleProcessPDF}
               loading={loading}
             />
@@ -407,7 +407,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
               Faça upload do seu arquivo PGDAS-D para análise detalhada
             </p>
           </div>
-          <ConfiguracaoProcessamento 
+          <ConfiguracaoProcessamento
             onProcess={handleProcessPDF}
             loading={loading}
           />
@@ -440,7 +440,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
               Faça upload do seu arquivo PGDAS-D para análise detalhada
             </p>
           </div>
-          <ConfiguracaoProcessamento 
+          <ConfiguracaoProcessamento
             onProcess={handleProcessPDF}
             loading={loading}
           />
@@ -475,7 +475,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
           )}
         </div>
 
-        
+
 
         <Card className="bg-gradient-to-br from-slate-900 to-slate-800 text-white border-0 shadow-xl py-2">
           <CardContent className="grid sm:grid-cols-2 md:grid-cols-3 gap-2">
@@ -645,7 +645,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                   </div>
                 )
               })()}
-          </CardContent>
+            </CardContent>
           </Card>
         )}
 
@@ -661,7 +661,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
           if (servicosTotal <= 0 && mercadoriasTotal <= 0) {
             const atividades = (data as any)?.atividades || []
             const norm = (s: string) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
-            const somaTrib = (t: any) => ['irpj','csll','cofins','pis','inss_cpp','icms','ipi','iss','total'].reduce((a,k)=>a+Number(t?.[k]||0),0)
+            const somaTrib = (t: any) => ['irpj', 'csll', 'cofins', 'pis', 'inss_cpp', 'icms', 'ipi', 'iss', 'total'].reduce((a, k) => a + Number(t?.[k] || 0), 0)
             for (const a of atividades) {
               const nome = norm(a?.nome || a?.descricao || '')
               const isServ = /servi/.test(nome)
@@ -701,7 +701,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
             return undefined
           })()
           return (
-            <IndicadoresReceita 
+            <IndicadoresReceita
               receitas={data.receitas}
               calculos={data?.calculos}
               servicosTotal={servicosTotal}
@@ -717,7 +717,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
           )
         })()}
 
-        
+
         <AnaliseAliquotaParcelas dadosPgdas={{ analise_aliquota: (data?.calculos as any)?.analise_aliquota, identificacao: (data as any)?.identificacao }} />
         {(() => {
           const serieA = data?.graficos?.receitaMensal
@@ -743,111 +743,111 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
               </CardHeader>
               <CardContent className="pt-0 pb-0">
                 {(() => {
-                  const serieA = data.graficos?.receitaMensal 
+                  const serieA = data.graficos?.receitaMensal
                   const serieMI = data.graficos?.receitaLine
                   const serieME = (data.graficos as any)?.receitaLineExterno
-                const parseNumber = (v: any): number => {
-                  if (typeof v === "number") return v
-                  if (typeof v === "string") {
-                    const s = v.trim()
-                    if (!s) return 0
-                    const hasComma = s.includes(",")
-                    const hasDot = s.includes(".")
-                    let cleaned = s
-                    if (hasComma && hasDot) {
-                      const lastDot = s.lastIndexOf('.')
-                      const lastComma = s.lastIndexOf(',')
-                      if (lastComma > lastDot) {
-                        cleaned = s.replace(/\./g, "").replace(",", ".")
-                      } else {
-                        cleaned = s.replace(/,/g, "")
+                  const parseNumber = (v: any): number => {
+                    if (typeof v === "number") return v
+                    if (typeof v === "string") {
+                      const s = v.trim()
+                      if (!s) return 0
+                      const hasComma = s.includes(",")
+                      const hasDot = s.includes(".")
+                      let cleaned = s
+                      if (hasComma && hasDot) {
+                        const lastDot = s.lastIndexOf('.')
+                        const lastComma = s.lastIndexOf(',')
+                        if (lastComma > lastDot) {
+                          cleaned = s.replace(/\./g, "").replace(",", ".")
+                        } else {
+                          cleaned = s.replace(/,/g, "")
+                        }
+                      } else if (hasComma) {
+                        cleaned = s.replace(",", ".")
                       }
-                    } else if (hasComma) {
-                      cleaned = s.replace(",", ".")
+                      const n = Number(cleaned)
+                      return isFinite(n) ? n : 0
                     }
-                    const n = Number(cleaned)
+                    const n = Number(v)
                     return isFinite(n) ? n : 0
                   }
-                  const n = Number(v)
-                  return isFinite(n) ? n : 0
-                }
-                const historicoMI = (data as any)?.historico?.mercadoInterno as { mes: string; valor: any }[] | undefined
-                const historicoME = (data as any)?.historico?.mercadoExterno as { mes: string; valor: any }[] | undefined
-                if (Array.isArray(historicoMI) || Array.isArray(historicoME)) {
-                  const toMap = (arr?: { mes: string; valor: any }[]) => {
-                    const m: Record<string, number> = {}
-                    ;(arr || []).forEach((p) => { m[p.mes] = parseNumber(p.valor) })
-                    return m
+                  const historicoMI = (data as any)?.historico?.mercadoInterno as { mes: string; valor: any }[] | undefined
+                  const historicoME = (data as any)?.historico?.mercadoExterno as { mes: string; valor: any }[] | undefined
+                  if (Array.isArray(historicoMI) || Array.isArray(historicoME)) {
+                    const toMap = (arr?: { mes: string; valor: any }[]) => {
+                      const m: Record<string, number> = {}
+                        ; (arr || []).forEach((p) => { m[p.mes] = parseNumber(p.valor) })
+                      return m
+                    }
+                    const miMap = toMap(historicoMI)
+                    const meMap = toMap(historicoME)
+                    const rawLabels = Array.from(new Set<string>([...Object.keys(miMap), ...Object.keys(meMap)]))
+                    const monthIdx = (m: string) => {
+                      const map: Record<string, number> = { jan: 1, fev: 2, mar: 3, abr: 4, mai: 5, jun: 6, jul: 7, ago: 8, set: 9, out: 10, nov: 11, dez: 12 }
+                      const k = String(m || '').trim().slice(0, 3).toLowerCase()
+                      return map[k] || 0
+                    }
+                    const toKey = (s: string, i: number) => {
+                      const mmYYYY = s.match(/^(\d{1,2})\/(\d{4})$/)
+                      if (mmYYYY) { const mm = Number(mmYYYY[1]); const yy = Number(mmYYYY[2]); return yy * 100 + mm }
+                      const yDashM = s.match(/^(\d{4})-(\d{1,2})$/)
+                      if (yDashM) { const yy = Number(yDashM[1]); const mm = Number(yDashM[2]); return yy * 100 + mm }
+                      const monYear = s.match(/^([A-Za-zÀ-ÿ]{3,})\s*\/?\s*(\d{4})$/)
+                      if (monYear) { const mm = monthIdx(monYear[1]); const yy = Number(monYear[2]); return yy * 100 + mm }
+                      const mm = monthIdx(s); if (mm > 0) return 2000 * 100 + mm
+                      return i
+                    }
+                    const labels = rawLabels.sort((a, b) => toKey(a, rawLabels.indexOf(a)) - toKey(b, rawLabels.indexOf(b)))
+                    const values = labels.map((l) => (miMap[l] || 0))
+                    const externo = { labels, values: labels.map((l) => meMap[l] || 0) }
+                    const merged = { labels, values, externo }
+                    return (
+                      <GraficoReceitaMensal
+                        data={merged}
+                      />
+                    )
                   }
-                  const miMap = toMap(historicoMI)
-                  const meMap = toMap(historicoME)
-                  const rawLabels = Array.from(new Set<string>([...Object.keys(miMap), ...Object.keys(meMap)]))
-                  const monthIdx = (m: string) => {
-                    const map: Record<string, number> = { jan:1, fev:2, mar:3, abr:4, mai:5, jun:6, jul:7, ago:8, set:9, out:10, nov:11, dez:12 }
-                    const k = String(m||'').trim().slice(0,3).toLowerCase()
-                    return map[k] || 0
+                  if (serieMI || serieME) {
+                    const miVals = (serieMI?.values || []).map(parseNumber)
+                    const miLabels = (serieMI?.labels || []) as string[]
+                    const meVals = (serieME?.values || []).map(parseNumber)
+                    const meLabels = (serieME?.labels || []) as string[]
+                    const rawLabels2 = Array.from(new Set<string>([...miLabels, ...meLabels]))
+                    const monthIdx2 = (m: string) => {
+                      const map: Record<string, number> = { jan: 1, fev: 2, mar: 3, abr: 4, mai: 5, jun: 6, jul: 7, ago: 8, set: 9, out: 10, nov: 11, dez: 12 }
+                      const k = String(m || '').trim().slice(0, 3).toLowerCase()
+                      return map[k] || 0
+                    }
+                    const toKey2 = (s: string, i: number) => {
+                      const mmYYYY = s.match(/^(\d{1,2})\/(\d{4})$/)
+                      if (mmYYYY) { const mm = Number(mmYYYY[1]); const yy = Number(mmYYYY[2]); return yy * 100 + mm }
+                      const yDashM = s.match(/^(\d{4})-(\d{1,2})$/)
+                      if (yDashM) { const yy = Number(yDashM[1]); const mm = Number(yDashM[2]); return yy * 100 + mm }
+                      const monYear = s.match(/^([A-Za-zÀ-ÿ]{3,})\s*\/?\s*(\d{4})$/)
+                      if (monYear) { const mm = monthIdx2(monYear[1]); const yy = Number(monYear[2]); return yy * 100 + mm }
+                      const mm = monthIdx2(s); if (mm > 0) return 2000 * 100 + mm
+                      return i
+                    }
+                    const labels = rawLabels2.sort((a, b) => toKey2(a, rawLabels2.indexOf(a)) - toKey2(b, rawLabels2.indexOf(b)))
+                    const miMap: Record<string, number> = {}
+                    const meMap: Record<string, number> = {}
+                    miLabels.forEach((l, i) => { miMap[l] = miVals[i] || 0 })
+                    meLabels.forEach((l, i) => { meMap[l] = meVals[i] || 0 })
+                    const values = labels.map((l) => miMap[l] || 0)
+                    const externo = { labels, values: labels.map((l) => meMap[l] || 0) }
+                    return (
+                      <GraficoReceitaMensal
+                        data={{ labels, values, externo }}
+                      />
+                    )
                   }
-                  const toKey = (s: string, i: number) => {
-                    const mmYYYY = s.match(/^(\d{1,2})\/(\d{4})$/)
-                    if (mmYYYY) { const mm = Number(mmYYYY[1]); const yy = Number(mmYYYY[2]); return yy*100 + mm }
-                    const yDashM = s.match(/^(\d{4})-(\d{1,2})$/)
-                    if (yDashM) { const yy = Number(yDashM[1]); const mm = Number(yDashM[2]); return yy*100 + mm }
-                    const monYear = s.match(/^([A-Za-zÀ-ÿ]{3,})\s*\/?\s*(\d{4})$/)
-                    if (monYear) { const mm = monthIdx(monYear[1]); const yy = Number(monYear[2]); return yy*100 + mm }
-                    const mm = monthIdx(s); if (mm>0) return 2000*100 + mm
-                    return i
+                  if (serieA) {
+                    return <GraficoReceitaMensal data={serieA} />
                   }
-                  const labels = rawLabels.sort((a, b) => toKey(a, rawLabels.indexOf(a)) - toKey(b, rawLabels.indexOf(b)))
-                  const values = labels.map((l) => (miMap[l] || 0))
-                  const externo = { labels, values: labels.map((l) => meMap[l] || 0) }
-                  const merged = { labels, values, externo }
-                  return (
-                    <GraficoReceitaMensal 
-                      data={merged}
-                    />
-                  )
-                }
-                if (serieMI || serieME) {
-                  const miVals = (serieMI?.values || []).map(parseNumber)
-                  const miLabels = (serieMI?.labels || []) as string[]
-                  const meVals = (serieME?.values || []).map(parseNumber)
-                  const meLabels = (serieME?.labels || []) as string[]
-                  const rawLabels2 = Array.from(new Set<string>([...miLabels, ...meLabels]))
-                  const monthIdx2 = (m: string) => {
-                    const map: Record<string, number> = { jan:1, fev:2, mar:3, abr:4, mai:5, jun:6, jul:7, ago:8, set:9, out:10, nov:11, dez:12 }
-                    const k = String(m||'').trim().slice(0,3).toLowerCase()
-                    return map[k] || 0
+                  if (serieMI) {
+                    return <GraficoReceitaMensal data={serieMI} />
                   }
-                  const toKey2 = (s: string, i: number) => {
-                    const mmYYYY = s.match(/^(\d{1,2})\/(\d{4})$/)
-                    if (mmYYYY) { const mm = Number(mmYYYY[1]); const yy = Number(mmYYYY[2]); return yy*100 + mm }
-                    const yDashM = s.match(/^(\d{4})-(\d{1,2})$/)
-                    if (yDashM) { const yy = Number(yDashM[1]); const mm = Number(yDashM[2]); return yy*100 + mm }
-                    const monYear = s.match(/^([A-Za-zÀ-ÿ]{3,})\s*\/?\s*(\d{4})$/)
-                    if (monYear) { const mm = monthIdx2(monYear[1]); const yy = Number(monYear[2]); return yy*100 + mm }
-                    const mm = monthIdx2(s); if (mm>0) return 2000*100 + mm
-                    return i
-                  }
-                  const labels = rawLabels2.sort((a, b) => toKey2(a, rawLabels2.indexOf(a)) - toKey2(b, rawLabels2.indexOf(b)))
-                  const miMap: Record<string, number> = {}
-                  const meMap: Record<string, number> = {}
-                  miLabels.forEach((l, i) => { miMap[l] = miVals[i] || 0 })
-                  meLabels.forEach((l, i) => { meMap[l] = meVals[i] || 0 })
-                  const values = labels.map((l) => miMap[l] || 0)
-                  const externo = { labels, values: labels.map((l) => meMap[l] || 0) }
-                  return (
-                    <GraficoReceitaMensal 
-                      data={{ labels, values, externo }}
-                    />
-                  )
-                }
-                if (serieA) {
-                  return <GraficoReceitaMensal data={serieA} />
-                }
-                if (serieMI) {
-                  return <GraficoReceitaMensal data={serieMI} />
-                }
-                return null
+                  return null
                 })()}
               </CardContent>
             </Card>
@@ -887,8 +887,8 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                   }
                   // casos especiais
                   const aliases: Record<string, string[]> = {
-                    'PIS_PASEP': ['PIS_Pasep','pis_pasep','PIS'],
-                    'INSS_CPP': ['INSS','CPP','inss_cpp'],
+                    'PIS_PASEP': ['PIS_Pasep', 'pis_pasep', 'PIS'],
+                    'INSS_CPP': ['INSS', 'CPP', 'inss_cpp'],
                   }
                   for (const [t, arr] of Object.entries(aliases)) {
                     if (target === t) {
@@ -974,8 +974,8 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
               if (norm(k) === target) return Number(v || 0)
             }
             const aliases: Record<string, string[]> = {
-              'PIS_PASEP': ['PIS_Pasep','pis_pasep','PIS'],
-              'INSS_CPP': ['INSS','CPP','inss_cpp'],
+              'PIS_PASEP': ['PIS_Pasep', 'pis_pasep', 'PIS'],
+              'INSS_CPP': ['INSS', 'CPP', 'inss_cpp'],
             }
             for (const [t, arr] of Object.entries(aliases)) {
               if (target === t) {
@@ -1010,10 +1010,8 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
               backgroundColor: items.map(i => i.color),
               borderColor: '#ffffff',
               borderWidth: 1,
-              hoverOffset: 6,
-              spacing: 2,
-              cutout: '62%',
-              radius: '86%',
+              cutout: '68%',
+              radius: '95%',
             }]
           }
           const options = {
@@ -1021,29 +1019,14 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
             responsive: true,
             maintainAspectRatio: false,
             devicePixelRatio: 2,
-            layout: { padding: { top: 12, bottom: 0, left: 0, right: 0 } },
-            animation: { duration: 400, easing: 'easeOutQuart' },
+            layout: { padding: { top: 30, bottom: 10, left: 0, right: 0 } },
+            animation: false,
+            interaction: { mode: null as any },
             plugins: {
               ...CHART_CONFIG.plugins,
               datalabels: { display: false },
               legend: { display: false },
-              tooltip: {
-                enabled: true,
-                padding: 10,
-                titleColor: '#0f172a',
-                bodyColor: '#0f172a',
-                backgroundColor: 'rgba(255,255,255,0.95)',
-                borderColor: '#e2e8f0',
-                borderWidth: 1,
-                callbacks: {
-                  label: (ctx: any) => {
-                    const lbl = String(ctx?.label || '')
-                    const v = Number(ctx?.parsed || ctx?.raw || 0)
-                    const fmt = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
-                    return `${lbl}: ${fmt}`
-                  },
-                },
-              },
+              tooltip: { enabled: false },
             },
             scales: {},
           } as any
@@ -1057,9 +1040,9 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
               ctx.save()
               ctx.textAlign = 'center'
               ctx.fillStyle = '#111827'
-              ctx.font = '600 12px Inter, system-ui, -apple-system, Segoe UI'
+              ctx.font = '600 14px Inter, system-ui, -apple-system, Segoe UI'
               ctx.fillText('Total de Tributos', cx, cy - 10)
-              ctx.font = '700 12px Inter, system-ui, -apple-system, Segoe UI'
+              ctx.font = '700 14px Inter, system-ui, -apple-system, Segoe UI'
               ctx.fillText(formatCurrency(totalDAS), cx, cy + 14)
               ctx.restore()
             }
@@ -1082,7 +1065,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                 const v = Number(values[i] || 0)
                 if (!(v > 0)) continue
                 const el = arcs[i]
-                const p = el && el.getProps ? el.getProps(['startAngle','endAngle','outerRadius'], true) : el
+                const p = el && el.getProps ? el.getProps(['startAngle', 'endAngle', 'outerRadius'], true) : el
                 const start = Number(p.startAngle || 0)
                 const end = Number(p.endAngle || 0)
                 const r = Number(p.outerRadius || 0)
@@ -1119,7 +1102,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                 ctx.stroke()
                 ctx.textAlign = n.right ? 'left' : 'right'
                 ctx.fillStyle = String(n.color || '#111827')
-                ctx.font = '600 12px Inter, system-ui, -apple-system, Segoe UI'
+                ctx.font = '600 14px Inter, system-ui, -apple-system, Segoe UI'
                 const txt = `${n.label}: ${formatCurrency(Number(n.value || 0))} (${n.pct.toFixed(1)}%)`
                 ctx.fillText(txt, n.lx, n.ly - 2)
               }
@@ -1162,7 +1145,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                       if (servicosTotal <= 0 && mercadoriasTotal <= 0) {
                         const atividades = (data as any)?.atividades || []
                         const norm = (s: string) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
-                        const somaTrib = (t: any) => ['irpj','csll','cofins','pis','inss_cpp','icms','ipi','iss','total'].reduce((a,k)=>a+Number(t?.[k]||0),0)
+                        const somaTrib = (t: any) => ['irpj', 'csll', 'cofins', 'pis', 'inss_cpp', 'icms', 'ipi', 'iss', 'total'].reduce((a, k) => a + Number(t?.[k] || 0), 0)
                         for (const a of atividades) {
                           const nome = norm(a?.nome || a?.descricao || '')
                           const isServ = /servi/.test(nome)
@@ -1242,12 +1225,12 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
             </Card>
           )
         })()}
-        
 
-        
+
+
 
         {/* Activity Comparison */}
-        <ComparacaoAtividades 
+        <ComparacaoAtividades
           atividades={data?.atividades}
         />
 
@@ -1267,7 +1250,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                   </p>
                 </div>
               )}
-              
+
               {data?.insights?.pontosAtencao?.length > 0 && (
                 <div>
                   <h4 className="font-semibold text-orange-600 mb-2">
@@ -1282,7 +1265,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                   </ul>
                 </div>
               )}
-              
+
               {data?.insights?.oportunidades?.length > 0 && (
                 <div>
                   <h4 className="font-semibold text-emerald-600 mb-2">
@@ -1297,7 +1280,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                   </ul>
                 </div>
               )}
-              
+
               {data?.insights?.recomendacoes?.length > 0 && (
                 <div>
                   <h4 className="font-semibold text-purple-600 mb-2">
