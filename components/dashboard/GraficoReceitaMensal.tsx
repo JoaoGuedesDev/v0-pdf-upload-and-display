@@ -87,21 +87,9 @@ export const GraficoReceitaMensal = memo(function GraficoReceitaMensal({
     const internaAll = baseValues.map(v => v === 0 ? 0 : v);
     const externaAll = externoValues.map(v => (v || 0) === 0 ? 0 : v);
 
-    const idxs = labelsAll.map((_, i) => i).filter(i => {
-      const bi = Number(internaAll[i] ?? 0)
-      const be = Number(externaAll[i] ?? 0)
-      return (bi > 0) || (be > 0)
-    })
-    const TH = 0.0001
-    const labels = idxs.map(i => labelsAll[i])
-    const internaData = idxs.map(i => {
-      const v = Number(internaAll[i] ?? 0)
-      return v > TH ? v : null
-    })
-    const externaData = idxs.map(i => {
-      const v = Number(externaAll[i] ?? 0)
-      return v > TH ? v : null
-    })
+    const labels = labelsAll
+    const internaData = internaAll
+    const externaData = externaAll
 
     const monthIndex = (m: string) => {
       const map: Record<string, number> = {
@@ -142,6 +130,7 @@ export const GraficoReceitaMensal = memo(function GraficoReceitaMensal({
     }))
     const sorted = items.sort((a, b) => a.key - b.key)
     const labelsSorted = sorted.map(it => it.label)
+    const TH = 0.0001
     const externaSorted = sorted.map(it => {
       const v = it.ext
       return v > TH ? v : null

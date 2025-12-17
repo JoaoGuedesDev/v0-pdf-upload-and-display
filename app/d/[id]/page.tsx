@@ -8,6 +8,7 @@ export const dynamic = 'force-dynamic'
 
 export default async function Page({ params, searchParams }: any) {
   const p = typeof params?.then === 'function' ? await params : params
+  const sp = typeof searchParams?.then === 'function' ? await searchParams : searchParams
   const raw = ((p?.id ?? '') as string).toString()
   const id = raw.replace(/[^a-z0-9-]/gi, '')
 
@@ -57,7 +58,7 @@ export default async function Page({ params, searchParams }: any) {
   const name = `dash_admin_${id}`
   const ck = await cookies()
   const hasCookie = !!ck.get(name)
-  const adminParam = (searchParams?.admin ?? '').toString()
+  const adminParam = (sp?.admin ?? '').toString()
   const adminValid = !!adminParam && adminParam === computeOwnerSecret(id)
   if (adminValid) {
     try {
@@ -77,6 +78,7 @@ export default async function Page({ params, searchParams }: any) {
     redirect(`/d/${id}`)
   }
   const isOwner = hasCookie || adminValid
+  const isPdfGen = sp?.pdf_gen === 'true'
 
   const initialData = data && data.dados ? {
     ...data.dados,
@@ -89,7 +91,7 @@ export default async function Page({ params, searchParams }: any) {
   return (
     <main className="px-6 py-4">
       <div className="mt-4">
-        <PGDASDProcessor initialData={initialData as any} shareId={id} isOwner={isOwner} hideDownloadButton={!isOwner} />
+        <PGDASDProcessor initialData={initialData as any} shareId={id} isOwner={isOwner} isPdfGen={isPdfGen} />
       </div>
     </main>
   )

@@ -37,7 +37,8 @@ function parseQuery(req: NextRequest) {
   const h = Number(url.searchParams.get('h') || 1800)
   const scale = Number(url.searchParams.get('scale') || 2)
   const type = url.searchParams.get('type') || 'screen'
-  return { path, w, h, scale, type }
+  const download = url.searchParams.get('download') === 'true'
+  return { path, w, h, scale, type, download }
 }
 
 function getOrigin(req: NextRequest): string {
@@ -63,25 +64,59 @@ export async function GET(req: NextRequest) {
   const target = `${base}${pathFixed}`
 
   const { puppeteer } = await getPuppeteer()
-  const chrome: any = await getChromium()
-  let executablePath: string | undefined
-  try { executablePath = await chrome.executablePath() } catch {}
-  if (!executablePath) {
-    const local = guessLocalChrome()
-    if (local) executablePath = local
+  
+  // Tenta encontrar Chrome local primeiro (melhor para Windows/Dev)
+  let executablePath: string | undefined = guessLocalChrome() || undefined
+  let args: string[] = []
+  let headless: any = true
+
+  // Se não achou local e não é Windows, tenta @sparticuz/chromium (Lambda/Linux)
+  if (!executablePath && process.platform !== 'win32') {
+    try {
+      const chrome: any = await getChromium()
+      executablePath = await chrome.executablePath()
+      args = chrome.args
+      headless = chrome.headless
+    } catch {}
   }
+
+  // Fallback final: tenta sparticuz mesmo no Windows se nada mais funcionar (improvável funcionar, mas tenta)
   if (!executablePath) {
-    return NextResponse.json({ error: 'Chromium/Chrome não encontrado no ambiente local', hint: 'Defina CHROME_BIN com o caminho do seu Chrome/Edge' }, { status: 500 })
+    try {
+      const chrome: any = await getChromium()
+      const p = await chrome.executablePath()
+      // Verifica se o caminho retornado realmente existe antes de usar
+      if (fs.existsSync(p)) {
+        executablePath = p
+        args = chrome.args
+        headless = chrome.headless
+      }
+    } catch {}
   }
-  const args = chrome.args
+
+  if (!executablePath) {
+    return NextResponse.json({ 
+      error: 'Chromium/Chrome não encontrado no ambiente local', 
+      hint: 'Defina CHROME_BIN com o caminho do seu Chrome/Edge ou instale o Chrome.',
+      platform: process.platform,
+      scannedPaths: 'Program Files, AppData/Local'
+    }, { status: 500 })
+  }
+  
   const defaultViewport = { width: w, height: h, deviceScaleFactor: scale }
-  const browser = await puppeteer.launch({
-    args,
-    headless: (typeof chrome.headless === 'boolean') ? chrome.headless : true,
-    defaultViewport,
-    executablePath,
-    ignoreHTTPSErrors: true,
-  })
+  
+  let browser: any = null
+  try {
+    browser = await puppeteer.launch({
+      args,
+      headless: (typeof headless === 'boolean') ? headless : true,
+      defaultViewport,
+      executablePath,
+      ignoreHTTPSErrors: true,
+    })
+  } catch (err: any) {
+    return NextResponse.json({ error: 'Erro ao iniciar navegador', details: err.message }, { status: 500 })
+  }
 
   try {
     const page = await browser.newPage()

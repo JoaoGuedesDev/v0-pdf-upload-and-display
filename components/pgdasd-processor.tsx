@@ -120,9 +120,10 @@ interface PGDASDProcessorProps {
   shareId?: string
   hideDownloadButton?: boolean
   isOwner?: boolean
+  isPdfGen?: boolean
 }
 
-export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shareId, hideDownloadButton, isOwner }: PGDASDProcessorProps) {
+export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shareId, hideDownloadButton, isOwner, isPdfGen }: PGDASDProcessorProps) {
   const [owner, setOwner] = useState<boolean>(!!isOwner)
   const chartRef = useRef<any>(null)
   const [chartImage, setChartImage] = useState<string>("")
@@ -367,9 +368,11 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
   const handleDownloadPDF = useCallback(() => {
     const origin = typeof window !== 'undefined' ? window.location.origin : ''
     const code = shareId || shareCode || ''
-    const path = code ? `/d/${code}` : `/dashboard-das`
+    let path = code ? `/d/${code}` : `/dashboard-das`
+    const sep = path.includes('?') ? '&' : '?'
+    path = `${path}${sep}pdf_gen=true`
     const w = typeof window !== 'undefined' ? window.innerWidth : 1280
-    const url = `${origin}/api/pdf?path=${encodeURIComponent(path)}&type=screen&w=${w}&scale=1`
+    const url = `${origin}/api/pdf?path=${encodeURIComponent(path)}&type=screen&w=${w}&scale=1&download=true`
     try {
       window.open(url, '_blank')
     } catch {
@@ -461,7 +464,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
               onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/integra-logo.svg' }}
             />
           </div>
-          {(!shareId || owner) && (
+          {!isPdfGen && (
             <div className="print:hidden">
               <Button
                 variant="outline"
@@ -1325,7 +1328,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                 </div>
               </div>
             </div>
-            {!hideDownloadEffective && (
+            {!hideDownloadEffective && !isPdfGen && (
               <div className="flex justify-end mt-4 print:hidden">
                 <Button onClick={handleDownloadPDF}>Baixar PDF</Button>
               </div>
