@@ -126,7 +126,6 @@ interface PGDASDProcessorProps {
 export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shareId, hideDownloadButton, isOwner, isPdfGen }: PGDASDProcessorProps) {
   const [owner, setOwner] = useState<boolean>(!!isOwner)
   const chartRef = useRef<any>(null)
-  const [chartImage, setChartImage] = useState<string>("")
   useEffect(() => {
     try {
       if (owner) return
@@ -134,18 +133,6 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
       if (params.has('admin')) setOwner(true)
     } catch { }
   }, [owner])
-  useEffect(() => {
-    try {
-      const fn = () => {
-        try {
-          const img = chartRef.current?.toBase64Image?.() || chartRef.current?.canvas?.toDataURL?.()
-          if (img) setChartImage(String(img))
-        } catch { }
-      }
-      const t = setTimeout(fn, 300)
-      return () => clearTimeout(t)
-    } catch { }
-  }, [initialData])
   useEffect(() => {
     try {
       if (typeof window === 'undefined') return
@@ -372,7 +359,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
     const sep = path.includes('?') ? '&' : '?'
     path = `${path}${sep}pdf_gen=true`
     const w = typeof window !== 'undefined' ? window.innerWidth : 1280
-    const url = `${origin}/api/pdf?path=${encodeURIComponent(path)}&type=print&w=${w}&scale=1&download=true`
+    const url = `${origin}/api/pdf?path=${encodeURIComponent(path)}&type=screen&w=${w}&scale=1&download=true`
     try {
       window.open(url, '_blank')
     } catch {
@@ -1213,15 +1200,8 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                       )
                     })()}
                   </div>
-                  <div className="md:col-span-9 lg:col-span-9 min-h-[300px] flex items-center justify-center w-full print:hidden">
+                  <div className="md:col-span-9 lg:col-span-9 min-h-[300px] flex items-center justify-center w-full">
                     <Doughnut ref={chartRef} data={dataChart} options={options} plugins={[centerText, labelLeaders]} style={{ backgroundColor: 'transparent' }} />
-                  </div>
-                  <div className="md:col-span-12 lg:col-span-12 hidden print:flex items-center justify-center w-full">
-                    {chartImage ? (
-                      <img src={chartImage} alt="Distribuição de Tributos" style={{ maxWidth: '100%', height: 'auto' }} />
-                    ) : (
-                      <div style={{ height: 320 }} />
-                    )}
                   </div>
                 </div>
               </CardContent>
