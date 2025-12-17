@@ -151,6 +151,23 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
   const [error, setError] = useState<string | null>(null)
   const [shareCode, setShareCode] = useState<string | null>(null)
 
+  const [scale, setScale] = useState(1)
+
+  useEffect(() => {
+    const handleResize = () => {
+      // Usa clientWidth para descontar a barra de rolagem vertical e evitar cortes laterais
+      const width = document.documentElement.clientWidth || window.innerWidth
+      // Ajustado para 1600px conforme solicitado
+      const baseWidth = 1600
+      // Mantém escala 1 em telas maiores para deixar espaços laterais, reduz apenas se for menor
+      const newScale = width < baseWidth ? width / baseWidth : 1
+      setScale(newScale)
+    }
+    window.addEventListener('resize', handleResize)
+    handleResize()
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
   // Hydrate initial data if provided
   useEffect(() => {
     if (initialData && !data) {
@@ -358,7 +375,8 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
     let path = code ? `/d/${code}` : `/dashboard-das`
     const sep = path.includes('?') ? '&' : '?'
     path = `${path}${sep}pdf_gen=true`
-    const w = typeof window !== 'undefined' ? window.innerWidth : 1280
+    // Fixa a largura em 1600px para garantir alta resolução no PDF, independente da janela do usuário
+    const w = 1600
     
     let filename = 'dashboard.pdf'
     if (data?.identificacao) {
@@ -448,8 +466,15 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
   }
 
   return (
-    <div className="min-h-screen bg-white p-4">
-      <div className="max-w-7xl mx-auto space-y-6">
+    <div className="min-h-screen bg-white w-full overflow-x-hidden flex justify-center items-start">
+      <div
+        className="bg-white min-h-screen p-4 origin-top"
+        style={{
+          width: '1600px',
+          ['zoom' as any]: scale,
+        }}
+      >
+        <div className="w-full space-y-6">
         <div className="flex justify-between items-center">
           <div className="space-y-1">
             <img
@@ -1323,6 +1348,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
             )}
           </CardContent>
         </Card>
+        </div>
       </div>
     </div>
   )
