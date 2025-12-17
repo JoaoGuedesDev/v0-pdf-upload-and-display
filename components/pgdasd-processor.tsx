@@ -372,7 +372,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
     const sep = path.includes('?') ? '&' : '?'
     path = `${path}${sep}pdf_gen=true`
     const w = typeof window !== 'undefined' ? window.innerWidth : 1280
-    const url = `${origin}/api/pdf?path=${encodeURIComponent(path)}&type=screen&w=${w}&scale=1&download=true`
+    const url = `${origin}/api/pdf?path=${encodeURIComponent(path)}&type=print&w=${w}&scale=1&download=true`
     try {
       window.open(url, '_blank')
     } catch {

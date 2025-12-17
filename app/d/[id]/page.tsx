@@ -4,6 +4,7 @@ import { getDashboard, computeOwnerSecret } from '@/lib/store'
 import { headers, cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { PGDASDProcessor } from '@/components/pgdasd-processor'
+import { AdminAuthWrapper } from '@/components/admin-auth-wrapper'
 export const dynamic = 'force-dynamic'
 
 export default async function Page({ params, searchParams }: any) {
@@ -61,21 +62,7 @@ export default async function Page({ params, searchParams }: any) {
   const adminParam = (sp?.admin ?? '').toString()
   const adminValid = !!adminParam && adminParam === computeOwnerSecret(id)
   if (adminValid) {
-    try {
-      const expStr = String((data as any)?.metadata?.expiresAt || (data as any)?.dados?.metadata?.expiresAt || '')
-      const expDate = expStr ? new Date(expStr) : null
-      const opts: any = { httpOnly: true, sameSite: 'lax', path: '/' }
-      if (expDate && !isNaN(expDate.getTime())) {
-        opts.expires = expDate
-      } else {
-        opts.maxAge = 7 * 24 * 60 * 60
-      }
-    ck.set(name, '1', opts)
-  } catch {
-    ck.set(name, '1', { maxAge: 7 * 24 * 60 * 60, httpOnly: true, sameSite: 'lax', path: '/' })
-  }
-    // Limpa o parâmetro admin da URL para evitar compartilhamento acidental
-    redirect(`/d/${id}`)
+    return <AdminAuthWrapper id={id} secret={adminParam} />
   }
   const isOwner = hasCookie || adminValid
   const isPdfGen = sp?.pdf_gen === 'true'
