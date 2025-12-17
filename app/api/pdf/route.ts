@@ -38,7 +38,8 @@ function parseQuery(req: NextRequest) {
   const scale = Number(url.searchParams.get('scale') || 2)
   const type = url.searchParams.get('type') || 'screen'
   const download = url.searchParams.get('download') === 'true'
-  return { path, w, h, scale, type, download }
+  const filename = url.searchParams.get('filename') || 'dashboard.pdf'
+  return { path, w, h, scale, type, download, filename }
 }
 
 function getOrigin(req: NextRequest): string {
@@ -58,7 +59,7 @@ function getOrigin(req: NextRequest): string {
 }
 
 export async function GET(req: NextRequest) {
-  const { path: pathQ, w, h, scale, type } = parseQuery(req)
+  const { path: pathQ, w, h, scale, type, download, filename } = parseQuery(req)
   const pathFixed = pathQ.startsWith('/') ? pathQ : `/${pathQ}`
   const base = getOrigin(req) || (process.env.NEXT_PUBLIC_SITE_URL || `${req.nextUrl.origin}`)
   const target = `${base}${pathFixed}`
@@ -144,7 +145,7 @@ export async function GET(req: NextRequest) {
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `inline; filename="dashboard.pdf"`,
+        'Content-Disposition': `${download ? 'attachment' : 'inline'}; filename="${filename}"`,
         'Cache-Control': 'no-store',
       },
     })

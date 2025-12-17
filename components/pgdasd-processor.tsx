@@ -359,13 +359,21 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
     const sep = path.includes('?') ? '&' : '?'
     path = `${path}${sep}pdf_gen=true`
     const w = typeof window !== 'undefined' ? window.innerWidth : 1280
-    const url = `${origin}/api/pdf?path=${encodeURIComponent(path)}&type=screen&w=${w}&scale=1&download=true`
+    
+    let filename = 'dashboard.pdf'
+    if (data?.identificacao) {
+      const rs = data.identificacao.razaoSocial || 'Empresa'
+      const pa = data.identificacao.periodoApuracao || 'Periodo'
+      filename = `${rs} - ${pa}.pdf`.replace(/[^a-z0-9à-ú .-]/gi, '_')
+    }
+
+    const url = `${origin}/api/pdf?path=${encodeURIComponent(path)}&type=screen&w=${w}&scale=1&download=true&filename=${encodeURIComponent(filename)}`
     try {
       window.open(url, '_blank')
     } catch {
       window.location.assign(url)
     }
-  }, [shareId, shareCode])
+  }, [shareId, shareCode, data])
 
   if (error) {
     return (
