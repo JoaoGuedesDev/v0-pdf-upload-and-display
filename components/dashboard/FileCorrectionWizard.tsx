@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -53,6 +53,43 @@ export function FileCorrectionWizard({
     }
   }
 
+  // Client-side dynamic validation
+  const currentErrors = useMemo(() => {
+    const errors: string[] = []
+    
+    // Check Count
+    if (localFiles.length < 2) {
+        errors.push(`Quantidade insuficiente de arquivos: ${localFiles.length} (Mínimo: 2)`)
+    }
+
+    // Check Duplicates (by name)
+    const nameCounts: Record<string, number> = {}
+    localFiles.forEach(f => { nameCounts[f.name] = (nameCounts[f.name] || 0) + 1 })
+    const duplicates = Object.entries(nameCounts).filter(([_, c]) => c > 1).map(([n]) => n)
+    if (duplicates.length > 0) {
+        errors.push(`Arquivos duplicados detectados: ${duplicates.join(', ')}`)
+    }
+
+    // Filter server errors that are still relevant
+    // We can't easily re-check Sequence or CNPJ without parsing, so we keep them unless the file list changed significantly?
+    // User asked to "sumir dinamicamente".
+    // Strategy: If server error mentions a file that is no longer in localFiles, remove it.
+    
+    if (validationDetails?.summary) {
+        validationDetails.summary.forEach((err: string) => {
+            // Skip count errors from server as we track locally
+            if (err.includes("Quantidade")) return
+            if (err.includes("duplicado") && duplicates.length === 0) return // Fixed duplicates locally
+
+            // For other errors, keep them for now, but maybe filtered?
+            errors.push(err)
+        })
+    }
+    
+    // Remove duplicates in error list itself
+    return Array.from(new Set(errors))
+  }, [localFiles, validationDetails])
+
   return (
     <div className="fixed inset-0 z-50 bg-background/95 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
       <Card className="w-full max-w-4xl shadow-2xl animate-in fade-in-0 zoom-in-95 duration-300 border-red-200 dark:border-red-900">
@@ -79,16 +116,13 @@ export function FileCorrectionWizard({
         
         <CardContent className="p-6 space-y-6">
           {/* Global Errors */}
-          {validationDetails.summary && validationDetails.summary.length > 0 && (
+          {currentErrors.length > 0 && (
              <Alert variant="destructive">
                 <AlertTitle>Erros Encontrados:</AlertTitle>
                 <AlertDescription>
                     <ul className="list-disc pl-5 mt-2 space-y-1">
-                        {validationDetails.summary.map((err: string, i: number) => (
+                        {currentErrors.map((err, i) => (
                             <li key={i}>{err}</li>
-                        ))}
-                        {validationDetails.details?.sequenceErrors?.map((err: string, i: number) => (
-                            <li key={`seq-${i}`}>{err}</li>
                         ))}
                     </ul>
                 </AlertDescription>

@@ -6,7 +6,8 @@ import { MonthlyFile } from '../types'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { ArrowLeft, Download, AlertTriangle, CheckCircle, FileText, ChevronRight, BarChart3, LayoutDashboard } from "lucide-react"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { ArrowLeft, Download, AlertTriangle, CheckCircle, FileText, ChevronRight, BarChart3, LayoutDashboard, Upload, X } from "lucide-react"
 import { Line } from 'react-chartjs-2'
 import { cn } from "@/lib/utils"
 import { PGDASDProcessor } from '@/components/pgdasd-processor'
@@ -42,10 +43,102 @@ interface AnnualDashboardProps {
 }
 
 export function AnnualDashboard({ files, onBack }: AnnualDashboardProps) {
+  const [localFiles, setLocalFiles] = useState<MonthlyFile[]>(files)
   const [selectedFileIndex, setSelectedFileIndex] = useState<number | null>(null)
   const [chartImage, setChartImage] = useState<string>('')
+  const [isUploading, setIsUploading] = useState(false)
+  const [uploadErrors, setUploadErrors] = useState<string[]>([])
+  const [showErrorModal, setShowErrorModal] = useState(false)
+  
   const chartRef = useRef<any>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const { theme } = useTheme()
+
+  useEffect(() => {
+    // Only update if files prop changes and is different (simple length check or deep compare if needed)
+    // For now, assume prop update takes precedence
+    if (files.length !== localFiles.length && files !== localFiles) {
+        setLocalFiles(files)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [files])
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files?.length) return
+    
+    setIsUploading(true)
+    setUploadErrors([])
+    
+    try {
+        const formData = new FormData()
+        Array.from(e.target.files).forEach(file => {
+            formData.append('file', file)
+        })
+
+        const res = await fetch('/api/parse-files', {
+            method: 'POST',
+            body: formData
+        })
+
+        const data = await res.json()
+        
+        if (data.error) {
+            throw new Error(data.error)
+        }
+
+        const newFiles = data.files as { filename: string, data: any }[]
+        const errors: string[] = []
+        const validFiles: MonthlyFile[] = []
+        
+        // Validation Reference (from first existing file)
+        const refCnpj = localFiles[0]?.data?.identificacao?.cnpj
+        const refCompany = localFiles[0]?.data?.identificacao?.razaoSocial
+
+        // Existing periods
+        const existingPeriods = new Set(localFiles.map(f => f.data?.identificacao?.periodoApuracao))
+
+        newFiles.forEach(nf => {
+            const fCnpj = nf.data?.identificacao?.cnpj
+            const fPeriod = nf.data?.identificacao?.periodoApuracao
+            
+            // Check Company
+            if (refCnpj && fCnpj !== refCnpj) {
+                errors.push(`Arquivo '${nf.filename}': CNPJ ${fCnpj} difere da empresa atual (${refCnpj} - ${refCompany})`)
+                return
+            }
+
+            // Check Duplicate
+            if (existingPeriods.has(fPeriod)) {
+                errors.push(`Arquivo '${nf.filename}': Período ${fPeriod} já existe no dashboard.`)
+                return
+            }
+            
+            // Check Duplicate within new batch
+            if (validFiles.some(vf => vf.data?.identificacao?.periodoApuracao === fPeriod)) {
+                 errors.push(`Arquivo '${nf.filename}': Período ${fPeriod} duplicado no upload atual.`)
+                 return
+            }
+
+            validFiles.push(nf)
+        })
+
+        if (errors.length > 0) {
+            setUploadErrors(errors)
+            setShowErrorModal(true)
+        }
+
+        if (validFiles.length > 0) {
+            setLocalFiles(prev => [...prev, ...validFiles])
+        }
+
+    } catch (err: any) {
+        setUploadErrors([err.message || "Erro ao processar arquivos"])
+        setShowErrorModal(true)
+    } finally {
+        setIsUploading(false)
+        if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
   
   const isDark = theme === 'dark'
   const chartTheme = useMemo(() => ({
@@ -62,7 +155,7 @@ export function AnnualDashboard({ files, onBack }: AnnualDashboardProps) {
   let totalRevenue = 0
   let totalTaxes = 0
   
-  files.forEach(f => {
+  localFiles.forEach(f => {
       const rec = f.data?.receitas?.receitaPA
       const tax = f.data?.tributos?.Total
       
@@ -74,17 +167,17 @@ export function AnnualDashboard({ files, onBack }: AnnualDashboardProps) {
       else if (typeof tax === 'string') totalTaxes += Number(tax) || 0
   })
 
-  const averageTaxes = totalTaxes / (files.length || 1)
+  const averageTaxes = totalTaxes / (localFiles.length || 1)
   
   useEffect(() => {
-    console.log('[AnnualDashboard] Files received:', files.length)
-    if (files.length > 0) {
-        console.log('[AnnualDashboard] First file sample:', files[0])
+    console.log('[AnnualDashboard] Files received:', localFiles.length)
+    if (localFiles.length > 0) {
+        console.log('[AnnualDashboard] First file sample:', localFiles[0])
         console.log('[AnnualDashboard] Calculated Revenue:', totalRevenue)
     }
-  }, [files, totalRevenue])
+  }, [localFiles, totalRevenue])
   
-  const sortedFiles = [...files].sort((a, b) => {
+  const sortedFiles = [...localFiles].sort((a, b) => {
      const getMonthYear = (d: string) => {
         if (!d) return 0
         const parts = d.split(' ')[0].split('/')
@@ -237,10 +330,30 @@ export function AnnualDashboard({ files, onBack }: AnnualDashboardProps) {
                         </Button>
                         )}
                     </div>
-                    <Button variant="outline" className="flex items-center gap-2" onClick={() => window.print()}>
-                        <Download className="h-4 w-4" />
-                        Exportar Relatório PDF
-                    </Button>
+                    <div className="flex items-center gap-2">
+                        <input 
+                            type="file" 
+                            multiple 
+                            accept=".pdf" 
+                            className="hidden" 
+                            ref={fileInputRef} 
+                            onChange={handleFileUpload} 
+                        />
+                        <Button variant="outline" className="flex items-center gap-2" onClick={() => fileInputRef.current?.click()} disabled={isUploading}>
+                            {isUploading ? (
+                                <>Processando...</>
+                            ) : (
+                                <>
+                                    <Upload className="h-4 w-4" />
+                                    Adicionar Arquivos
+                                </>
+                            )}
+                        </Button>
+                        <Button variant="outline" className="flex items-center gap-2" onClick={() => window.print()}>
+                            <Download className="h-4 w-4" />
+                            Exportar Relatório PDF
+                        </Button>
+                    </div>
                     </div>
 
                     {/* Header Section */}
@@ -252,14 +365,14 @@ export function AnnualDashboard({ files, onBack }: AnnualDashboardProps) {
                             <div className="h-12 w-px bg-border hidden md:block"></div>
                             <div>
                                 <h1 className="text-2xl font-bold text-foreground">Relatório Anual Consolidado</h1>
-                                <p className="text-sm text-muted-foreground">Visão estratégica e análise de tendências ({files.length} meses processados)</p>
+                                <p className="text-sm text-muted-foreground">Visão estratégica e análise de tendências ({localFiles.length} meses processados)</p>
                                 {/* Debug info */}
                                 <details className="text-xs text-muted-foreground mt-2">
                                     <summary>Debug Info</summary>
                                     <pre className="p-2 bg-slate-100 dark:bg-slate-900 rounded mt-2 overflow-auto max-h-40">
-                                        Files: {files.length}
+                                        Files: {localFiles.length}
                                         Revenue Sum: {totalRevenue}
-                                        Sample: {JSON.stringify(files[0]?.data?.receitas, null, 2)}
+                                        Sample: {JSON.stringify(localFiles[0]?.data?.receitas, null, 2)}
                                     </pre>
                                 </details>
                             </div>
@@ -270,7 +383,7 @@ export function AnnualDashboard({ files, onBack }: AnnualDashboardProps) {
                                 <div className="text-sm font-medium text-foreground">{sortedFiles[0].data?.identificacao?.razaoSocial || 'Razão Social Não Identificada'}</div>
                                 <div className="text-xs text-muted-foreground">CNPJ: {sortedFiles[0].data?.identificacao?.cnpj || 'N/A'}</div>
                                 <div className="text-xs text-blue-700 dark:text-blue-300 mt-1 badge badge-outline inline-block px-2 py-0.5 bg-blue-500/10 dark:bg-blue-900/30 rounded-full border border-blue-200 dark:border-blue-800">
-                                    {files.length} competências analisadas
+                                    {localFiles.length} competências analisadas
                                 </div>
                             </div>
                         )}
@@ -319,7 +432,7 @@ export function AnnualDashboard({ files, onBack }: AnnualDashboardProps) {
                         </div>
                         <div className="flex items-center mt-2 text-xs text-blue-600 dark:text-blue-400 font-medium">
                             <span className="bg-blue-500/10 dark:bg-blue-900/30 px-2 py-0.5 rounded-full border border-blue-200 dark:border-blue-800">
-                                Base: {files.length} meses
+                                Base: {localFiles.length} meses
                             </span>
                         </div>
                     </CardContent>
@@ -476,6 +589,25 @@ export function AnnualDashboard({ files, onBack }: AnnualDashboardProps) {
             <div>
                 <h2 className="font-semibold text-foreground">Navegação Rápida ({sortedFiles.length})</h2>
                 <p className="text-xs text-muted-foreground">Selecione um período para detalhar</p>
+                <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="w-full mt-3 flex items-center gap-2 bg-background hover:bg-muted" 
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploading}
+                >
+                    {isUploading ? (
+                        <div className="flex items-center gap-2">
+                            <span className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                            <span>Processando...</span>
+                        </div>
+                    ) : (
+                        <>
+                            <Upload className="h-3.5 w-3.5" />
+                            <span>Adicionar Mês</span>
+                        </>
+                    )}
+                </Button>
             </div>
         </div>
         <div className="p-4 space-y-2">
@@ -557,6 +689,37 @@ export function AnnualDashboard({ files, onBack }: AnnualDashboardProps) {
             })}
         </div>
       </div>
+
+      {/* Error Modal */}
+      {showErrorModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+            <Card className="w-full max-w-lg shadow-xl border-destructive/50 bg-card">
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                    <CardTitle className="text-destructive flex items-center gap-2">
+                        <AlertTriangle className="h-5 w-5" />
+                        Erros de Validação
+                    </CardTitle>
+                    <Button variant="ghost" size="icon" onClick={() => setShowErrorModal(false)}>
+                        <X className="h-4 w-4" />
+                    </Button>
+                </CardHeader>
+                <CardContent>
+                    <div className="space-y-2 max-h-[60vh] overflow-y-auto">
+                        {uploadErrors.map((err, i) => (
+                            <Alert key={i} variant="destructive">
+                                <AlertTriangle className="h-4 w-4" />
+                                <AlertTitle>Erro</AlertTitle>
+                                <AlertDescription>{err}</AlertDescription>
+                            </Alert>
+                        ))}
+                    </div>
+                    <div className="mt-4 flex justify-end">
+                        <Button variant="secondary" onClick={() => setShowErrorModal(false)}>Fechar</Button>
+                    </div>
+                </CardContent>
+            </Card>
+        </div>
+      )}
     </div>
   )
 }
