@@ -366,15 +366,6 @@ export function AnnualDashboard({ files, onBack }: AnnualDashboardProps) {
                             <div>
                                 <h1 className="text-2xl font-bold text-foreground">Relatório Anual Consolidado</h1>
                                 <p className="text-sm text-muted-foreground">Visão estratégica e análise de tendências ({localFiles.length} meses processados)</p>
-                                {/* Debug info */}
-                                <details className="text-xs text-muted-foreground mt-2">
-                                    <summary>Debug Info</summary>
-                                    <pre className="p-2 bg-slate-100 dark:bg-slate-900 rounded mt-2 overflow-auto max-h-40">
-                                        Files: {localFiles.length}
-                                        Revenue Sum: {totalRevenue}
-                                        Sample: {JSON.stringify(localFiles[0]?.data?.receitas, null, 2)}
-                                    </pre>
-                                </details>
                             </div>
                         </div>
                         
