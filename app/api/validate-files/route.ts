@@ -1,6 +1,7 @@
+export const runtime = 'nodejs'
 
 import { NextRequest, NextResponse } from "next/server"
-import pdf from "pdf-parse"
+import { createRequire } from "module"
 import { processDasData } from "@/lib/das-parse"
 
 export async function POST(req: NextRequest) {
@@ -18,6 +19,9 @@ export async function POST(req: NextRequest) {
     const names = new Set<string>()
     const periods = new Set<string>()
     const periodValues: { date: number, raw: string }[] = []
+
+    const require = createRequire(import.meta.url)
+    const pdf = require("pdf-parse/lib/pdf-parse.js")
 
     for (const file of files) {
       try {
