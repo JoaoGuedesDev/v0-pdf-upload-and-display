@@ -9,6 +9,7 @@ import { IndicadoresReceita } from "@/components/dashboard/IndicadoresReceita"
 import { GraficoReceitaMensal } from "@/components/dashboard/GraficoReceitaMensal"
 import { ComparacaoAtividades } from "@/components/dashboard/ComparacaoAtividades"
 import { AnaliseAliquotaParcelas } from "@/components/dashboard/AnaliseAliquotaParcelas"
+import { HeaderLogo } from "@/components/header-logo"
 import { formatCurrency, computeTotalDAS } from "@/lib/utils"
 import { Doughnut } from 'react-chartjs-2'
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, Title } from 'chart.js'
@@ -170,7 +171,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
 
   // Hydrate initial data if provided
   useEffect(() => {
-    if (initialData && !data) {
+    if (initialData) {
       const receitaPA0 = Number(initialData?.receitas?.receitaPA || 0)
       const totalDAS0 = computeTotalDAS({
         tributos: initialData?.tributos,
@@ -241,7 +242,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
       }
       setData(hydratedData)
     }
-  }, [initialData, data])
+  }, [initialData])
 
   const handleProcessPDF = useCallback(async (file: File) => {
     setLoading(true)
@@ -413,13 +414,13 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
 
   if (!data && !initialData) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-4">
+      <div className="min-h-screen bg-background p-4">
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-slate-800 mb-2">
+            <h1 className="text-3xl font-bold text-foreground mb-2">
               Analisador de PGDAS-D
             </h1>
-            <p className="text-slate-600">
+            <p className="text-muted-foreground">
               Faça upload do seu arquivo PGDAS-D para análise detalhada
             </p>
           </div>
@@ -435,24 +436,24 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
   if (!data || !data.identificacao) {
     if (initialData) {
       return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-4">
+        <div className="min-h-screen bg-background p-4">
           <div className="max-w-4xl mx-auto flex items-center justify-center h-64">
             <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-              <p className="text-slate-600">Carregando dados...</p>
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+              <p className="text-muted-foreground">Carregando dados...</p>
             </div>
           </div>
         </div>
       )
     }
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-4">
+      <div className="min-h-screen bg-background p-4">
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-slate-800 mb-2">
+            <h1 className="text-3xl font-bold text-foreground mb-2">
               Analisador de PGDAS-D
             </h1>
-            <p className="text-slate-600">
+            <p className="text-muted-foreground">
               Faça upload do seu arquivo PGDAS-D para análise detalhada
             </p>
           </div>
@@ -466,9 +467,9 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
   }
 
   return (
-    <div className="min-h-screen bg-white w-full overflow-x-hidden flex justify-center items-start">
+    <div className="min-h-screen bg-background w-full overflow-x-hidden flex justify-center items-start">
       <div
-        className="bg-white min-h-screen p-4 origin-top"
+        className="bg-background min-h-screen p-4 origin-top"
         style={{
           width: '1600px',
           ['zoom' as any]: scale,
@@ -477,19 +478,14 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
         <div className="w-full space-y-6">
         <div className="flex justify-between items-center">
           <div className="space-y-1">
-            <img
-              src="/shared/integra-logo.png"
-              alt="Integra Soluções Empresariais"
-              className="h-10 sm:h-12 w-auto object-contain"
-              onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/integra-logo.svg' }}
-            />
+            <HeaderLogo className="h-10 sm:h-12" />
           </div>
           {!isPdfGen && (
             <div className="print:hidden">
               <Button
                 variant="outline"
                 size="sm"
-                className="rounded-full bg-white/70 text-slate-700 hover:bg-white border-slate-200"
+                className="rounded-full bg-background/70 text-foreground hover:bg-background border-border"
                 onClick={() => window.location.assign('/')}
               >
                 Processar Novo PDF

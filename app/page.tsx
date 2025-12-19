@@ -1,8 +1,14 @@
 "use client"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
 import { ConfiguracaoProcessamento } from "@/components/dashboard/ConfiguracaoProcessamento"
-import { ExternalLink, CheckCircle, XCircle } from "lucide-react"
+import { ArrowLeft, FileText, Calendar, ExternalLink, CheckCircle, XCircle } from "lucide-react"
+import { cn } from "@/lib/utils"
+import { ModeToggle } from "@/components/mode-toggle"
+import { HeaderLogo } from '@/components/header-logo'
+import { LoadingScreen } from "@/components/loading-screen"
+import { FileCorrectionWizard } from "@/components/dashboard/FileCorrectionWizard"
 
 interface ProcessResult {
   filename: string
@@ -15,10 +21,18 @@ interface ProcessResult {
 export default function Home() {
   const [loading, setLoading] = useState(false)
   const [results, setResults] = useState<ProcessResult[]>([])
-  const [previewResultIndex, setPreviewResultIndex] = useState<number | null>(null)
+  const [step, setStep] = useState<'selection' | 'upload'>('selection')
+  const [selectedMode, setSelectedMode] = useState<'monthly' | 'annual'>('monthly')
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
 
-  const togglePreview = (index: number) => {
-    setPreviewResultIndex(prev => prev === index ? null : index)
+  // Correction Mode State
+  const [correctionMode, setCorrectionMode] = useState(false)
+  const [filesToCorrect, setFilesToCorrect] = useState<File[]>([])
+  const [validationDetails, setValidationDetails] = useState<any>(null)
+
+  const handleSelection = (mode: 'monthly' | 'annual') => {
+    setSelectedMode(mode)
+    setStep('upload')
   }
 
   const processFile = async (file: File): Promise<{ url?: string, error?: string }> => {
@@ -51,6 +65,7 @@ export default function Home() {
   const onProcess = async (files: File[], isAnnual: boolean) => {
     setLoading(true)
     setResults([])
+    setCorrectionMode(false)
 
     if (isAnnual) {
       setResults([{ filename: `Processando Dashboard Anual (${files.length} arquivos)...`, status: 'pending' }])
@@ -62,6 +77,16 @@ export default function Home() {
         
         if (!res.ok) {
            const errData = await res.json().catch(() => ({}))
+           
+           // Check for 422 Validation Error
+           if (res.status === 422 && errData.code === 'VALIDATION_ERROR') {
+               setValidationDetails(errData)
+               setFilesToCorrect(files)
+               setCorrectionMode(true)
+               setLoading(false)
+               return // Stop here to show wizard
+           }
+
            throw new Error(errData.error || "Falha ao processar arquivos anuais")
         }
         
@@ -84,6 +109,9 @@ export default function Home() {
                 status: 'success', 
                 url: target 
             }])
+            
+            // Open in preview mode instead of redirecting
+            setPreviewUrl(target)
         } else {
              setResults([{ filename: `Dashboard Anual`, status: 'error', error: data?.error || "URL não retornada" }])
         }
@@ -98,130 +126,198 @@ export default function Home() {
     if (files.length === 1) {
       const res = await processFile(files[0])
       if (res.url) {
-        window.location.assign(res.url)
-        return 
-      } else {
-        setResults([{ filename: files[0].name, status: 'error', error: res.error }])
+        setPreviewUrl(res.url)
+        return
       }
+      setResults([{ filename: files[0].name, status: 'error', error: res.error }])
       setLoading(false)
       return
     }
 
-    // Múltiplos arquivos
-    const newResults: ProcessResult[] = files.map(f => ({ filename: f.name, status: 'pending', file: f }))
-    setResults(newResults)
+    // Múltiplos arquivos mensais (caso suportado no futuro)
+    const newResults: ProcessResult[] = []
+    for (const file of files) {
+        newResults.push({ filename: file.name, status: 'pending', file })
+    }
+    setResults([...newResults])
 
     for (let i = 0; i < files.length; i++) {
-      const file = files[i]
-      const res = await processFile(file)
-      
-      setResults(prev => prev.map((r, idx) => {
-        if (idx === i) {
-          return {
-            ...r,
-            status: res.url ? 'success' : 'error',
-            url: res.url,
-            error: res.error
-          }
-        }
-        return r
-      }))
+        const file = files[i]
+        const res = await processFile(file)
+        
+        setResults(prev => {
+            const next = [...prev]
+            next[i] = { 
+                ...next[i], 
+                status: res.url ? 'success' : 'error',
+                url: res.url,
+                error: res.error 
+            }
+            return next
+        })
     }
     setLoading(false)
   }
 
-  return (
-    <main className={`min-h-screen p-6 bg-white`}>
-      <div className="mx-auto max-w-7xl space-y-6">
-        <div className="flex justify-between items-center">
-          <div className="space-y-1">
-            <img
-              src="/shared/integra-logo.png"
-              alt="Integra Soluções Empresariais"
-              className="h-10 sm:h-12 w-auto object-contain"
-              onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/integra-logo.svg' }}
-            />
-          </div>
-        </div>
-
-        <div className="mt-2">
-          <ConfiguracaoProcessamento onProcess={onProcess} loading={loading} className="min-h-[200px]" />
-        </div>
-
-        {results.length > 0 && (
-          <div className="space-y-4">
-            <h2 className="text-xl font-semibold text-slate-800">Resultados do Processamento</h2>
-            <div className="grid gap-3 relative">
-              {results.map((res, idx) => (
-                <div 
-                  key={idx} 
-                  className={`p-4 rounded-lg border flex items-center justify-between relative group transition-colors ${
-                    res.status === 'success' ? 'bg-green-50 border-green-200' :
-                    res.status === 'error' ? 'bg-red-50 border-red-200' :
-                    'bg-slate-50 border-slate-200'
-                  } ${res.url ? 'cursor-pointer hover:shadow-md' : ''} ${previewResultIndex === idx ? 'ring-2 ring-blue-500' : ''}`}
-                  onClick={() => res.url && togglePreview(idx)}
-                >
-                  <div className="flex items-center gap-3">
-                    {res.status === 'success' && <CheckCircle className="h-5 w-5 text-green-600" />}
-                    {res.status === 'error' && <XCircle className="h-5 w-5 text-red-600" />}
-                    {res.status === 'pending' && <div className="h-5 w-5 rounded-full border-2 border-slate-300 border-t-blue-600 animate-spin" />}
-                    
-                    <div>
-                      <p className="font-medium text-slate-900">{res.filename}</p>
-                      {res.error && <p className="text-sm text-red-600">{res.error}</p>}
-                    </div>
-                  </div>
-                  
-                  {res.status === 'success' && res.url && (
-                    <Button asChild size="sm" variant="outline" className="gap-2 z-10" onClick={(e) => e.stopPropagation()}>
-                      <a href={res.url} target="_blank" rel="noopener noreferrer">
-                        Abrir Dashboard <ExternalLink className="h-4 w-4" />
+  if (previewUrl) {
+    return (
+      <div className="fixed inset-0 z-[100] bg-background flex flex-col">
+        <div className="bg-card border-b border-border sticky top-0 z-50">
+            <div className="container mx-auto px-4 h-16 flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <HeaderLogo className="h-10" />
+                <div className="h-6 w-px bg-border" />
+                <h1 className="font-semibold text-foreground">Visualização do Dashboard</h1>
+              </div>
+              <div className="flex items-center gap-2">
+                  <ModeToggle />
+                  <Button variant="outline" onClick={() => setPreviewUrl(null)}>
+                      <ArrowLeft className="w-4 h-4 mr-2" />
+                      Voltar
+                  </Button>
+                  <Button asChild>
+                      <a href={previewUrl} target="_blank" rel="noopener noreferrer">
+                          <ExternalLink className="w-4 h-4 mr-2" />
+                          Abrir em nova aba
                       </a>
-                    </Button>
-                  )}
-
-                  {previewResultIndex === idx && res.url && (
-                    <>
-                      <div 
-                        className="fixed inset-0 z-[90] bg-black/20 backdrop-blur-sm"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          togglePreview(idx)
-                        }}
-                      />
-                      <div className="fixed z-[100] right-10 top-1/2 -translate-y-1/2 p-2 bg-white rounded-lg shadow-2xl border-2 border-slate-200 w-[600px] h-[85vh] hidden lg:block" onClick={(e) => e.stopPropagation()}>
-                        <div className="absolute -left-3 top-1/2 -translate-y-1/2 w-0 h-0 border-t-[10px] border-t-transparent border-r-[12px] border-r-slate-200 border-b-[10px] border-b-transparent drop-shadow-sm"></div>
-                        <div className="w-full h-full bg-slate-100 rounded overflow-hidden relative">
-                          <Button 
-                            variant="secondary" 
-                            size="icon" 
-                            className="absolute top-2 right-2 z-10 h-8 w-8 bg-white/80 hover:bg-white shadow-sm"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              togglePreview(idx)
-                            }}
-                          >
-                            <XCircle className="h-4 w-4" />
-                          </Button>
-                          <iframe 
-                            src={res.url}
-                            className="w-full h-full"
-                            title={`Preview do Dashboard - ${res.filename}`}
-                          />
-                        </div>
-                        <div className="absolute bottom-2 right-2 bg-black/75 text-white text-xs px-2 py-1 rounded pointer-events-none">
-                          Dashboard Preview
-                        </div>
-                      </div>
-                    </>
-                  )}
-                </div>
-              ))}
+                  </Button>
+              </div>
             </div>
-          </div>
-        )}
+        </div>
+        <div className="flex-1 bg-muted/30">
+            <iframe src={previewUrl} className="w-full h-full border-0" />
+        </div>
       </div>
-    </main>
+    )
+  }
+
+  return (
+    <div className="min-h-[calc(100vh-4rem)] bg-background">
+      {correctionMode && (
+          <FileCorrectionWizard 
+              files={filesToCorrect}
+              validationDetails={validationDetails}
+              onUpdateFiles={setFilesToCorrect}
+              onRetry={() => onProcess(filesToCorrect, true)}
+              onCancel={() => setCorrectionMode(false)}
+          />
+      )}
+      
+      <main className="container mx-auto p-6 space-y-8">
+        <div className="text-center space-y-4 py-8">
+          <h1 className="text-4xl font-bold text-foreground tracking-tight">
+            Processamento de PGDAS-D
+          </h1>
+          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+            Selecione o tipo de processamento desejado para iniciar a organização e análise dos documentos.
+          </p>
+        </div>
+
+        {results.length === 0 ? (
+          step === 'selection' ? (
+            <div className="grid md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+              <Card 
+                className={cn(
+                  "p-8 cursor-pointer transition-all hover:shadow-lg hover:border-blue-300 group relative overflow-hidden",
+                  selectedMode === 'monthly' && "ring-2 ring-blue-600 border-transparent"
+                )}
+                onClick={() => handleSelection('monthly')}
+              >
+                <div className="absolute top-0 left-0 w-full h-1 bg-blue-600/0 group-hover:bg-blue-600 transition-colors" />
+                <div className="flex flex-col items-center text-center space-y-4">
+                  <div className="w-16 h-16 rounded-full bg-blue-50 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                    <Calendar className="w-8 h-8 text-blue-600" />
+                  </div>
+                  <div className="space-y-2">
+                    <h3 className="text-xl font-bold text-slate-900">Processo Mensal</h3>
+                    <p className="text-slate-500">
+                      Análise individual de uma competência específica.
+                    </p>
+                  </div>
+                </div>
+              </Card>
+
+              <Card 
+                className={cn(
+                  "p-8 cursor-pointer transition-all hover:shadow-lg hover:border-purple-300 group relative overflow-hidden",
+                  selectedMode === 'annual' && "ring-2 ring-purple-600 border-transparent"
+                )}
+                onClick={() => handleSelection('annual')}
+              >
+                <div className="absolute top-0 left-0 w-full h-1 bg-purple-600/0 group-hover:bg-purple-600 transition-colors" />
+                <div className="flex flex-col items-center text-center space-y-4">
+                  <div className="w-16 h-16 rounded-full bg-purple-50 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                    <FileText className="w-8 h-8 text-purple-600" />
+                  </div>
+                  <div className="space-y-2">
+                    <h3 className="text-xl font-bold text-slate-900">Relatório Anual</h3>
+                    <p className="text-slate-500">
+                      Consolidação estratégica de 12 meses (Janeiro a Dezembro).
+                    </p>
+                  </div>
+                </div>
+              </Card>
+            </div>
+          ) : (
+             <div className="max-w-2xl mx-auto space-y-4">
+               <Button 
+                 variant="ghost" 
+                 onClick={() => setStep('selection')}
+                 className="text-slate-500 hover:text-slate-900 -ml-2"
+               >
+                 <ArrowLeft className="w-4 h-4 mr-2" />
+                 Voltar para seleção
+               </Button>
+               <ConfiguracaoProcessamento 
+                 onProcess={onProcess} 
+                 loading={loading} 
+                 className="min-h-[200px]"
+                 initialIsAnnual={selectedMode === 'annual'}
+               />
+             </div>
+          )
+        ) : (
+            <div className="max-w-4xl mx-auto space-y-6">
+                 {loading && <LoadingScreen />}
+
+                 {!loading && (
+                     <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                        <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+                            <h3 className="font-bold text-slate-900">Resultados do Processamento</h3>
+                            <Button variant="outline" onClick={() => setResults([])}>Novo Processamento</Button>
+                        </div>
+                        <div className="divide-y divide-slate-100">
+                            {results.map((res, idx) => (
+                                <div key={idx} className="p-4 hover:bg-slate-50 flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        {res.status === 'success' ? (
+                                            <CheckCircle className="w-5 h-5 text-green-600" />
+                                        ) : res.status === 'error' ? (
+                                            <XCircle className="w-5 h-5 text-red-600" />
+                                        ) : (
+                                            <div className="w-5 h-5 border-2 border-slate-300 border-t-blue-600 rounded-full animate-spin" />
+                                        )}
+                                        <div>
+                                            <p className="font-medium text-slate-900">{res.filename}</p>
+                                            {res.error && <p className="text-sm text-red-600">{res.error}</p>}
+                                        </div>
+                                    </div>
+                                    {res.url && (
+                                        <a 
+                                            href={res.url} 
+                                            className="text-blue-600 hover:text-blue-800 font-medium text-sm flex items-center gap-1"
+                                        >
+                                            Visualizar Dashboard <ExternalLink className="w-4 h-4" />
+                                        </a>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                     </div>
+                 )}
+            </div>
+        )}
+      </main>
+    </div>
   )
 }

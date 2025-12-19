@@ -584,10 +584,10 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
   return (
     <div className={`grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-2 ${className}`}>
       {/* Receita Bruta PA - Azul escuro */}
-      <Card className="bg-gradient-to-br from-slate-700 to-slate-800 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200 py-1 rounded-2xl">
+      <Card className="bg-gradient-to-br from-slate-700 to-slate-800 dark:from-slate-800 dark:to-slate-900 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200 py-1 rounded-2xl">
         <CardHeader className="pb-0.5 p-1 sm:p-2 flex flex-row items-center justify-between space-y-0">
           <CardTitle className="text-[12px] sm:text-sm font-semibold tracking-tight">Receita Bruta PA</CardTitle>
-          <DollarSign className="h-4 w-4" />
+          <DollarSign className="h-4 w-4 text-slate-200" />
         </CardHeader>
         <CardContent className="p-1 sm:p-2 pt-0">
           <div className="flex flex-col gap-1 mb-1">
@@ -610,10 +610,10 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
       </Card>
 
       {/* Total DAS - Azul médio */}
-      <Card className="bg-gradient-to-br from-blue-600 to-blue-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200 rounded-2xl">
+      <Card className="bg-gradient-to-br from-blue-600 to-blue-700 dark:from-blue-700 dark:to-blue-900 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200 rounded-2xl">
         <CardHeader className="pb-0.5 p-1 sm:p-2 flex flex-row items-center justify-between space-y-0">
           <CardTitle className="text-[12px] sm:text-sm font-semibold tracking-tight">Total DAS</CardTitle>
-          <FileText className="h-4 w-4" />
+          <FileText className="h-4 w-4 text-blue-100" />
         </CardHeader>
         <CardContent className="p-1 sm:p-2 pt-0">
           <div className="flex flex-col gap-1 mb-1">
@@ -634,10 +634,10 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
       </Card>
 
       {/* Alíquota do Período Atual - Laranja */}
-      <Card className="bg-gradient-to-br from-orange-500 to-orange-600 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200 py-1 rounded-2xl">
+      <Card className="bg-gradient-to-br from-orange-500 to-orange-600 dark:from-orange-600 dark:to-orange-800 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200 py-1 rounded-2xl">
         <CardHeader className="pb-0.5 p-1 sm:p-2 flex flex-row items-center justify-between space-y-0">
           <CardTitle className="text-[12px] sm:text-sm font-semibold tracking-tight">Alíquota {currentPeriodoLabel}</CardTitle>
-          <TrendingUp className="h-4 w-4" />
+          <TrendingUp className="h-4 w-4 text-orange-100" />
         </CardHeader>
         <CardContent className="p-1 sm:p-2 pt-0">
           <div className="mt-1 space-y-1">
@@ -658,7 +658,7 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
       </Card>
 
       {/* Alíquota do Próximo Mês - Roxo */}
-      <Card className="bg-gradient-to-br from-purple-600 to-purple-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200 py-1 rounded-2xl">
+      <Card className="bg-gradient-to-br from-purple-600 to-purple-700 dark:from-purple-700 dark:to-purple-900 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200 py-1 rounded-2xl">
         <CardHeader className="pb-0.5 p-1 sm:p-2 flex flex-row items-center justify-between">
           <CardTitle className="text-[12px] sm:text-sm font-semibold tracking-tight">Alíquota {nextPeriodoLabel}</CardTitle>
         </CardHeader>

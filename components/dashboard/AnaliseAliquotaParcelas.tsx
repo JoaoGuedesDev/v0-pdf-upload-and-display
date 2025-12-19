@@ -69,10 +69,10 @@ export const AnaliseAliquotaParcelas = memo(function AnaliseAliquotaParcelas({ d
 
   return (
     <div className={`grid gap-3 ${className}`}>
-      <Card className="bg-white border-slate-200" style={{ breakInside: 'avoid' }}>
+      <Card className="bg-card border-border" style={{ breakInside: 'avoid' }}>
         <CardHeader className="py-2">
-          <CardTitle className="text-slate-800">Análise de Alíquota</CardTitle>
-          <CardDescription>Detalhamento por Anexo e Faixa</CardDescription>
+          <CardTitle className="text-card-foreground">Análise de Alíquota</CardTitle>
+          <CardDescription className="text-muted-foreground">Detalhamento por Anexo e Faixa</CardDescription>
         </CardHeader>
         <CardContent className="py-2">
           <div className="grid grid-cols-1 gap-3">
@@ -221,24 +221,24 @@ export const AnaliseAliquotaParcelas = memo(function AnaliseAliquotaParcelas({ d
                 return atividadeFromNome
               })()
               return (
-                <div key={idx} className="border rounded-lg p-3 w-full">
+                <div key={idx} className="border border-border rounded-lg p-3 w-full">
                   <div className="flex items-center justify-between">
-                    <div className="text-sm font-semibold text-slate-800">{`${titulo} - ${headerActivity}`}</div>
+                    <div className="text-sm font-semibold text-card-foreground">{`${titulo} - ${headerActivity}`}</div>
                   </div>
                   <div className="mt-2 grid grid-cols-2 gap-2">
-                    <div className="bg-slate-50 rounded p-2">
-                    <div className="text-[11px] text-slate-600 mt-2">{`Faixa ${docPeriodoLabel || ''}`.trim()}</div>
+                    <div className="bg-muted/50 rounded p-2">
+                    <div className="text-[11px] text-muted-foreground mt-2">{`Faixa ${docPeriodoLabel || ''}`.trim()}</div>
                       {typeof fxO?.faixa !== 'undefined' && (
-                        <div className="text-xs text-slate-700">Faixa: {fxO?.faixa}</div>
+                        <div className="text-xs text-card-foreground">Faixa: {fxO?.faixa}</div>
                       )}
-                      <div className="text-xs font-semibold text-slate-900 mt-1">{`RBT12 ${docPeriodoLabel || ''}`.trim()}: {Number.isFinite(rbt12Orig) ? formatCurrency(rbt12Orig) : '-'}</div>
+                      <div className="text-xs font-semibold text-card-foreground mt-1">{`RBT12 ${docPeriodoLabel || ''}`.trim()}: {Number.isFinite(rbt12Orig) ? formatCurrency(rbt12Orig) : '-'}</div>
                     </div>
-                    <div className="bg-slate-50 rounded p-2">
-                    <div className="text-[11px] text-slate-600 mt-2">{`Faixa ${nextPeriodoLabel || ''}`.trim()}</div>
+                    <div className="bg-muted/50 rounded p-2">
+                    <div className="text-[11px] text-muted-foreground mt-2">{`Faixa ${nextPeriodoLabel || ''}`.trim()}</div>
                       {typeof fxA?.faixa !== 'undefined' && (
-                        <div className="text-xs text-slate-700">Faixa: {fxA?.faixa}</div>
+                        <div className="text-xs text-card-foreground">Faixa: {fxA?.faixa}</div>
                       )}
-                      <div className="text-xs font-semibold text-slate-900 mt-1">{`RBT12 ${nextPeriodoLabel || ''}`.trim()}: {Number.isFinite(rbt12Atual) ? formatCurrency(rbt12Atual) : '-'}</div>
+                      <div className="text-xs font-semibold text-card-foreground mt-1">{`RBT12 ${nextPeriodoLabel || ''}`.trim()}: {Number.isFinite(rbt12Atual) ? formatCurrency(rbt12Atual) : '-'}</div>
                     </div>
                   </div>
                   <div className="mt-3">
@@ -246,14 +246,14 @@ export const AnaliseAliquotaParcelas = memo(function AnaliseAliquotaParcelas({ d
                     <div className="overflow-x-auto">
                       <table className="min-w-full text-[11px]">
                         <thead>
-                          <tr className="text-slate-600">
+                          <tr className="text-muted-foreground border-b border-border">
                             <th className="text-left font-medium px-2 py-1">Receita</th>
                             <th className="text-left font-medium px-2 py-1">Atividade</th>
                             <th className="text-left font-medium px-2 py-1">{`Alíquota ${docPeriodoLabel || ''} ajustada`.trim()}</th>
                             <th className="text-left font-medium px-2 py-1">{`Alíquota ${nextPeriodoLabel || ''} ajustada`.trim()}</th>
                           </tr>
                         </thead>
-                        <tbody>
+                        <tbody className="text-card-foreground">
                           {/* Linhas separadas para serviços de comunicação: Comunicação e Transporte (sem ST e com ST) */}
                           {hasComunic && (() => {
                             const transpSem = comunicParts.filter(p => matchCanonical(p) === 'Transporte sem substituição tributária de ICMS')
@@ -332,7 +332,7 @@ export const AnaliseAliquotaParcelas = memo(function AnaliseAliquotaParcelas({ d
                             })()
                             return grouped.map((r, i) => {
                               return (
-                                <tr key={`comunic-${i}`} className="border-t">
+                                <tr key={`comunic-${i}`} className="border-t border-border">
                                   <td className="px-2 py-1 whitespace-nowrap">{formatCurrency(r.v)}</td>
                                   <td className="px-2 py-1">{r.act}</td>
                                   <td className="px-2 py-1 whitespace-nowrap">{Number.isFinite(r.aO) ? fmtPct4(r.aO) : "-"}</td>
@@ -359,6 +359,7 @@ export const AnaliseAliquotaParcelas = memo(function AnaliseAliquotaParcelas({ d
                                     "Prestação de Serviços",
                                     "Revenda de mercadorias",
                                     "Venda de mercadorias industrializadas",
+                                    "Revenda de mercadorias para o exterior",
                                   ]
                                   const norm2 = (s: any) => String(s || "").normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
                                   const src = norm2(p?.atividade_nome)
@@ -417,7 +418,7 @@ export const AnaliseAliquotaParcelas = memo(function AnaliseAliquotaParcelas({ d
                             })()
                             return grouped.map((r, i) => {
                               return (
-                                <tr key={`other-${i}`} className="border-t">
+                                <tr key={`other-${i}`} className="border-t border-border">
                                   <td className="px-2 py-1 whitespace-nowrap">{formatCurrency(r.v)}</td>
                                   <td className="px-2 py-1">{r.act}</td>
                                   <td className="px-2 py-1 whitespace-nowrap">{Number.isFinite(r.aO) ? fmtPct4(r.aO) : "-"}</td>

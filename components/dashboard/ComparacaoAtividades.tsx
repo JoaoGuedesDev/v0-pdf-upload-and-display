@@ -60,23 +60,23 @@ export const ComparacaoAtividades = memo(function ComparacaoAtividades({ ativida
 
   return (
     <Card
-      className={`bg-white border border-slate-200 shadow-lg hover:shadow-xl transition-all duration-200 print:inline-block print:w-1/3 print:align-top print:break-inside-avoid ${className}`}
+      className={`bg-card border-border shadow-lg hover:shadow-xl transition-all duration-200 print:inline-block print:w-1/3 print:align-top print:break-inside-avoid ${className}`}
     >
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <div>
           <CardTitle
-            className={`text-base sm:text-[9px] flex items-center gap-2 text-slate-800`}
+            className={`text-base sm:text-[9px] flex items-center gap-2 text-card-foreground`}
           >
             <BarChartHorizontal className={`h-5 w-5 text-blue-600`} />
             Tributos por Atividade (exigível)
           </CardTitle>
           <CardDescription
-            className={`text-xs sm:text-[9px] text-slate-500`}
+            className={`text-xs sm:text-[9px] text-muted-foreground`}
           >
             Distribuição do DAS entre Mercadorias e Serviços
           </CardDescription>
         </div>
-        <div className={`text-[9px] font-semibold text-slate-700`}>
+        <div className={`text-[9px] font-semibold text-muted-foreground`}>
           Total: {formatCurrency(total)}
         </div>
       </CardHeader>
@@ -88,16 +88,16 @@ export const ComparacaoAtividades = memo(function ComparacaoAtividades({ ativida
               return (
                 <div
                   key={`atv-${i}`}
-                  className={`flex items-center justify-between p-2 rounded-lg bg-slate-50 hover:shadow-md transition-all duration-200`}
+                  className={`flex items-center justify-between p-2 rounded-lg bg-muted/50 hover:shadow-md transition-all duration-200`}
                 >
                   <div className="flex items-center gap-2">
                     <div className="w-4 h-4 rounded-full flex-shrink-0 shadow-sm" style={{ backgroundColor: ATIVIDADES_COLORS?.mercadorias || "#3b82f6" }} />
                     <div>
-                      <div className={`font-medium text-sm text-slate-800`}>{row.nome}</div>
-                      <div className={`text-xs text-slate-500`}>{pct.toFixed(5)}%</div>
+                      <div className={`font-medium text-sm text-card-foreground`}>{row.nome}</div>
+                      <div className={`text-xs text-muted-foreground`}>{pct.toFixed(5)}%</div>
                     </div>
                   </div>
-                  <div className={`font-bold text-sm text-slate-900`}>{formatCurrency(Number(row.valor || 0))}</div>
+                  <div className={`font-bold text-sm text-card-foreground`}>{formatCurrency(Number(row.valor || 0))}</div>
                 </div>
               )
             })}

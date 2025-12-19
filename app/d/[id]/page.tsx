@@ -5,6 +5,7 @@ import { headers, cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { PGDASDProcessor } from '@/components/pgdasd-processor'
 import { AdminAuthWrapper } from '@/components/admin-auth-wrapper'
+import { AnnualDashboard } from '@/app/unified-dashboard/components/AnnualDashboard'
 export const dynamic = 'force-dynamic'
 
 export default async function Page({ params, searchParams }: any) {
@@ -74,6 +75,14 @@ export default async function Page({ params, searchParams }: any) {
     calculos: (data as any)?.calculos ?? (data as any)?.dados?.calculos,
     metadata: (data as any)?.metadata,
   } : undefined
+
+  if ((data as any)?.isAnnual && (data as any)?.files) {
+    return (
+      <main className="min-h-screen bg-slate-50">
+        <AnnualDashboard files={(data as any).files} />
+      </main>
+    )
+  }
 
   return (
     <main className="px-6 py-4">

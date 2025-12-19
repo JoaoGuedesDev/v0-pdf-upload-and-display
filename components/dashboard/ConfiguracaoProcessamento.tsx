@@ -8,15 +8,17 @@ interface ConfiguracaoProcessamentoProps {
   onProcess: (files: File[], isAnnual: boolean) => Promise<void>
   loading?: boolean
   className?: string
+  initialIsAnnual?: boolean
 }
 
 export const ConfiguracaoProcessamento = memo(function ConfiguracaoProcessamento({ 
   onProcess, 
   loading = false, 
-  className = "" 
+  className = "",
+  initialIsAnnual = false
 }: ConfiguracaoProcessamentoProps) {
   const [files, setFiles] = useState<File[]>([])
-  const [isAnnual, setIsAnnual] = useState(false)
+  const [isAnnual, setIsAnnual] = useState(initialIsAnnual)
   const [dragActive, setDragActive] = useState(false)
   const [previewFile, setPreviewFile] = useState<{ url: string, index: number } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -109,14 +111,14 @@ export const ConfiguracaoProcessamento = memo(function ConfiguracaoProcessamento
 
   return (
     <Card
-      className={`border-2 border-dashed border-slate-300 bg-white/50 backdrop-blur-sm ${className}`}
+      className={`border-2 border-dashed border-border bg-card/50 backdrop-blur-sm ${className}`}
     >
-      <CardContent className="pt-6">
+      <CardContent className="p-4 sm:p-6">
         <div
-          className={`relative flex flex-col items-center justify-center rounded-lg p-6 sm:p-8 transition-all ${
+          className={`border-2 border-dashed rounded-lg p-6 sm:p-10 flex flex-col items-center justify-center transition-colors cursor-pointer ${
             dragActive
-              ? `bg-blue-50 border-2 border-blue-400`
-              : `bg-slate-50 border-2 border-slate-200`
+              ? `bg-blue-50/50 border-blue-400 dark:bg-blue-950/20`
+              : `bg-muted/30 border-muted-foreground/25 hover:bg-muted/50`
           }`}
           onDragEnter={handleDrag}
           onDragLeave={handleDrag}
@@ -126,18 +128,18 @@ export const ConfiguracaoProcessamento = memo(function ConfiguracaoProcessamento
           <Upload
             className={`h-8 w-8 sm:h-10 sm:w-10 mb-2 ${
               dragActive 
-                ? "text-blue-600" 
-                : "text-slate-400"
+                ? "text-blue-600 dark:text-blue-400" 
+                : "text-muted-foreground"
             }`}
           />
           <h3
-            className={`text-base sm:text-lg font-semibold mb-1 text-center break-words max-w-full text-slate-800`}
+            className={`text-base sm:text-lg font-semibold mb-1 text-center break-words max-w-full text-foreground`}
           >
             {files.length > 0 
               ? `${files.length} arquivo(s) selecionado(s)` 
               : "Arraste seus PDFs aqui"}
           </h3>
-          <p className={`text-slate-500 mb-2 text-sm`}>
+          <p className={`text-muted-foreground mb-2 text-sm`}>
             ou clique para selecionar (múltiplos permitidos)
           </p>
           
@@ -166,13 +168,13 @@ export const ConfiguracaoProcessamento = memo(function ConfiguracaoProcessamento
                   Adicionar Arquivos
                 </Button>
 
-                {files.length > 0 && (
-                  <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer select-none bg-slate-50 px-3 py-2 rounded-lg border hover:bg-slate-100 transition-colors">
+                {files.length > 0 && !isAnnual && (
+                  <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none bg-muted px-3 py-2 rounded-lg border border-border hover:bg-accent transition-colors opacity-0 pointer-events-none absolute">
                     <input 
                       type="checkbox" 
                       checked={isAnnual} 
                       onChange={(e) => setIsAnnual(e.target.checked)}
-                      className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      className="w-4 h-4 rounded border-input text-primary focus:ring-ring"
                     />
                     <span>Modo Anual (Juntar arquivos)</span>
                   </label>
@@ -184,7 +186,7 @@ export const ConfiguracaoProcessamento = memo(function ConfiguracaoProcessamento
                   onClick={handleProcess}
                   disabled={loading || (isAnnual && files.length < 2)}
                   size="sm"
-                  className={`bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 w-full sm:w-auto`}
+                  className={`bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white w-full sm:w-auto`}
                 >
                   {loading ? (
                     <>
@@ -205,22 +207,22 @@ export const ConfiguracaoProcessamento = memo(function ConfiguracaoProcessamento
             {files.map((file, index) => (
               <div 
                 key={index} 
-                className={`flex items-center justify-between p-2 bg-white rounded-lg border shadow-sm relative group cursor-pointer transition-colors ${
-                  previewFile?.index === index ? 'ring-2 ring-blue-500 border-transparent' : 'hover:border-blue-300'
+                className={`flex items-center justify-between p-2 bg-card rounded-lg border shadow-sm relative group cursor-pointer transition-colors ${
+                  previewFile?.index === index ? 'ring-2 ring-primary border-transparent' : 'border-border hover:border-primary/50'
                 }`}
                 onClick={() => togglePreview(file, index)}
               >
                 <div className="flex items-center gap-3 overflow-hidden">
-                  <FileText className="h-4 w-4 text-blue-600 flex-shrink-0" />
-                  <span className="text-sm font-medium truncate">{file.name}</span>
-                  <span className="text-xs text-slate-400 flex-shrink-0">
+                  <FileText className="h-4 w-4 text-primary flex-shrink-0" />
+                  <span className="text-sm font-medium truncate text-card-foreground">{file.name}</span>
+                  <span className="text-xs text-muted-foreground flex-shrink-0">
                     {(file.size / 1024).toFixed(1)} KB
                   </span>
                 </div>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-6 w-6 text-slate-400 hover:text-red-500 z-10"
+                  className="h-6 w-6 text-muted-foreground hover:text-destructive z-10"
                   onClick={(e) => {
                     e.stopPropagation()
                     removeFile(index)
@@ -233,19 +235,19 @@ export const ConfiguracaoProcessamento = memo(function ConfiguracaoProcessamento
                 {previewFile?.index === index && (
                   <>
                     <div 
-                      className="fixed inset-0 z-[90] bg-black/20 backdrop-blur-sm"
+                      className="fixed inset-0 z-[90] bg-background/80 backdrop-blur-sm"
                       onClick={(e) => {
                         e.stopPropagation()
                         togglePreview(file, index)
                       }}
                     />
-                    <div className="fixed z-[100] right-10 top-1/2 -translate-y-1/2 p-2 bg-white rounded-lg shadow-2xl border-2 border-slate-200 w-[600px] h-[85vh] hidden lg:block" onClick={(e) => e.stopPropagation()}>
-                      <div className="absolute -left-3 top-1/2 -translate-y-1/2 w-0 h-0 border-t-[10px] border-t-transparent border-r-[12px] border-r-slate-200 border-b-[10px] border-b-transparent drop-shadow-sm"></div>
-                      <div className="w-full h-full bg-slate-100 rounded overflow-hidden relative">
+                    <div className="fixed z-[100] right-10 top-1/2 -translate-y-1/2 p-2 bg-card rounded-lg shadow-2xl border border-border w-[600px] h-[85vh] hidden lg:block" onClick={(e) => e.stopPropagation()}>
+                      <div className="absolute -left-3 top-1/2 -translate-y-1/2 w-0 h-0 border-t-[10px] border-t-transparent border-r-[12px] border-r-border border-b-[10px] border-b-transparent drop-shadow-sm"></div>
+                      <div className="w-full h-full bg-muted rounded overflow-hidden relative">
                         <Button 
                           variant="secondary" 
                           size="icon" 
-                          className="absolute top-2 right-2 z-10 h-8 w-8 bg-white/80 hover:bg-white shadow-sm"
+                          className="absolute top-2 right-2 z-10 h-8 w-8 bg-background/80 hover:bg-background shadow-sm"
                           onClick={(e) => {
                             e.stopPropagation()
                             togglePreview(file, index)

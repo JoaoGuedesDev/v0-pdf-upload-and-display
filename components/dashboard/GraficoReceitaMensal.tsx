@@ -4,6 +4,7 @@
  */
 
 import { useMemo, memo } from 'react';
+import { useTheme } from "next-themes"
 import { Bar } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -172,7 +173,10 @@ export const GraficoReceitaMensal = memo(function GraficoReceitaMensal({
     return { labels: labelsSorted, datasets };
   })();
 
-  const options: ChartOptions<'bar'> = ({
+  const { resolvedTheme } = useTheme()
+  const isDark = resolvedTheme === "dark"
+
+  const options: ChartOptions<'bar'> = useMemo(() => ({
     ...CHART_CONFIG,
     responsive: true,
     maintainAspectRatio: false,
@@ -199,23 +203,26 @@ export const GraficoReceitaMensal = memo(function GraficoReceitaMensal({
         },
         labels: {
           ...CHART_CONFIG.plugins.legend.labels,
+          color: isDark ? '#94a3b8' : '#64748b',
           generateLabels: (chart) => {
             const getHidden = (i: number) => {
               const ds: any = chart.data?.datasets?.[i]
               return !!(ds && ds.hidden)
             }
             return [
-              { text: 'Mercado Externo', fillStyle: '#8b5cf6', strokeStyle: '#8b5cf6', hidden: getHidden(0), datasetIndex: 0 },
-              { text: 'Mercado Interno', fillStyle: '#3b82f6', strokeStyle: '#3b82f6', hidden: getHidden(1), datasetIndex: 1 },
+              { text: 'Mercado Externo', fillStyle: '#8b5cf6', strokeStyle: '#8b5cf6', hidden: getHidden(0), datasetIndex: 0, fontColor: isDark ? '#e2e8f0' : '#1e293b' },
+              { text: 'Mercado Interno', fillStyle: '#3b82f6', strokeStyle: '#3b82f6', hidden: getHidden(1), datasetIndex: 1, fontColor: isDark ? '#e2e8f0' : '#1e293b' },
             ] as any
           },
         },
       },
       tooltip: {
         padding: 10,
-        backgroundColor: 'rgba(255,255,255,0.95)',
-        borderColor: '#e2e8f0',
+        backgroundColor: isDark ? 'rgba(2, 8, 23, 0.95)' : 'rgba(255,255,255,0.95)',
+        borderColor: isDark ? '#1e293b' : '#e2e8f0',
         borderWidth: 1,
+        titleColor: isDark ? '#f8fafc' : '#0f172a',
+        bodyColor: isDark ? '#f8fafc' : '#0f172a',
         callbacks: {
           label: (context: any) => {
             const label = String(context.dataset?.label || '')
@@ -243,8 +250,8 @@ export const GraficoReceitaMensal = memo(function GraficoReceitaMensal({
         rotation: -30,
         color: (ctx: Context) => {
           const isExterno = (ctx?.datasetIndex ?? 0) === 0
-          if (isExterno) return '#200466ff'
-          return '#0e0e0fff'
+          if (isExterno) return isDark ? '#a78bfa' : '#200466ff'
+          return isDark ? '#e2e8f0' : '#0e0e0fff'
         },
         font: { size: 11, weight: 600 },
         formatter: (value: unknown, ctx: Context) => {
@@ -299,15 +306,19 @@ export const GraficoReceitaMensal = memo(function GraficoReceitaMensal({
         ...CHART_CONFIG.scales.x,
         stacked: true,
         ticks: {
-          color: '#111827',
+          color: isDark ? '#94a3b8' : '#111827',
           padding: 16,
         },
+        grid: { display: false }
       },
       y: {
         ...CHART_CONFIG.scales.y,
         stacked: true,
+        grid: {
+          color: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+        },
         ticks: {
-          color: '#111827',
+          color: isDark ? '#94a3b8' : '#111827',
           callback: function(value) {
             return 'R$ ' + new Intl.NumberFormat('pt-BR', {
               minimumFractionDigits: 0,
@@ -317,7 +328,7 @@ export const GraficoReceitaMensal = memo(function GraficoReceitaMensal({
         },
       },
     },
-  });
+  }), [resolvedTheme, isDark]);
 
   if (!data || chartData.labels.length === 0) {
     return (

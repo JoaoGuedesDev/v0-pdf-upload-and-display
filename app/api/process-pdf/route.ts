@@ -8,6 +8,7 @@ import fs from "node:fs"
 import path from "node:path"
 import crypto from "node:crypto"
 import { saveDashboard, computeOwnerSecret } from "@/lib/store"
+import { saveUploadedFile } from "@/lib/file-storage"
 
 // Configuração para encaminhar ao n8n (default apontando para seu endpoint)
 const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL || "https://valere-tech.up.railway.app/webhook/processar-pgdasd"
@@ -224,6 +225,14 @@ export async function POST(request: NextRequest) {
       }
 
       const dasData = processDasData(text)
+      
+      // Save file to organized storage
+      const cnpj = dasData.cabecalho?.identificacao?.cnpj || 'unknown'
+      const period = dasData.cabecalho?.periodo?.apuracao || dasData.cabecalho?.periodo?.fim || 'unknown'
+      if (file) {
+          await saveUploadedFile(file, 'monthly', cnpj, period)
+      }
+
       const share = await persistShare(dasData)
       const origin = getOrigin(request)
       const pdfUrl = `${origin}/api/pdf?path=${encodeURIComponent(share.url)}&type=print&w=1280&scale=1`
