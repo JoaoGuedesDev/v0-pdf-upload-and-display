@@ -2,6 +2,27 @@ import { memo, useMemo, useState } from "react"
 import { DollarSign, FileText, TrendingUp } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { formatCurrency } from "@/lib/utils"
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+} from 'chart.js'
+import { Bar } from 'react-chartjs-2'
+import ChartDataLabels from 'chartjs-plugin-datalabels'
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+  ChartDataLabels
+)
 
 interface ReceitasData {
   receitaPA: number
@@ -54,13 +75,15 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
   
 
   const aliquotaItems = useMemo(() => {
+    if (Array.isArray(porAnexoItems) && porAnexoItems.length > 0) return porAnexoItems
     const c: any = calculos || {}
     const arr: any[] = (
       Array.isArray(c?.analise_aliquota?.detalhe) ? c.analise_aliquota.detalhe :
+      Array.isArray(c?.analiseAliquota?.detalhe) ? c.analiseAliquota.detalhe :
       []
     )
     return arr
-  }, [calculos])
+  }, [calculos, porAnexoItems])
 
   const simulacaoTodosAnexos = useMemo(() => {
     const c: any = calculos || {}
@@ -579,62 +602,173 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
     return 0
   }, [receitaPA, totalDAS])
 
+  const mediaReceita = useMemo(() => {
+    const rbt = rbt12Valor
+    return rbt > 0 ? rbt / 12 : 0
+  }, [rbt12Valor])
+
+  const chartData = useMemo(() => {
+    const s = servicosBrutoPA
+    const m = mercadoriasBrutoPA
+    if (s <= 0 && m <= 0) return null
+    
+    return {
+      labels: ['Serviços', 'Mercadorias'],
+      datasets: [{
+        label: 'Receita',
+        data: [s, m],
+        backgroundColor: ['#6366f1', '#3b82f6'],
+        borderRadius: 4,
+        barThickness: 24,
+      }]
+    }
+  }, [servicosBrutoPA, mercadoriasBrutoPA])
+
+  const chartOptions = useMemo(() => ({
+    indexAxis: 'y' as const,
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      datalabels: {
+        color: '#020617',
+        formatter: (val: number) => formatCurrency(val),
+        anchor: 'end' as const,
+        align: 'end' as const,
+        font: { weight: 'bold' as const, size: 11 },
+        display: (ctx: any) => {
+            return ctx.dataset.data[ctx.dataIndex] > 0
+        }
+      },
+      tooltip: {
+        callbacks: {
+            label: function(context: any) {
+                let label = context.dataset.label || '';
+                if (label) {
+                    label += ': ';
+                }
+                if (context.parsed.x !== null) {
+                    label += formatCurrency(context.parsed.x);
+                }
+                return label;
+            }
+        }
+      }
+    },
+    scales: {
+      x: { 
+        display: false, 
+        grid: { display: false },
+        max: Math.max(servicosBrutoPA, mercadoriasBrutoPA) * 1.35
+      },
+      y: { 
+        grid: { display: false }, 
+        ticks: { font: { weight: 'bold' as const, size: 12 }, color: '#020617' } 
+      }
+    },
+    layout: { padding: { right: 20 } }
+  }), [servicosBrutoPA, mercadoriasBrutoPA])
+
   if (!receitas || !calculos) return null
 
   return (
-    <div className={`grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-2 ${className}`}>
+    <div className={`flex flex-col gap-4 ${className}`}>
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-2 sm:gap-2">
       {/* Receita Bruta PA - Azul escuro */}
-      <Card className="bg-gradient-to-br from-slate-700 to-slate-800 dark:from-slate-800 dark:to-slate-900 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200 py-1 rounded-2xl">
+      <Card className="h-full bg-gradient-to-br from-slate-700 to-slate-800 dark:from-slate-800 dark:to-slate-900 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200 py-1 rounded-2xl flex flex-col justify-between">
         <CardHeader className="pb-0.5 p-1 sm:p-2 flex flex-row items-center justify-between space-y-0">
           <CardTitle className="text-[12px] sm:text-sm font-semibold tracking-tight">Receita Bruta PA</CardTitle>
           <DollarSign className="h-4 w-4 text-slate-200" />
         </CardHeader>
-        <CardContent className="p-1 sm:p-2 pt-0">
-          <div className="flex flex-col gap-1 mb-1">
-            {servicosBrutoPA > 0 && (
-              <span className="inline-flex items-center rounded-full bg-white/10 text-white px-2 py-0.5 text-[10px] font-semibold">
-                Serviços: {formatCurrency(servicosBrutoPA)}
-              </span>
-            )}
-            {mercadoriasBrutoPA > 0 && (
-              <span className="inline-flex items-center rounded-full bg-white/10 text-white px-2 py-0.5 text-[10px] font-semibold">
-                Mercadorias: {formatCurrency(mercadoriasBrutoPA)}
-              </span>
-            )}
+        <CardContent className="p-1 sm:p-2 pt-0 flex flex-col justify-between flex-1">
+          <div>
+            <div className="flex flex-col gap-1 mb-1 min-h-[42px] justify-end">
+              {servicosBrutoPA > 0 && (
+                <span className="inline-flex items-center rounded-full bg-white/10 text-white px-2 py-0.5 text-[10px] font-semibold w-fit">
+                  Serviços: {formatCurrency(servicosBrutoPA)}
+                </span>
+              )}
+              {mercadoriasBrutoPA > 0 && (
+                <span className="inline-flex items-center rounded-full bg-white/10 text-white px-2 py-0.5 text-[10px] font-semibold w-fit">
+                  Mercadorias: {formatCurrency(mercadoriasBrutoPA)}
+                </span>
+              )}
+            </div>
+            <p className="text-lg sm:text-xl font-bold break-words tracking-tight">{formatCurrency(receitaPA)}</p>
           </div>
-          <p className="text-lg sm:text-xl font-bold break-words tracking-tight">{formatCurrency(receitaPA)}</p>
-          <p className="text-[10px] sm:text-[11px] opacity-85 mt-1 flex items-center gap-1">
-            <span className="inline-block w-3 h-3 rounded-full bg-slate-400" /> Período de apuração
-          </p>
+          <div>
+            <div className="flex items-center justify-between mt-1">
+               <p className="text-[10px] sm:text-[11px] opacity-85 flex items-center gap-1">
+                  <span className="inline-block w-3 h-3 rounded-full bg-slate-400" /> Período
+               </p>
+            </div>
+            <div className="mt-2 pt-1 border-t border-white/10 flex justify-between items-center">
+               <span className="text-[10px] opacity-75">Média 12 meses</span>
+               <span className="text-[11px] font-semibold">{formatCurrency(mediaReceita)}</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Receita Bruta Total (RBA) - Branco com texto verde */}
+      <Card className="h-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-lg hover:shadow-xl transition-all duration-200 py-1 rounded-2xl flex flex-col justify-between">
+        <CardHeader className="pb-0.5 p-1 sm:p-2 flex flex-row items-center justify-between space-y-0">
+          <CardTitle className="text-[12px] sm:text-sm font-semibold tracking-tight text-slate-600 dark:text-slate-400">Receita Bruta Total</CardTitle>
+          <DollarSign className="h-4 w-4 text-emerald-600" />
+        </CardHeader>
+        <CardContent className="p-1 sm:p-2 pt-0 flex flex-col justify-between flex-1">
+          <div>
+            <div className="flex flex-col gap-1 mb-1 min-h-[42px] justify-end">
+               {/* Spacer to align with other cards if they have badges */}
+            </div>
+            <p className="text-lg sm:text-xl font-bold break-words tracking-tight text-emerald-600">{formatCurrency(receitas?.rba || 0)}</p>
+          </div>
+          <div>
+            <div className="flex items-center justify-between mt-1">
+               <p className="text-[10px] sm:text-[11px] opacity-85 flex items-center gap-1 text-slate-500">
+                  <span className="inline-block w-3 h-3 rounded-full bg-emerald-200" /> Acumulado Ano
+               </p>
+            </div>
+            <div className="mt-2 pt-1 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center opacity-0 pointer-events-none">
+               <span className="text-[10px]">Spacer</span>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
       {/* Total DAS - Azul médio */}
-      <Card className="bg-gradient-to-br from-blue-600 to-blue-700 dark:from-blue-700 dark:to-blue-900 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200 rounded-2xl">
+      <Card className="h-full bg-gradient-to-br from-blue-600 to-blue-700 dark:from-blue-700 dark:to-blue-900 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200 rounded-2xl flex flex-col justify-between">
         <CardHeader className="pb-0.5 p-1 sm:p-2 flex flex-row items-center justify-between space-y-0">
           <CardTitle className="text-[12px] sm:text-sm font-semibold tracking-tight">Total DAS</CardTitle>
           <FileText className="h-4 w-4 text-blue-100" />
         </CardHeader>
-        <CardContent className="p-1 sm:p-2 pt-0">
-          <div className="flex flex-col gap-1 mb-1">
-            {servicosTotal > 0 && (
-              <span className="inline-flex items-center rounded-full bg-white/15 text-white px-2 py-0.5 text-[10px] font-semibold">
-                Serviços: {formatCurrency(servicosTotal)}
-              </span>
-            )}
-            {mercadoriasTotal > 0 && (
-              <span className="inline-flex items-center rounded-full bg-white/15 text-white px-2 py-0.5 text-[10px] font-semibold">
-                Mercadorias: {formatCurrency(mercadoriasTotal)}
-              </span>
-            )}
+        <CardContent className="p-1 sm:p-2 pt-0 flex flex-col justify-between flex-1">
+          <div>
+            <div className="flex flex-col gap-1 mb-1 min-h-[42px] justify-end">
+              {servicosTotal > 0 && (
+                <span className="inline-flex items-center rounded-full bg-white/15 text-white px-2 py-0.5 text-[10px] font-semibold w-fit">
+                  Serviços: {formatCurrency(servicosTotal)}
+                </span>
+              )}
+              {mercadoriasTotal > 0 && (
+                <span className="inline-flex items-center rounded-full bg-white/15 text-white px-2 py-0.5 text-[10px] font-semibold w-fit">
+                  Mercadorias: {formatCurrency(mercadoriasTotal)}
+                </span>
+              )}
+            </div>
+            <p className="text-lg sm:text-xl font-bold break-words tracking-tight">{formatCurrency(totalDAS)}</p>
           </div>
-          <p className="text-lg sm:text-xl font-bold break-words tracking-tight">{formatCurrency(totalDAS)}</p>
-          <p className="text-[10px] sm:text-[11px] opacity-85 mt-1">Total de tributos pagos</p>
+          <div>
+             <p className="text-[10px] sm:text-[11px] opacity-85 mt-1">Total de tributos pagos</p>
+             <div className="mt-2 pt-1 border-t border-white/10 flex justify-between items-center opacity-0 pointer-events-none">
+                <span className="text-[10px]">Spacer</span>
+             </div>
+          </div>
         </CardContent>
       </Card>
 
       {/* Alíquota do Período Atual - Laranja */}
-      <Card className="bg-gradient-to-br from-orange-500 to-orange-600 dark:from-orange-600 dark:to-orange-800 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200 py-1 rounded-2xl">
+      <Card className="h-full bg-gradient-to-br from-orange-500 to-orange-600 dark:from-orange-600 dark:to-orange-800 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200 py-1 rounded-2xl flex flex-col">
         <CardHeader className="pb-0.5 p-1 sm:p-2 flex flex-row items-center justify-between space-y-0">
           <CardTitle className="text-[12px] sm:text-sm font-semibold tracking-tight">Alíquota {currentPeriodoLabel}</CardTitle>
           <TrendingUp className="h-4 w-4 text-orange-100" />
@@ -658,7 +792,7 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
       </Card>
 
       {/* Alíquota do Próximo Mês - Roxo */}
-      <Card className="bg-gradient-to-br from-purple-600 to-purple-700 dark:from-purple-700 dark:to-purple-900 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200 py-1 rounded-2xl">
+      <Card className="h-full bg-gradient-to-br from-purple-600 to-purple-700 dark:from-purple-700 dark:to-purple-900 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200 py-1 rounded-2xl flex flex-col">
         <CardHeader className="pb-0.5 p-1 sm:p-2 flex flex-row items-center justify-between">
           <CardTitle className="text-[12px] sm:text-sm font-semibold tracking-tight">Alíquota {nextPeriodoLabel}</CardTitle>
         </CardHeader>
@@ -679,6 +813,18 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
           </div>
         </CardContent>
       </Card>
+      </div>
+
+      {chartData && (
+        <Card className="border shadow-sm rounded-xl dark:border-slate-700 dark:bg-slate-900">
+            <CardHeader className="py-2 px-4 border-b bg-slate-50/50 dark:bg-slate-800/50 dark:border-slate-700">
+                <CardTitle className="text-sm font-medium text-slate-700 dark:text-slate-200">Comparativo de Receitas (Serviços x Mercadorias)</CardTitle>
+            </CardHeader>
+            <CardContent className="p-4 h-[140px]">
+                <Bar data={chartData} options={chartOptions} />
+            </CardContent>
+        </Card>
+      )}
     </div>
   )
 })

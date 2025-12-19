@@ -15,6 +15,10 @@ export default function UnifiedDashboardPage() {
   const [viewMode, setViewMode] = useState<'selection' | 'monthly' | 'annual'>('selection')
   const [selectedMonthIndex, setSelectedMonthIndex] = useState<number>(0)
 
+  const handleFilesUpdated = (newFiles: MonthlyFile[]) => {
+    setFiles(newFiles)
+  }
+
   useEffect(() => {
     async function loadData() {
       try {
@@ -40,6 +44,7 @@ export default function UnifiedDashboardPage() {
         currentIndex={selectedMonthIndex}
         onNavigate={setSelectedMonthIndex}
         onBack={() => setViewMode('selection')}
+        onFilesUpdated={handleFilesUpdated}
       />
     )
   }
@@ -49,6 +54,7 @@ export default function UnifiedDashboardPage() {
       <AnnualDashboard
         files={files}
         onBack={() => setViewMode('selection')}
+        onFilesUpdated={handleFilesUpdated}
       />
     )
   }

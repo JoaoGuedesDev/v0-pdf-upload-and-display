@@ -76,6 +76,12 @@ export async function POST(request: NextRequest) {
                             const json = JSON.parse(bodyText)
                             if (json && typeof json === 'object' && ('dados' in json)) {
                                 parsed = json
+                                // Validate if N8N returned the new detalhe structure
+                                const hasDetalhe = Array.isArray(parsed.dados?.calculos?.analise_aliquota?.detalhe) && parsed.dados.calculos.analise_aliquota.detalhe.length > 0
+                                if (!hasDetalhe) {
+                                    console.warn("[parser] N8N result missing detalhe, falling back to local processing")
+                                    parsed = null
+                                }
                             } else {
                                 parsed = processDasData(JSON.stringify(json))
                             }

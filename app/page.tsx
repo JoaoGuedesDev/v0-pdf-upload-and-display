@@ -1,9 +1,9 @@
 "use client"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { ConfiguracaoProcessamento } from "@/components/dashboard/ConfiguracaoProcessamento"
-import { ArrowLeft, FileText, Calendar, ExternalLink, CheckCircle, XCircle } from "lucide-react"
+import { ArrowLeft, FileText, Calendar, ExternalLink, CheckCircle, XCircle, Clock, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ModeToggle } from "@/components/mode-toggle"
 import { HeaderLogo } from '@/components/header-logo'
@@ -18,17 +18,50 @@ interface ProcessResult {
   file?: File
 }
 
+interface HistoryItem {
+  id: string
+  filename: string
+  url: string
+  date: string
+  type: 'monthly' | 'annual'
+}
+
 export default function Home() {
   const [loading, setLoading] = useState(false)
   const [results, setResults] = useState<ProcessResult[]>([])
   const [step, setStep] = useState<'selection' | 'upload'>('selection')
   const [selectedMode, setSelectedMode] = useState<'monthly' | 'annual'>('monthly')
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [history, setHistory] = useState<HistoryItem[]>([])
 
   // Correction Mode State
   const [correctionMode, setCorrectionMode] = useState(false)
   const [filesToCorrect, setFilesToCorrect] = useState<File[]>([])
   const [validationDetails, setValidationDetails] = useState<any>(null)
+
+  useEffect(() => {
+    const saved = localStorage.getItem('pgdas_history')
+    if (saved) {
+      try {
+        setHistory(JSON.parse(saved))
+      } catch {}
+    }
+  }, [])
+
+  const addToHistory = (item: Omit<HistoryItem, 'id'>) => {
+    setHistory(prev => {
+      // Filter out duplicates by URL to avoid clutter
+      const filtered = prev.filter(p => p.url !== item.url)
+      const newHistory = [{ ...item, id: Date.now().toString() }, ...filtered].slice(0, 10)
+      localStorage.setItem('pgdas_history', JSON.stringify(newHistory))
+      return newHistory
+    })
+  }
+
+  const clearHistory = () => {
+    setHistory([])
+    localStorage.removeItem('pgdas_history')
+  }
 
   const handleSelection = (mode: 'monthly' | 'annual') => {
     setSelectedMode(mode)
@@ -109,6 +142,13 @@ export default function Home() {
                 status: 'success', 
                 url: target 
             }])
+
+            addToHistory({
+                filename: `Dashboard Anual - ${data.cabecalho?.periodo?.apuracao || 'Ano Completo'}`,
+                url: target,
+                date: new Date().toLocaleString('pt-BR'),
+                type: 'annual'
+            })
             
             // Open in preview mode instead of redirecting
             setPreviewUrl(target)
@@ -126,6 +166,12 @@ export default function Home() {
     if (files.length === 1) {
       const res = await processFile(files[0])
       if (res.url) {
+        addToHistory({
+            filename: files[0].name,
+            url: res.url,
+            date: new Date().toLocaleString('pt-BR'),
+            type: 'monthly'
+        })
         setPreviewUrl(res.url)
         return
       }
@@ -144,6 +190,15 @@ export default function Home() {
     for (let i = 0; i < files.length; i++) {
         const file = files[i]
         const res = await processFile(file)
+        
+        if (res.url) {
+            addToHistory({
+                filename: file.name,
+                url: res.url,
+                date: new Date().toLocaleString('pt-BR'),
+                type: 'monthly'
+            })
+        }
         
         setResults(prev => {
             const next = [...prev]
@@ -215,7 +270,8 @@ export default function Home() {
 
         {results.length === 0 ? (
           step === 'selection' ? (
-            <div className="grid md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+            <div className="space-y-12 max-w-4xl mx-auto">
+                <div className="grid md:grid-cols-2 gap-6">
               <Card 
                 className={cn(
                   "p-8 cursor-pointer transition-all hover:shadow-lg hover:border-blue-300 group relative overflow-hidden",
@@ -257,6 +313,47 @@ export default function Home() {
                   </div>
                 </div>
               </Card>
+            </div>
+
+            {history.length > 0 && (
+                <div className="w-full">
+                    <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-xl font-semibold text-foreground flex items-center gap-2">
+                            <Clock className="w-5 h-5" />
+                            Últimos Processamentos
+                        </h2>
+                        <Button variant="ghost" size="sm" onClick={clearHistory} className="text-red-500 hover:text-red-600 hover:bg-red-50">
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            Limpar Histórico
+                        </Button>
+                    </div>
+                    <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
+                        <div className="divide-y divide-border">
+                            {history.map((item) => (
+                                <div key={item.id} className="p-4 hover:bg-muted/50 flex items-center justify-between group transition-colors">
+                                    <div className="flex items-center gap-3">
+                                        <div className={cn(
+                                            "w-10 h-10 rounded-full flex items-center justify-center shrink-0",
+                                            item.type === 'annual' ? "bg-purple-100 text-purple-600" : "bg-blue-100 text-blue-600"
+                                        )}>
+                                            {item.type === 'annual' ? <FileText className="w-5 h-5" /> : <Calendar className="w-5 h-5" />}
+                                        </div>
+                                        <div>
+                                            <p className="font-medium text-foreground">{item.filename}</p>
+                                            <p className="text-xs text-muted-foreground">{item.date}</p>
+                                        </div>
+                                    </div>
+                                    <Button asChild variant="outline" size="sm" className="opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <a href={item.url} target="_blank" rel="noopener noreferrer">
+                                            Abrir <ExternalLink className="w-3 h-3 ml-2" />
+                                        </a>
+                                    </Button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
             </div>
           ) : (
              <div className="max-w-2xl mx-auto space-y-4">

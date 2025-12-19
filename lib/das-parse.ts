@@ -334,7 +334,79 @@ export function processDasData(textRaw: string) {
                 rbt12_original: rbt12_original_calc,
                 rbt12_atual: rbt12_atual_calc,
               }
-              return { meta }
+
+              // Inferir Anexo para atividades (JSON)
+              const detalhe = []
+              const grupos: Record<number, any[]> = {}
+              const acts = Array.isArray(atividades) ? atividades : []
+              
+              if (acts.length === 0) {
+                  const anexo = cenario === 'mercadorias' ? 1 : 3
+                  grupos[anexo] = [{ nome: 'Atividade Geral', tributos: tribDecl, receita_bruta_informada: rpaTotal }]
+              } else {
+                  for(const at of acts) {
+                      const n = String(at.nome || at.name || at.descricao || '').toLowerCase()
+                      const t = at.tributos || {}
+                      let anexo = 3
+                      const icms = toNumber(t.icms)
+                      const iss = toNumber(t.iss)
+                      
+                      if (icms > 0) anexo = 1
+                      else if (iss > 0) anexo = 3
+                      else if (n.includes('comercio') || n.includes('revenda')) anexo = 1
+                      else if (n.includes('industrial')) anexo = 2
+                      else if (n.includes('servico') || n.includes('presta')) anexo = 3
+                      
+                      if (!grupos[anexo]) grupos[anexo] = []
+                      grupos[anexo].push(at)
+                  }
+              }
+
+              for (const [anexoStr, groupActs] of Object.entries(grupos)) {
+                  const anexo = Number(anexoStr)
+                  const fxOrig = pickFaixa(anexo, rbt12_original_calc)
+                  const fxAtual = pickFaixa(anexo, rbt12_atual_calc)
+                  
+                  const parcelas_ajuste = groupActs.map(at => {
+                      const valor = toNumber(at.receita_bruta_informada) || 0
+                      const nome = at.nome || at.name || at.descricao || ''
+                      return {
+                          tipo_regra: 'geral',
+                          nome: nome,
+                          atividade_nome: nome,
+                          descricao: nome,
+                          valor: valor,
+                          aliquota_efetiva_original_percent: (fxOrig?.aliquota_efetiva || 0) * 100,
+                          aliquota_efetiva_atual_percent: (fxAtual?.aliquota_efetiva || 0) * 100,
+                          aliquota_efetiva_original_sem_iss_percent: (fxOrig?.aliquota_efetiva || 0) * 100, 
+                          aliquota_efetiva_atual_sem_iss_percent: (fxAtual?.aliquota_efetiva || 0) * 100
+                      }
+                  })
+
+                  detalhe.push({
+                      anexo,
+                      faixa_original: { faixa: fxOrig?.faixa },
+                      faixa_atual: { faixa: fxAtual?.faixa },
+                      rbt12_original: rbt12_original_calc,
+                      rbt12_atual: rbt12_atual_calc,
+                      parcelas_ajuste
+                  })
+              }
+
+              const simulacao_todos_anexos = [1, 2, 3, 4, 5].map(anexo => {
+                 const res = pickFaixa(anexo, rbt12_atual_calc)
+                 if (!res) return null
+                 return {
+                   anexo,
+                   faixa: res.faixa,
+                   aliquota_nominal: res.aliquota_nominal,
+                   deducao: res.valor_deduzir,
+                   aliquota_efetiva: res.aliquota_efetiva,
+                   aliquota_efetiva_percent: res.aliquota_efetiva * 100
+                 }
+              }).filter(Boolean)
+
+              return { meta, simulacao_todos_anexos, detalhe }
             })(),
           },
           historico: {
@@ -787,7 +859,182 @@ export function processDasData(textRaw: string) {
       valorTotalDAS: valorDAS,
       valorTotalDASFormatado: moneyBR(valorDAS),
       calculos: {
+        aliquotaEfetiva: +aliquotaEfetiva.toFixed(1),
+        aliquotaEfetivaFormatada: formatPercent1(aliquotaEfetiva),
         margemLiquida: +margemLiquida.toFixed(3),
+        analise_aliquota: (() => {
+          const tabelaFaixas: Record<number, { faixa: number; min: number; max: number; aliquota_nominal: number; valor_deduzir: number }[]> = {
+            1: [
+              { faixa: 1, min: 0, max: 180000, aliquota_nominal: 0.04, valor_deduzir: 0 },
+              { faixa: 2, min: 180000.01, max: 360000, aliquota_nominal: 0.073, valor_deduzir: 5940 },
+              { faixa: 3, min: 360000.01, max: 720000, aliquota_nominal: 0.095, valor_deduzir: 13860 },
+              { faixa: 4, min: 720000.01, max: 1800000, aliquota_nominal: 0.107, valor_deduzir: 22500 },
+              { faixa: 5, min: 1800000.01, max: 3600000, aliquota_nominal: 0.143, valor_deduzir: 87300 },
+              { faixa: 6, min: 3600000.01, max: 4800000, aliquota_nominal: 0.19, valor_deduzir: 378000 },
+            ],
+            2: [
+              { faixa: 1, min: 0, max: 180000, aliquota_nominal: 0.045, valor_deduzir: 0 },
+              { faixa: 2, min: 180000.01, max: 360000, aliquota_nominal: 0.078, valor_deduzir: 5940 },
+              { faixa: 3, min: 360000.01, max: 720000, aliquota_nominal: 0.10, valor_deduzir: 13860 },
+              { faixa: 4, min: 720000.01, max: 1800000, aliquota_nominal: 0.112, valor_deduzir: 22500 },
+              { faixa: 5, min: 1800000.01, max: 3600000, aliquota_nominal: 0.147, valor_deduzir: 85500 },
+              { faixa: 6, min: 3600000.01, max: 4800000, aliquota_nominal: 0.30, valor_deduzir: 720000 },
+            ],
+            3: [
+              { faixa: 1, min: 0, max: 180000, aliquota_nominal: 0.06, valor_deduzir: 0 },
+              { faixa: 2, min: 180000.01, max: 360000, aliquota_nominal: 0.112, valor_deduzir: 9360 },
+              { faixa: 3, min: 360000.01, max: 720000, aliquota_nominal: 0.135, valor_deduzir: 17640 },
+              { faixa: 4, min: 720000.01, max: 1800000, aliquota_nominal: 0.16, valor_deduzir: 35640 },
+              { faixa: 5, min: 1800000.01, max: 3600000, aliquota_nominal: 0.21, valor_deduzir: 125640 },
+              { faixa: 6, min: 3600000.01, max: 4800000, aliquota_nominal: 0.33, valor_deduzir: 648000 },
+            ],
+            4: [
+              { faixa: 1, min: 0, max: 180000, aliquota_nominal: 0.045, valor_deduzir: 0 },
+              { faixa: 2, min: 180000.01, max: 360000, aliquota_nominal: 0.09, valor_deduzir: 8100 },
+              { faixa: 3, min: 360000.01, max: 720000, aliquota_nominal: 0.102, valor_deduzir: 12420 },
+              { faixa: 4, min: 720000.01, max: 1800000, aliquota_nominal: 0.14, valor_deduzir: 39780 },
+              { faixa: 5, min: 1800000.01, max: 3600000, aliquota_nominal: 0.22, valor_deduzir: 183780 },
+              { faixa: 6, min: 3600000.01, max: 4800000, aliquota_nominal: 0.33, valor_deduzir: 828000 },
+            ],
+            5: [
+              { faixa: 1, min: 0, max: 180000, aliquota_nominal: 0.155, valor_deduzir: 0 },
+              { faixa: 2, min: 180000.01, max: 360000, aliquota_nominal: 0.18, valor_deduzir: 4500 },
+              { faixa: 3, min: 360000.01, max: 720000, aliquota_nominal: 0.195, valor_deduzir: 9900 },
+              { faixa: 4, min: 720000.01, max: 1800000, aliquota_nominal: 0.205, valor_deduzir: 17100 },
+              { faixa: 5, min: 1800000.01, max: 3600000, aliquota_nominal: 0.23, valor_deduzir: 62100 },
+              { faixa: 6, min: 3600000.01, max: 4800000, aliquota_nominal: 0.305, valor_deduzir: 540000 },
+            ],
+          }
+          const pickFaixa = (anexo: number, rbt12Val: number) => {
+            const table = tabelaFaixas[anexo] || []
+            // Busca a primeira faixa onde o valor cabe no teto (max)
+            // Isso resolve problemas de "buracos" decimais (ex: 180000.005)
+            let f = table.find((fx) => rbt12Val <= fx.max)
+            
+            // Se não encontrou e a tabela existe, pode ser que excedeu o teto máximo
+            if (!f && table.length > 0) {
+               if (rbt12Val > table[table.length - 1].max) f = table[table.length - 1]
+               // Se for negativo (improvável), cairia no find acima (pois é <= max da primeira faixa),
+               // mas por segurança podemos forçar a primeira faixa se não achou nada e é menor que o min
+               else if (rbt12Val < table[0].min) f = table[0]
+            }
+            
+            if (!f) return undefined as any
+            const aliqEfetiva = rbt12Val > 0 ? ((f.aliquota_nominal * rbt12Val) - f.valor_deduzir) / rbt12Val : f.aliquota_nominal
+            return { ...f, aliquota_efetiva: aliqEfetiva }
+          }
+
+          const parseMes = (s: string) => {
+            const [mm, yy] = String(s || '').split('/')
+            return { month: Number(mm), year: Number(yy) }
+          }
+          const sortByDate = (arr: any[]) => [...arr].sort((a, b) => {
+            const pa = parseMes(a.mes), pb = parseMes(b.mes)
+            return pa.year === pb.year ? pa.month - pb.month : pa.year - pb.year
+          })
+
+          const combinedSeries = (() => {
+             const map: Record<string, number> = {}
+             for (const p of pares || []) { map[p.mes] = (map[p.mes] || 0) + Number(p.valor) }
+             for (const p of paresME || []) { map[p.mes] = (map[p.mes] || 0) + Number(p.valor) }
+             const arr = Object.entries(map).map(([mes, valor]) => ({ mes, valor }))
+             return sortByDate(arr)
+          })()
+
+          const rbt12_original_calc = (() => {
+             const v = brToFloat(rbt12) || (rowRBT12?.total || 0)
+             return Number.isFinite(v) ? v : 0
+          })()
+          
+          const rbt12_atual_calc = (() => {
+             const arr = combinedSeries
+             if (arr.length >= 12) {
+                const last12 = arr.slice(arr.length - 12)
+                const soma12 = last12.reduce((acc, p) => acc + Number(p.valor || 0), 0)
+                const oldest = Number(last12[0]?.valor) || 0
+                const rpa = Number(receitaPA)
+                const res = soma12 - oldest + (Number.isFinite(rpa) ? rpa : 0)
+                return Number.isFinite(res) ? res : rbt12_original_calc
+             }
+             return rbt12_original_calc
+          })()
+
+          // Inferir Anexo para atividades
+          const detalhe = []
+          const grupos: Record<number, typeof atividadesFromTexto> = {}
+          const atividades = atividadesFromTexto || []
+          
+          if (atividades.length === 0) {
+              const anexo = cenarioTexto === 'mercadorias' ? 1 : 3
+              grupos[anexo] = [{ nome: 'Atividade Geral', tributos: tributos, receita_bruta_informada: receitaPA }]
+          } else {
+              for(const at of atividades) {
+                  const n = String(at.nome || '').toLowerCase()
+                  const t = at.tributos || {}
+                  let anexo = 3
+                  if ((t.icms || 0) > 0) anexo = 1
+                  else if (n.includes('comercio') || n.includes('revenda')) anexo = 1
+                  else if (n.includes('industrial')) anexo = 2
+                  else if (n.includes('servico')) anexo = 3
+                  
+                  if (!grupos[anexo]) grupos[anexo] = []
+                  grupos[anexo].push(at)
+              }
+          }
+
+          for (const [anexoStr, acts] of Object.entries(grupos)) {
+              const anexo = Number(anexoStr)
+              const fxOrig = pickFaixa(anexo, rbt12_original_calc)
+              const fxAtual = pickFaixa(anexo, rbt12_atual_calc)
+              
+              const parcelas_ajuste = acts.map(at => {
+                  const valor = at.receita_bruta_informada || 0
+                  return {
+                      tipo_regra: 'geral',
+                      nome: at.nome,
+                      atividade_nome: at.nome,
+                      descricao: at.nome,
+                      valor: valor,
+                      aliquota_efetiva_original_percent: (fxOrig?.aliquota_efetiva || 0) * 100,
+                      aliquota_efetiva_atual_percent: (fxAtual?.aliquota_efetiva || 0) * 100,
+                      aliquota_efetiva_original_sem_iss_percent: (fxOrig?.aliquota_efetiva || 0) * 100, 
+                      aliquota_efetiva_atual_sem_iss_percent: (fxAtual?.aliquota_efetiva || 0) * 100
+                  }
+              })
+
+              detalhe.push({
+                  anexo,
+                  faixa_original: { faixa: fxOrig?.faixa },
+                  faixa_atual: { faixa: fxAtual?.faixa },
+                  rbt12_original: rbt12_original_calc,
+                  rbt12_atual: rbt12_atual_calc,
+                  parcelas_ajuste
+              })
+          }
+
+          const simulacao_todos_anexos = [1, 2, 3, 4, 5].map(anexo => {
+             const res = pickFaixa(anexo, rbt12_atual_calc)
+             if (!res) return null
+             return {
+               anexo,
+               faixa: res.faixa,
+               aliquota_nominal: res.aliquota_nominal,
+               deducao: res.valor_deduzir,
+               aliquota_efetiva: res.aliquota_efetiva,
+               aliquota_efetiva_percent: res.aliquota_efetiva * 100
+             }
+          }).filter(Boolean)
+
+          return {
+             detalhe,
+             simulacao_todos_anexos,
+             meta: {
+                 rpa_atual: receitaPA,
+                 rbt12_original: rbt12_original_calc,
+                 rbt12_atual: rbt12_atual_calc
+             }
+          }
+        })()
       },
       historico: { mercadoInterno: pares, mercadoExterno: paresME },
     },

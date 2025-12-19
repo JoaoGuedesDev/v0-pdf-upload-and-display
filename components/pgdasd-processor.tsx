@@ -9,7 +9,6 @@ import { IndicadoresReceita } from "@/components/dashboard/IndicadoresReceita"
 import { GraficoReceitaMensal } from "@/components/dashboard/GraficoReceitaMensal"
 import { ComparacaoAtividades } from "@/components/dashboard/ComparacaoAtividades"
 import { AnaliseAliquotaParcelas } from "@/components/dashboard/AnaliseAliquotaParcelas"
-import { HeaderLogo } from "@/components/header-logo"
 import { formatCurrency, computeTotalDAS } from "@/lib/utils"
 import { Doughnut } from 'react-chartjs-2'
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, Title } from 'chart.js'
@@ -18,7 +17,7 @@ import { CHART_CONFIG } from '@/lib/constants'
 import { MessageCircle, Mail } from 'lucide-react'
 
 ChartJS.register(ArcElement, Tooltip, Legend, Title, ChartDataLabels)
-interface DASData {
+export interface DASData {
   identificacao: {
     cnpj: string
     razaoSocial: string
@@ -171,7 +170,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
 
   // Hydrate initial data if provided
   useEffect(() => {
-    if (initialData) {
+    if (initialData && !data) {
       const receitaPA0 = Number(initialData?.receitas?.receitaPA || 0)
       const totalDAS0 = computeTotalDAS({
         tributos: initialData?.tributos,
@@ -242,7 +241,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
       }
       setData(hydratedData)
     }
-  }, [initialData])
+  }, [initialData, data])
 
   const handleProcessPDF = useCallback(async (file: File) => {
     setLoading(true)
@@ -414,13 +413,13 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
 
   if (!data && !initialData) {
     return (
-      <div className="min-h-screen bg-background p-4">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-4">
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-foreground mb-2">
+            <h1 className="text-3xl font-bold text-slate-800 mb-2">
               Analisador de PGDAS-D
             </h1>
-            <p className="text-muted-foreground">
+            <p className="text-slate-600">
               Faça upload do seu arquivo PGDAS-D para análise detalhada
             </p>
           </div>
@@ -436,24 +435,24 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
   if (!data || !data.identificacao) {
     if (initialData) {
       return (
-        <div className="min-h-screen bg-background p-4">
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-4">
           <div className="max-w-4xl mx-auto flex items-center justify-center h-64">
             <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-              <p className="text-muted-foreground">Carregando dados...</p>
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <p className="text-slate-600">Carregando dados...</p>
             </div>
           </div>
         </div>
       )
     }
     return (
-      <div className="min-h-screen bg-background p-4">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-4">
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-foreground mb-2">
+            <h1 className="text-3xl font-bold text-slate-800 mb-2">
               Analisador de PGDAS-D
             </h1>
-            <p className="text-muted-foreground">
+            <p className="text-slate-600">
               Faça upload do seu arquivo PGDAS-D para análise detalhada
             </p>
           </div>
@@ -467,9 +466,9 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
   }
 
   return (
-    <div className="min-h-screen bg-background w-full overflow-x-hidden flex justify-center items-start">
+    <div className="min-h-screen bg-white w-full overflow-x-hidden flex justify-center items-start">
       <div
-        className="bg-background min-h-screen p-4 origin-top"
+        className="bg-white min-h-screen p-4 origin-top"
         style={{
           width: '1600px',
           ['zoom' as any]: scale,
@@ -478,14 +477,13 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
         <div className="w-full space-y-6">
         <div className="flex justify-between items-center">
           <div className="space-y-1">
-            <HeaderLogo className="h-10 sm:h-12" />
           </div>
           {!isPdfGen && (
             <div className="print:hidden">
               <Button
                 variant="outline"
                 size="sm"
-                className="rounded-full bg-background/70 text-foreground hover:bg-background border-border"
+                className="rounded-full bg-white/70 text-slate-700 hover:bg-white border-slate-200"
                 onClick={() => window.location.assign('/')}
               >
                 Processar Novo PDF
@@ -690,9 +688,35 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
             }
           }
           const acts = ((data as any)?.debug?.atividades || (data as any)?.atividades || []) as any[]
-          const parseNum = (v: any) => Number(v || 0)
-          const servicosBrutoPA = acts.filter(a => /servi/i.test(String(a?.nome || a?.descricao || ''))).reduce((acc, a) => acc + parseNum(a?.receita_bruta_informada), 0)
-          const mercadoriasBrutoPA = acts.filter(a => !/servi/i.test(String(a?.nome || a?.descricao || ''))).reduce((acc, a) => acc + parseNum(a?.receita_bruta_informada), 0)
+          const parseNumRobust = (v: any): number => {
+            if (typeof v === 'number') return v
+            const s = String(v || '').trim()
+            if (!s) return 0
+            // Se tiver vírgula e ponto, assume que ponto é milhar e vírgula é decimal (pt-BR)
+            // ou vice-versa, mas geralmente PDF brasileiro é pt-BR.
+            // Estratégia simples: remover tudo que não é dígito ou vírgula, depois trocar vírgula por ponto
+            // Mas cuidado com 1.000.000,00 -> se remover ponto fica 1000000,00 -> ok
+            // E se for 1,000.00 (EN)? O sistema parece ser PT-BR.
+            
+            // Tentativa de deteção simples:
+            if (s.includes(',') && s.includes('.')) {
+               // Verifica qual aparece por último
+               const lastDot = s.lastIndexOf('.')
+               const lastComma = s.lastIndexOf(',')
+               if (lastComma > lastDot) {
+                 // Formato 1.234,56
+                 return Number(s.replace(/\./g, '').replace(',', '.'))
+               } else {
+                 // Formato 1,234.56
+                 return Number(s.replace(/,/g, ''))
+               }
+            }
+            if (s.includes(',')) return Number(s.replace(',', '.'))
+            return Number(s)
+          }
+          
+          const servicosBrutoPA = acts.filter(a => /servi/i.test(String(a?.nome || a?.descricao || ''))).reduce((acc, a) => acc + parseNumRobust(a?.receita_bruta_informada), 0)
+          const mercadoriasBrutoPA = acts.filter(a => !/servi/i.test(String(a?.nome || a?.descricao || ''))).reduce((acc, a) => acc + parseNumRobust(a?.receita_bruta_informada), 0)
           const historicoMI = (data as any)?.historico?.mercadoInterno as { mes: string; valor: any }[] | undefined
           const parseNumber = (v: any): number => {
             if (typeof v === "number") return v
@@ -730,14 +754,15 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
               receitas12Meses={receitas12Meses}
               periodoApuracao={data?.identificacao?.periodoApuracao}
               porAnexoItems={
-                Array.isArray((data as any)?.calculos?.analise_aliquota?.detalhe) ? (data as any).calculos.analise_aliquota.detalhe : undefined
+                Array.isArray((data as any)?.calculos?.analise_aliquota?.detalhe) ? (data as any).calculos.analise_aliquota.detalhe :
+                Array.isArray((data as any)?.calculos?.analiseAliquota?.detalhe) ? (data as any).calculos.analiseAliquota.detalhe : undefined
               }
             />
           )
         })()}
 
 
-        <AnaliseAliquotaParcelas dadosPgdas={{ analise_aliquota: (data?.calculos as any)?.analise_aliquota, identificacao: (data as any)?.identificacao }} />
+        <AnaliseAliquotaParcelas dadosPgdas={{ analise_aliquota: (data?.calculos as any)?.analiseAliquota || (data?.calculos as any)?.analise_aliquota, identificacao: (data as any)?.identificacao }} />
         {(() => {
           const serieA = data?.graficos?.receitaMensal
           const serieMI = data?.graficos?.receitaLine

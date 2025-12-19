@@ -4,14 +4,12 @@ import { useState, useMemo, useEffect, useRef } from 'react'
 import { useTheme } from "next-themes"
 import { MonthlyFile } from '../types'
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { ArrowLeft, Download, AlertTriangle, CheckCircle, FileText, ChevronRight, BarChart3, LayoutDashboard, Upload, X } from "lucide-react"
-import { Line } from 'react-chartjs-2'
+import { ArrowLeft, AlertTriangle, ChevronRight, BarChart3, LayoutDashboard, Upload, X } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { PGDASDProcessor } from '@/components/pgdasd-processor'
 import { HeaderLogo } from "@/components/header-logo"
+import { PGDASDProcessor } from "@/components/pgdasd-processor"
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -24,6 +22,16 @@ import {
   Legend,
   Filler
 } from 'chart.js'
+import { Line, Bar } from 'react-chartjs-2'
+import { DashboardActions } from './DashboardActions'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 
 ChartJS.register(
   CategoryScale,
@@ -40,17 +48,19 @@ ChartJS.register(
 interface AnnualDashboardProps {
   files: MonthlyFile[]
   onBack?: () => void
+  dashboardCode?: string
+  initialViewIndex?: number
+  isPdfGen?: boolean
+  onFilesUpdated?: (files: MonthlyFile[]) => void
 }
 
-export function AnnualDashboard({ files, onBack }: AnnualDashboardProps) {
+export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex, isPdfGen, onFilesUpdated }: AnnualDashboardProps) {
   const [localFiles, setLocalFiles] = useState<MonthlyFile[]>(files)
-  const [selectedFileIndex, setSelectedFileIndex] = useState<number | null>(null)
-  const [chartImage, setChartImage] = useState<string>('')
+  const [selectedFileIndex, setSelectedFileIndex] = useState<number | null>(initialViewIndex ?? null)
   const [isUploading, setIsUploading] = useState(false)
   const [uploadErrors, setUploadErrors] = useState<string[]>([])
   const [showErrorModal, setShowErrorModal] = useState(false)
   
-  const chartRef = useRef<any>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { theme } = useTheme()
 
@@ -128,7 +138,13 @@ export function AnnualDashboard({ files, onBack }: AnnualDashboardProps) {
         }
 
         if (validFiles.length > 0) {
-            setLocalFiles(prev => [...prev, ...validFiles])
+            setLocalFiles(prev => {
+                const updated = [...prev, ...validFiles]
+                if (onFilesUpdated) {
+                    setTimeout(() => onFilesUpdated(updated), 0)
+                }
+                return updated
+            })
         }
 
     } catch (err: any) {
@@ -136,47 +152,45 @@ export function AnnualDashboard({ files, onBack }: AnnualDashboardProps) {
         setShowErrorModal(true)
     } finally {
         setIsUploading(false)
-        if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  const handleExportPdf = () => {
+    const sorted = [...localFiles].sort((a, b) => {
+        const dateA = new Date(a.data?.identificacao?.periodoApuracao || '')
+        const dateB = new Date(b.data?.identificacao?.periodoApuracao || '')
+        return dateA.getTime() - dateB.getTime()
+    })
+    
+    const origin = typeof window !== 'undefined' ? window.location.origin : ''
+    let path = dashboardCode ? `/d/${dashboardCode}` : (window.location.pathname + window.location.search)
+    
+    const sep = path.includes('?') ? '&' : '?'
+    path = path + sep + 'pdf_gen=true'
+    
+    const rs = sorted[0]?.data?.identificacao?.razaoSocial || 'Empresa'
+    const safeName = rs.replace(/[^a-z0-9à-ú .-]/gi, '_')
+    const filename = `Relatorio_Anual_${safeName}.pdf`
+    
+    const url = `${origin}/api/pdf?path=${encodeURIComponent(path)}&type=screen&w=1600&scale=1&download=true&filename=${encodeURIComponent(filename)}`
+    
+    try {
+        window.open(url, '_blank')
+    } catch {
+        window.location.assign(url)
     }
   }
   
   const isDark = theme === 'dark'
   const chartTheme = useMemo(() => ({
       grid: isDark ? '#334155' : '#e2e8f0',
-      text: isDark ? '#94a3b8' : '#64748b',
+      text: isDark ? '#f8fafc' : '#020617',
       tooltipBg: isDark ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)',
-      tooltipTitle: isDark ? '#f1f5f9' : '#1e293b',
-      tooltipBody: isDark ? '#cbd5e1' : '#475569',
+      tooltipTitle: isDark ? '#f1f5f9' : '#020617',
+      tooltipBody: isDark ? '#cbd5e1' : '#1e293b',
       tooltipBorder: isDark ? '#475569' : '#e2e8f0'
   }), [isDark])
 
-  // Consolidation Logic
-  // Robust calculation using for-loop to handle potential type mismatches
-  let totalRevenue = 0
-  let totalTaxes = 0
-  
-  localFiles.forEach(f => {
-      const rec = f.data?.receitas?.receitaPA
-      const tax = f.data?.tributos?.Total
-      
-      // Handle number or string
-      if (typeof rec === 'number') totalRevenue += rec
-      else if (typeof rec === 'string') totalRevenue += Number(rec) || 0
-      
-      if (typeof tax === 'number') totalTaxes += tax
-      else if (typeof tax === 'string') totalTaxes += Number(tax) || 0
-  })
-
-  const averageTaxes = totalTaxes / (localFiles.length || 1)
-  
-  useEffect(() => {
-    console.log('[AnnualDashboard] Files received:', localFiles.length)
-    if (localFiles.length > 0) {
-        console.log('[AnnualDashboard] First file sample:', localFiles[0])
-        console.log('[AnnualDashboard] Calculated Revenue:', totalRevenue)
-    }
-  }, [localFiles, totalRevenue])
-  
   const sortedFiles = [...localFiles].sort((a, b) => {
      const getMonthYear = (d: string) => {
         if (!d) return 0
@@ -190,389 +204,441 @@ export function AnnualDashboard({ files, onBack }: AnnualDashboardProps) {
      return getMonthYear(a.data?.identificacao?.periodoApuracao || '') - getMonthYear(b.data?.identificacao?.periodoApuracao || '')
   })
 
-  const labels = sortedFiles.map(f => {
-      const p = f.data?.identificacao?.periodoApuracao || ''
-      if (!p) return '?'
-      const parts = p.split(' ')[0].split('/')
-      if (parts.length === 2) return `${parts[0]}/${parts[1]}`
-      if (parts.length === 3) return `${parts[1]}/${parts[2]}`
-      return p
-  })
-  
-  const revenueData = sortedFiles.map(f => f.data?.receitas?.receitaPA || 0)
-  const taxData = sortedFiles.map(f => f.data?.tributos?.Total || 0)
 
-  const lineChartData = useMemo(() => ({
-    labels,
-    datasets: [
-      {
-        label: 'Faturamento Bruto',
-        data: revenueData,
-        borderColor: 'rgb(53, 162, 235)',
-        backgroundColor: 'rgba(53, 162, 235, 0.5)',
-        fill: true,
-        tension: 0.4
-      },
-      {
-        label: 'Impostos Pagos',
-        data: taxData,
-        borderColor: 'rgb(255, 99, 132)',
-        backgroundColor: 'rgba(255, 99, 132, 0.5)',
-        fill: true,
-        tension: 0.4
-      }
-    ]
-  }), [labels, revenueData, taxData])
-
-  const chartOptions = useMemo(() => ({
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-        legend: {
-            display: false
-        },
-        tooltip: {
-            mode: 'index' as const,
-            intersect: false,
-            backgroundColor: chartTheme.tooltipBg,
-            titleColor: chartTheme.tooltipTitle,
-            bodyColor: chartTheme.tooltipBody,
-            borderColor: chartTheme.tooltipBorder,
-            borderWidth: 1,
-            padding: 12,
-            callbacks: {
-                label: function(context: any) {
-                    let label = context.dataset.label || '';
-                    if (label) {
-                        label += ': ';
-                    }
-                    if (context.parsed.y !== null) {
-                        label += new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(context.parsed.y);
-                    }
-                    return label;
-                }
-            }
-        }
-    },
-    scales: {
-        y: {
-            beginAtZero: true,
-            grid: {
-                color: chartTheme.grid
-            },
-            ticks: {
-                callback: function(value: any) {
-                    return new Intl.NumberFormat('pt-BR', {
-                        notation: "compact",
-                        compactDisplay: "short",
-                        maximumFractionDigits: 1
-                    }).format(Number(value));
-                },
-                color: chartTheme.text
-            }
-        },
-        x: {
-            grid: {
-                display: false
-            },
-            ticks: {
-                color: chartTheme.text
-            }
-        }
-    },
-    animation: {
-        onComplete: (animation: any) => {
-            const chart = animation.chart;
-            // Use a timeout to ensure rendering is fully complete
-            setTimeout(() => {
-                 // Safety check: verify if chart is still valid and has a canvas
-                 if (!chart || !chart.canvas) return;
-
-                 try {
-                     const newImage = chart.toBase64Image();
-                     setChartImage(prev => {
-                         if (prev !== newImage) return newImage;
-                         return prev;
-                     });
-                 } catch (e) {
-                     // Silent fail if image generation fails
-                     console.debug('Failed to generate chart image for print:', e);
-                 }
-            }, 0);
-        }
-    }
-  }), [chartTheme])
-
-  const discrepancies = sortedFiles.filter(f => {
-      const declared = f.data?.valorTotalDAS || 0
-      const calculated = f.data?.tributos?.Total || 0
-      return Math.abs(declared - calculated) > 0.05 // Tolerance
-  })
 
   // Determine if we are showing a specific file or the consolidated view
   const isConsolidated = selectedFileIndex === null
   const currentFile = selectedFileIndex !== null ? sortedFiles[selectedFileIndex] : null
 
+  // Calculate totals for consolidated view
+  const totalRevenue = sortedFiles.reduce((acc, file) => acc + (file.data.receitas.receitaPA || 0), 0)
+  const averageRevenue = sortedFiles.length > 0 ? totalRevenue / sortedFiles.length : 0
+  const totalTaxes = sortedFiles.reduce((acc, file) => acc + (file.data.tributos.Total || 0), 0)
+  const averageTaxes = sortedFiles.length > 0 ? totalTaxes / sortedFiles.length : 0
+  const averageTaxRate = totalRevenue > 0 ? (totalTaxes / totalRevenue) * 100 : 0
+
+  const revenueData = sortedFiles.map(file => file.data.receitas.receitaPA || 0)
+  const taxData = sortedFiles.map(file => file.data.tributos.Total || 0)
+  const labels = sortedFiles.map(file => file.data.identificacao.periodoApuracao.split(' ')[0])
+
+  const lineChartData = {
+    labels,
+    datasets: [
+      {
+        label: 'Receita Bruta',
+        data: revenueData,
+        borderColor: '#2563eb',
+        backgroundColor: 'rgba(37, 99, 235, 0.1)',
+        tension: 0.4,
+        fill: true
+      },
+      {
+        label: 'Impostos',
+        data: taxData,
+        borderColor: '#dc2626',
+        backgroundColor: 'rgba(220, 38, 38, 0.1)',
+        tension: 0.4,
+        fill: true
+      }
+    ]
+  }
+
+  const chartOptions = {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+          legend: {
+              position: 'top' as const,
+              labels: { color: chartTheme.text }
+          },
+          title: {
+              display: false,
+          },
+          tooltip: {
+              backgroundColor: chartTheme.tooltipBg,
+              titleColor: chartTheme.tooltipTitle,
+              bodyColor: chartTheme.tooltipBody,
+              borderColor: chartTheme.tooltipBorder,
+              borderWidth: 1
+          }
+      },
+      scales: {
+          y: {
+              grid: { color: chartTheme.grid },
+              ticks: { color: chartTheme.text }
+          },
+          x: {
+              grid: { color: chartTheme.grid },
+              ticks: { color: chartTheme.text }
+          }
+      }
+  }
+
+  const monthlyRevenueBreakdown = useMemo(() => {
+    return sortedFiles.map(file => {
+      const dados = file.data as any
+      const detalhe = dados.calculos?.analise_aliquota?.detalhe || []
+      
+      let servicos = 0
+      let mercadorias = 0
+      let industria = 0
+      
+      if (detalhe.length > 0) {
+        detalhe.forEach((d: any) => {
+          const anexo = Number(d.anexo)
+          const valor = d.parcelas_ajuste?.reduce((acc: number, p: any) => acc + (Number(p.valor) || 0), 0) || 0
+          
+          if ([1].includes(anexo)) {
+            mercadorias += valor
+          } else if ([2].includes(anexo)) {
+            industria += valor
+          } else if ([3, 4, 5].includes(anexo)) {
+            servicos += valor
+          }
+        })
+      } else {
+         // Fallback logic
+         const rpa = dados.receitas?.receitaPA || 0
+         if (dados.cenario === 'servicos') servicos = rpa
+         else if (dados.cenario === 'mercadorias') mercadorias = rpa
+         else if (dados.cenario === 'misto') {
+             // Try to use debug activities if analise_aliquota is missing
+             const atividades = dados.debug?.atividades || []
+             if (atividades.length > 0) {
+                atividades.forEach((at: any) => {
+                   const nome = String(at.nome || at.name || at.descricao || '').toLowerCase()
+                   const val = Number(at.receita_bruta_informada || 0)
+                   if (nome.includes('servi')) servicos += val
+                   else mercadorias += val
+                })
+             } else {
+                 // Even split fallback? Or just put everything in one bucket based on hints?
+                 // Let's assume equal split if we really don't know, or just dump to services (safest for many clients)
+                 // But actually, we have 'tributosMercadoriasInterno' etc.
+                 const tServ = (dados.tributosServicosInterno?.Total || 0) + (dados.tributosServicosExterno?.Total || 0)
+                 const tMerc = (dados.tributosMercadoriasInterno?.Total || 0) + (dados.tributosMercadoriasExterno?.Total || 0)
+                 if (tServ + tMerc > 0) {
+                     servicos = rpa * (tServ / (tServ + tMerc))
+                     mercadorias = rpa * (tMerc / (tServ + tMerc))
+                 } else {
+                     servicos = rpa // Default
+                 }
+             }
+         }
+      }
+      
+      return {
+          month: file.data.identificacao.periodoApuracao.split(' ')[0],
+          servicos,
+          mercadorias,
+          industria
+      }
+    })
+  }, [sortedFiles])
+
+  const stackedBarChartData = useMemo(() => {
+     const labels = monthlyRevenueBreakdown.map(d => d.month)
+     
+     const totalMercadorias = monthlyRevenueBreakdown.reduce((acc, d) => acc + d.mercadorias, 0)
+     const totalIndustria = monthlyRevenueBreakdown.reduce((acc, d) => acc + d.industria, 0)
+     const totalServicos = monthlyRevenueBreakdown.reduce((acc, d) => acc + d.servicos, 0)
+
+     const datasets = []
+
+     if (totalMercadorias > 0) {
+        datasets.push({
+            label: 'Mercadorias',
+            data: monthlyRevenueBreakdown.map(d => d.mercadorias),
+            backgroundColor: '#3b82f6',
+            hoverBackgroundColor: '#2563eb',
+            stack: 'Stack 0',
+        })
+     }
+
+     if (totalIndustria > 0) {
+        datasets.push({
+            label: 'Indústria',
+            data: monthlyRevenueBreakdown.map(d => d.industria),
+            backgroundColor: '#10b981',
+            hoverBackgroundColor: '#059669',
+            stack: 'Stack 0',
+        })
+     }
+
+     if (totalServicos > 0) {
+        datasets.push({
+            label: 'Serviços',
+            data: monthlyRevenueBreakdown.map(d => d.servicos),
+            backgroundColor: '#8b5cf6',
+            hoverBackgroundColor: '#7c3aed',
+            stack: 'Stack 0',
+        })
+     }
+     
+     return {
+        labels,
+        datasets
+     }
+  }, [monthlyRevenueBreakdown])
+
+  const revenueBreakdown = useMemo(() => {
+    let servicos = 0
+    let mercadorias = 0
+    let industrializacao = 0
+
+    sortedFiles.forEach(file => {
+      const dados = file.data as any
+      const atividades = dados.debug?.atividades || []
+      
+      if (atividades.length > 0) {
+        atividades.forEach((at: any) => {
+          const nome = String(at.nome || at.name || at.descricao || '').toLowerCase()
+          const valor = Number(at.receita_bruta_informada || 0)
+          const cleanNome = nome.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+          
+          if (/(servico|servicos|prestacao)/.test(cleanNome)) {
+            servicos += valor
+          } else if (/(industria|industrializacao)/.test(cleanNome)) {
+            industrializacao += valor
+          } else {
+            mercadorias += valor
+          }
+        })
+      } else {
+         const rpa = dados.receitas?.receitaPA || 0
+         if (dados.cenario === 'servicos') servicos += rpa
+         else if (dados.cenario === 'mercadorias') mercadorias += rpa
+         // If mixed and no activities, we can't reliably split, but we'll try our best
+      }
+    })
+    
+    return { servicos, mercadorias, industrializacao }
+  }, [sortedFiles])
+
+  const barChartData = useMemo(() => {
+     const labels = []
+     const data = []
+     const colors = []
+
+     if (revenueBreakdown.mercadorias > 0) {
+         labels.push('Mercadorias')
+         data.push(revenueBreakdown.mercadorias)
+         colors.push('rgba(59, 130, 246, 0.8)')
+     }
+     if (revenueBreakdown.servicos > 0) {
+         labels.push('Serviços')
+         data.push(revenueBreakdown.servicos)
+         colors.push('rgba(139, 92, 246, 0.8)')
+     }
+     if (revenueBreakdown.industrializacao > 0) {
+         labels.push('Indústria')
+         data.push(revenueBreakdown.industrializacao)
+         colors.push('rgba(16, 185, 129, 0.8)')
+     }
+     
+     // Fallback if empty (shouldn't happen if there is revenue)
+     if (labels.length === 0 && totalRevenue > 0) {
+        labels.push('Total')
+        data.push(totalRevenue)
+        colors.push('rgba(156, 163, 175, 0.8)')
+     }
+
+     return {
+        labels,
+        datasets: [{
+            label: 'Receita Total',
+            data,
+            backgroundColor: colors,
+            borderRadius: 4,
+            barThickness: 40,
+        }]
+     }
+  }, [revenueBreakdown, totalRevenue])
+
   return (
-    <div className="flex flex-col lg:flex-row min-h-screen bg-background">
+    <div className={`flex flex-col lg:flex-row min-h-screen bg-background ${isPdfGen ? 'w-[1600px] mx-auto overflow-hidden' : ''}`}>
       
       {/* Main Content Area */}
       <div className="flex-1 order-2 lg:order-1 min-w-0">
-         {isConsolidated ? (
-            <div className="container mx-auto p-6 space-y-8">
-                <div className="flex flex-col gap-6">
-                    <div className="flex items-center justify-between print:hidden">
-                    <div className="flex items-center gap-4">
-                        {onBack && (
-                        <Button variant="ghost" onClick={onBack} className="flex items-center gap-2 hover:bg-muted">
-                            <ArrowLeft className="h-4 w-4" />
-                            Voltar
-                        </Button>
-                        )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <input 
-                            type="file" 
-                            multiple 
-                            accept=".pdf" 
-                            className="hidden" 
-                            ref={fileInputRef} 
-                            onChange={handleFileUpload} 
-                        />
-                        <Button variant="outline" className="flex items-center gap-2" onClick={() => fileInputRef.current?.click()} disabled={isUploading}>
-                            {isUploading ? (
-                                <>Processando...</>
-                            ) : (
-                                <>
-                                    <Upload className="h-4 w-4" />
-                                    Adicionar Arquivos
-                                </>
-                            )}
-                        </Button>
-                        <Button variant="outline" className="flex items-center gap-2" onClick={() => window.print()}>
-                            <Download className="h-4 w-4" />
-                            Exportar Relatório PDF
-                        </Button>
-                    </div>
-                    </div>
-
-                    {/* Header Section */}
-                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-card p-6 rounded-lg shadow-sm border border-border">
-                        <div className="flex items-center gap-4">
-                            <div className="relative h-16 w-48">
-                                <HeaderLogo className="h-full w-full object-left" />
-                            </div>
-                            <div className="h-12 w-px bg-border hidden md:block"></div>
-                            <div>
-                                <h1 className="text-2xl font-bold text-foreground">Relatório Anual Consolidado</h1>
-                                <p className="text-sm text-muted-foreground">Visão estratégica e análise de tendências ({localFiles.length} meses processados)</p>
-                            </div>
-                        </div>
-                        
-                            {sortedFiles.length > 0 && (
-                            <div className="mt-4 md:mt-0 text-right">
-                                <div className="text-sm font-medium text-foreground">{sortedFiles[0].data?.identificacao?.razaoSocial || 'Razão Social Não Identificada'}</div>
-                                <div className="text-xs text-muted-foreground">CNPJ: {sortedFiles[0].data?.identificacao?.cnpj || 'N/A'}</div>
-                                <div className="text-xs text-blue-700 dark:text-blue-300 mt-1 badge badge-outline inline-block px-2 py-0.5 bg-blue-500/10 dark:bg-blue-900/30 rounded-full border border-blue-200 dark:border-blue-800">
-                                    {localFiles.length} competências analisadas
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                </div>
-
-                {/* Summary Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <Card className="border-border shadow-sm hover:shadow-md transition-shadow">
-                    <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Faturamento Total Anual</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-3xl font-bold text-foreground">
-                        {totalRevenue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                        </div>
-                        <div className="flex items-center mt-2 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
-                        <span className="bg-emerald-500/10 dark:bg-emerald-900/30 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
-                            Receita Bruta Acumulada
-                        </span>
-                        </div>
-                    </CardContent>
-                    </Card>
-                    <Card className="border-border shadow-sm hover:shadow-md transition-shadow">
-                    <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Total Impostos Pagos</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-3xl font-bold text-red-600 dark:text-red-400">
-                        {totalTaxes.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                        </div>
-                        <div className="flex items-center mt-2 text-xs text-red-600 dark:text-red-400 font-medium">
-                            <span className="bg-red-500/10 dark:bg-red-900/30 px-2 py-0.5 rounded-full border border-red-200 dark:border-red-800">
-                                {(totalTaxes / totalRevenue * 100).toFixed(2)}% do Faturamento
-                            </span>
-                        </div>
-                    </CardContent>
-                    </Card>
-                    <Card className="border-border shadow-sm hover:shadow-md transition-shadow">
-                    <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Média Mensal de Impostos</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">
-                        {averageTaxes.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                        </div>
-                        <div className="flex items-center mt-2 text-xs text-blue-600 dark:text-blue-400 font-medium">
-                            <span className="bg-blue-500/10 dark:bg-blue-900/30 px-2 py-0.5 rounded-full border border-blue-200 dark:border-blue-800">
-                                Base: {localFiles.length} meses
-                            </span>
-                        </div>
-                    </CardContent>
-                    </Card>
-                </div>
-
-                {/* Main Chart */}
-                <Card className="p-6 border-border shadow-sm">
-                    <CardHeader className="px-0 pt-0">
-                    <div className="flex items-center justify-between">
+        <div className={`relative ${isPdfGen ? 'max-w-none' : ''}`}>
+             {isConsolidated ? (
+                <div className="p-6 space-y-6">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                         <div>
-                            <CardTitle className="text-xl text-foreground">Evolução Financeira</CardTitle>
-                            <CardDescription>Comparativo mensal de Faturamento vs Impostos</CardDescription>
+                            <h1 className="text-2xl font-bold text-foreground">Visão Geral Anual</h1>
+                            <p className="text-muted-foreground">Consolidado de {sortedFiles.length} períodos apurados</p>
                         </div>
-                        <div className="flex gap-2 text-sm">
-                            <div className="flex items-center gap-1">
-                                <div className="w-3 h-3 bg-[rgb(53,162,235)] rounded-full"></div>
-                                <span className="text-muted-foreground">Faturamento</span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                                <div className="w-3 h-3 bg-[rgb(255,99,132)] rounded-full"></div>
-                                <span className="text-muted-foreground">Impostos</span>
-                            </div>
-                        </div>
-                    </div>
-                    </CardHeader>
-                    <CardContent className="h-[400px] px-0 relative">
-                    <div className="w-full h-full print:hidden">
-                        <Line 
-                            ref={chartRef}
-                            data={lineChartData} 
-                            options={chartOptions} 
+                        <DashboardActions 
+                            onUpload={handleFileUpload} 
+                            isUploading={isUploading} 
+                            onExportPdf={handleExportPdf}
                         />
                     </div>
-                    {chartImage && (
-                        <div className="hidden print:block w-full h-full flex items-center justify-center">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img 
-                                src={chartImage} 
-                                alt="Gráfico de Evolução Financeira" 
-                                className="max-w-full max-h-full object-contain" 
-                            />
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <Card>
+                            <CardHeader className="pb-2">
+                                <CardTitle className="text-sm font-medium text-muted-foreground">Receita Bruta Total</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+                                    {totalRevenue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                </div>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                    Média: {averageRevenue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}/mês
+                                </p>
+                            </CardContent>
+                        </Card>
+                        <Card>
+                            <CardHeader className="pb-2">
+                                <CardTitle className="text-sm font-medium text-muted-foreground">Total de Impostos</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="text-2xl font-bold text-red-600 dark:text-red-400">
+                                    {totalTaxes.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                </div>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                    Média: {averageTaxes.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}/mês
+                                </p>
+                            </CardContent>
+                        </Card>
+                        <Card>
+                            <CardHeader className="pb-2">
+                                <CardTitle className="text-sm font-medium text-muted-foreground">Alíquota Efetiva Média</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                                    {averageTaxRate.toFixed(2)}%
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </div>
+
+                    <div className="space-y-6">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Evolução Financeira</CardTitle>
+                            </CardHeader>
+                            <CardContent className="h-[300px]">
+                                <Line options={chartOptions} data={lineChartData} />
+                            </CardContent>
+                        </Card>
+
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Composição do Faturamento Mensal</CardTitle>
+                            </CardHeader>
+                            <CardContent className="h-[300px]">
+                                <Bar 
+                                    options={{
+                                        ...chartOptions,
+                                        maintainAspectRatio: false,
+                                        plugins: {
+                                            ...chartOptions.plugins,
+                                            legend: { 
+                                                display: true,
+                                                position: 'top',
+                                                labels: { color: chartTheme.text }
+                                            },
+                                            tooltip: {
+                                                ...chartOptions.plugins?.tooltip,
+                                                callbacks: {
+                                                    label: function(context: any) {
+                                                        let label = context.dataset.label || '';
+                                                        if (label) {
+                                                            label += ': ';
+                                                        }
+                                                        if (context.parsed.y !== null) {
+                                                            label += new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(context.parsed.y);
+                                                        }
+                                                        return label;
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        scales: {
+                                            ...chartOptions.scales,
+                                            x: {
+                                                ...chartOptions.scales?.x,
+                                                stacked: true,
+                                            },
+                                            y: {
+                                                ...chartOptions.scales?.y,
+                                                stacked: true,
+                                            }
+                                        }
+                                    }} 
+                                    data={stackedBarChartData} 
+                                />
+                            </CardContent>
+                        </Card>
+                    </div>
+
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Detalhamento Mensal</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Período</TableHead>
+                                        <TableHead>Receita Bruta</TableHead>
+                                        <TableHead>Impostos</TableHead>
+                                        <TableHead>Alíquota</TableHead>
+                                        <TableHead className="text-right">Ações</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {sortedFiles.map((file, index) => {
+                                         const receita = file.data.receitas.receitaPA || 0
+                                         const imposto = file.data.tributos.Total || 0
+                                         const aliquota = receita > 0 ? (imposto / receita) * 100 : 0
+                                         return (
+                                            <TableRow key={index} className="cursor-pointer hover:bg-muted/50" onClick={() => setSelectedFileIndex(index)}>
+                                                <TableCell className="font-medium">{file.data.identificacao.periodoApuracao}</TableCell>
+                                                <TableCell>{receita.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</TableCell>
+                                                <TableCell>{imposto.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</TableCell>
+                                                <TableCell>{aliquota.toFixed(2)}%</TableCell>
+                                                <TableCell className="text-right">
+                                                    <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); setSelectedFileIndex(index) }}>
+                                                        Ver Detalhes
+                                                    </Button>
+                                                </TableCell>
+                                            </TableRow>
+                                         )
+                                    })}
+                                </TableBody>
+                            </Table>
+                        </CardContent>
+                    </Card>
+                </div>
+             ) : (
+                <>
+                    {!isPdfGen && onBack && (
+                        <div className="absolute top-4 left-4 z-10 print:hidden">
+                            <Button variant="ghost" onClick={onBack} className="bg-white/50 hover:bg-white/80 backdrop-blur-sm gap-2 shadow-sm border border-white/20">
+                                <ArrowLeft className="h-4 w-4" />
+                                Voltar
+                            </Button>
                         </div>
                     )}
-                    </CardContent>
-                </Card>
-
-                {/* Detailed Table */}
-                <Card className="border-border shadow-sm overflow-hidden">
-                    <CardHeader className="bg-muted/50 border-b border-border">
-                    <CardTitle className="text-lg text-foreground">Detalhamento Mensal</CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-0">
-                    <Table>
-                        <TableHeader>
-                        <TableRow className="bg-muted/50 hover:bg-muted/50 border-border">
-                            <TableHead className="font-semibold text-muted-foreground">Período</TableHead>
-                            <TableHead className="font-semibold text-muted-foreground text-right">Faturamento</TableHead>
-                            <TableHead className="font-semibold text-muted-foreground text-right">Impostos</TableHead>
-                            <TableHead className="font-semibold text-muted-foreground text-right">Alíquota Efetiva</TableHead>
-                            <TableHead className="font-semibold text-muted-foreground text-center">Status</TableHead>
-                        </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                        {sortedFiles.map((file, index) => {
-                            const fat = file.data?.receitas?.receitaPA || 0
-                            const imp = file.data?.tributos?.Total || 0
-                            const aliq = fat > 0 ? (imp / fat) * 100 : 0
-                            const hasDiscrepancy = Math.abs((file.data?.valorTotalDAS || 0) - imp) > 0.05
-                            
-                            return (
-                            <TableRow 
-                                key={file.filename} 
-                                className={cn(
-                                    "cursor-pointer transition-colors border-border",
-                                    index % 2 === 0 ? 'bg-card' : 'bg-muted/20',
-                                    "hover:bg-muted/50"
-                                )}
-                                onClick={() => setSelectedFileIndex(index)}
-                            >
-                                <TableCell className="font-medium text-foreground flex items-center gap-2">
-                                    <FileText className="w-4 h-4 text-muted-foreground" />
-                                    {file.data?.identificacao?.periodoApuracao || 'N/A'}
-                                </TableCell>
-                                <TableCell className="text-right text-muted-foreground">{fat.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</TableCell>
-                                <TableCell className="text-right text-red-600 dark:text-red-400 font-medium">{imp.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</TableCell>
-                                <TableCell className="text-right text-muted-foreground">{aliq.toFixed(2)}%</TableCell>
-                                <TableCell className="text-center">
-                                    {hasDiscrepancy ? (
-                                        <div className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300">
-                                            <AlertTriangle className="w-3 h-3 mr-1" />
-                                            Divergência
-                                        </div>
-                                    ) : (
-                                        <div className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
-                                            <CheckCircle className="w-3 h-3 mr-1" />
-                                            Validado
-                                        </div>
-                                    )}
-                                </TableCell>
-                            </TableRow>
-                            )
-                        })}
-                        </TableBody>
-                    </Table>
-                    </CardContent>
-                </Card>
-
-                {/* Discrepancies Section */}
-                {discrepancies.length > 0 && (
-                    <Card className="border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/10">
-                    <CardHeader>
-                        <CardTitle className="text-red-700 dark:text-red-400 flex items-center gap-2">
-                            <AlertTriangle className="h-5 w-5" />
-                            Alertas de Discrepância
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="space-y-2">
-                            {discrepancies.map(f => (
-                                <div key={f.filename} className="flex justify-between items-center text-sm p-2 bg-white dark:bg-card rounded border border-red-100 dark:border-red-800/50">
-                                    <span className="font-medium text-foreground">{f.data.identificacao.periodoApuracao}</span>
-                                    <div className="flex gap-4 text-muted-foreground">
-                                        <span>Declarado: {f.data.valorTotalDAS.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
-                                        <span>Calculado: {f.data.tributos.Total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
-                                        <span className="font-bold text-red-600 dark:text-red-400">
-                                            Diff: {(f.data.valorTotalDAS - f.data.tributos.Total).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                                        </span>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </CardContent>
-                    </Card>
-                )}
-            </div>
-         ) : (
-             <div className="min-h-screen">
-                <PGDASDProcessor 
-                    initialData={currentFile?.data} 
-                    hideDownloadButton={true} 
-                    isOwner={true} // Allow full view
-                />
-             </div>
-         )}
+                    
+                    <PGDASDProcessor 
+                        key={currentFile?.filename || selectedFileIndex}
+                        initialData={currentFile?.data} 
+                        hideDownloadButton={false} 
+                        isOwner={true} 
+                        isPdfGen={isPdfGen}
+                        shareId={dashboardCode ? (selectedFileIndex !== null ? `${dashboardCode}?view_file_index=${selectedFileIndex}` : dashboardCode) : undefined}
+                    />
+                </>
+             )}
+        </div>
       </div>
 
       {/* Right Sidebar */}
-      <div className="w-full lg:w-80 border-l border-border bg-card order-1 lg:order-2 lg:h-screen lg:sticky lg:top-0 overflow-y-auto print:hidden">
+      <div className={`w-full lg:w-80 border-l border-border bg-card order-1 lg:order-2 lg:h-screen lg:sticky lg:top-0 overflow-y-auto print:hidden ${isPdfGen ? 'hidden' : ''}`}>
         <div className="p-4 border-b border-border sticky top-0 bg-card z-10 flex flex-col gap-4">
             <div className="flex justify-center lg:justify-start">
                 <HeaderLogo className="h-8" />
@@ -599,6 +665,14 @@ export function AnnualDashboard({ files, onBack }: AnnualDashboardProps) {
                         </>
                     )}
                 </Button>
+                <input 
+                    type="file" 
+                    ref={fileInputRef} 
+                    onChange={handleFileUpload} 
+                    className="hidden" 
+                    accept="application/pdf" 
+                    multiple 
+                />
             </div>
         </div>
         <div className="p-4 space-y-2">

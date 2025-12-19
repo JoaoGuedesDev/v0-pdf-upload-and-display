@@ -147,10 +147,14 @@ export async function POST(request: NextRequest) {
               const json = unwrap(parsed)
               const isNormalized = json && typeof json === 'object' && ('success' in json) && ('dados' in json)
               if (isNormalized) {
-                const share = await persistShare(json)
-                const origin = getOrigin(request)
-                const pdfUrl = `${origin}/api/pdf?path=${encodeURIComponent(share.url)}&type=print&w=1280&scale=1`
-                return NextResponse.json({ ...json, dashboardUrl: share.url, dashboardAdminUrl: share.adminUrl, dashboardCode: share.code, pdfUrl })
+                const hasDetalhe = Array.isArray(json.dados?.calculos?.analise_aliquota?.detalhe) && json.dados.calculos.analise_aliquota.detalhe.length > 0
+                if (hasDetalhe) {
+                  const share = await persistShare(json)
+                  const origin = getOrigin(request)
+                  const pdfUrl = `${origin}/api/pdf?path=${encodeURIComponent(share.url)}&type=print&w=1280&scale=1`
+                  return NextResponse.json({ ...json, dashboardUrl: share.url, dashboardAdminUrl: share.adminUrl, dashboardCode: share.code, pdfUrl })
+                }
+                console.warn("[process-pdf] N8N result missing detalhe, falling back to local processing")
               }
               const normalized = processDasData(JSON.stringify(json))
               try {
@@ -270,10 +274,14 @@ export async function POST(request: NextRequest) {
             const json = JSON.parse(bodyText)
             const isNormalized = json && typeof json === 'object' && ('success' in json) && ('dados' in json)
             if (isNormalized) {
-              const share = await persistShare(json)
-              const origin = getOrigin(request)
-              const pdfUrl = `${origin}/api/pdf?path=${encodeURIComponent(share.url)}&type=print&w=1280&scale=1`
-              return NextResponse.json({ ...json, dashboardUrl: share.url, dashboardAdminUrl: share.adminUrl, dashboardCode: share.code, pdfUrl })
+              const hasDetalhe = Array.isArray(json.dados?.calculos?.analise_aliquota?.detalhe) && json.dados.calculos.analise_aliquota.detalhe.length > 0
+              if (hasDetalhe) {
+                const share = await persistShare(json)
+                const origin = getOrigin(request)
+                const pdfUrl = `${origin}/api/pdf?path=${encodeURIComponent(share.url)}&type=print&w=1280&scale=1`
+                return NextResponse.json({ ...json, dashboardUrl: share.url, dashboardAdminUrl: share.adminUrl, dashboardCode: share.code, pdfUrl })
+              }
+              console.warn("[process-pdf] N8N result missing detalhe, falling back to local processing")
             }
             const normalized = processDasData(JSON.stringify(json))
             try {

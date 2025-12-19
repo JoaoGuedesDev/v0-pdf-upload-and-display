@@ -67,6 +67,47 @@ export default async function Page({ params, searchParams }: any) {
   }
   const isOwner = hasCookie || adminValid
   const isPdfGen = sp?.pdf_gen === 'true'
+  const viewFileIndex = sp?.view_file_index ? parseInt(sp?.view_file_index.toString()) : undefined
+
+  // Handle Annual Dashboard (data.files exists)
+  if ((data as any).files && Array.isArray((data as any).files)) {
+    // If a specific file is requested (e.g. for PDF generation or direct view)
+    if (viewFileIndex !== undefined && !isNaN(viewFileIndex) && (data as any).files[viewFileIndex]) {
+      const fileData = (data as any).files[viewFileIndex].data
+      const initialData = {
+        ...fileData,
+        graficos: fileData.graficos || {},
+        debug: fileData.debug,
+        calculos: fileData.calculos || fileData.dados?.calculos,
+        metadata: fileData.metadata,
+      }
+      
+      return (
+        <main className="px-6 py-4">
+          <div className="mt-4">
+            <PGDASDProcessor 
+              initialData={initialData} 
+              shareId={`${id}?view_file_index=${viewFileIndex}`} 
+              isOwner={isOwner} 
+              isPdfGen={isPdfGen} 
+            />
+          </div>
+        </main>
+      )
+    }
+
+    // Otherwise render the full Annual Dashboard
+    return (
+      <main className={isPdfGen ? "p-0" : "px-6 py-4"}>
+        <AnnualDashboard 
+          files={(data as any).files} 
+          dashboardCode={id}
+          initialViewIndex={viewFileIndex}
+          isPdfGen={isPdfGen}
+        />
+      </main>
+    )
+  }
 
   const initialData = data && data.dados ? {
     ...data.dados,
@@ -75,14 +116,6 @@ export default async function Page({ params, searchParams }: any) {
     calculos: (data as any)?.calculos ?? (data as any)?.dados?.calculos,
     metadata: (data as any)?.metadata,
   } : undefined
-
-  if ((data as any)?.isAnnual && (data as any)?.files) {
-    return (
-      <main className="min-h-screen bg-slate-50">
-        <AnnualDashboard files={(data as any).files} />
-      </main>
-    )
-  }
 
   return (
     <main className="px-6 py-4">

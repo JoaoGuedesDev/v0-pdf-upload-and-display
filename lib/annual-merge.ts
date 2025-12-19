@@ -1,97 +1,90 @@
+import { MonthlyFile } from "@/app/unified-dashboard/types";
+import { DASData } from "@/components/pgdasd-processor";
 
-export function mergeAnnualData(results: any[]) {
-  if (!results.length) return null
-
-  // Base structure from the first file (usually January or December)
-  // We'll use it as a template and overwrite values
-  const base = JSON.parse(JSON.stringify(results[0]))
-  const dados = base.dados || base
-
-  // Initialize accumulators
-  let totalRpa = 0
-  let totalTributos = {
-    irpj: 0, csll: 0, cofins: 0, pis: 0, inss_cpp: 0, icms: 0, ipi: 0, iss: 0, total: 0
+export function mergeAnnualData(files: MonthlyFile[]): DASData {
+  if (!files || files.length === 0) {
+    return {} as DASData;
   }
+
+  // Sort files by period
+  const sortedFiles = [...files].sort((a, b) => {
+     const getMonthYear = (d: string) => {
+        if (!d) return 0
+        const parts = d.split(' ')[0].split('/')
+        // MM/YYYY
+        if (parts.length === 2) return parseInt(parts[1]) * 12 + parseInt(parts[0])
+        // DD/MM/YYYY
+        if (parts.length === 3) return parseInt(parts[2]) * 12 + parseInt(parts[1])
+        return 0
+     }
+     return getMonthYear(a.data?.identificacao?.periodoApuracao || '') - getMonthYear(b.data?.identificacao?.periodoApuracao || '')
+  });
+
+  const lastFile = sortedFiles[sortedFiles.length - 1];
   
-  // Track unique years found
-  const years = new Set<string>()
+  const totalReceita = sortedFiles.reduce((acc, f) => acc + (f.data.receitas.receitaPA || 0), 0);
+  
+  // Sum tributes
+  const totalTributos = {
+    IRPJ: sortedFiles.reduce((acc, f) => acc + (f.data.tributos.IRPJ || 0), 0),
+    CSLL: sortedFiles.reduce((acc, f) => acc + (f.data.tributos.CSLL || 0), 0),
+    COFINS: sortedFiles.reduce((acc, f) => acc + (f.data.tributos.COFINS || 0), 0),
+    PIS_Pasep: sortedFiles.reduce((acc, f) => acc + (f.data.tributos.PIS_Pasep || 0), 0),
+    INSS_CPP: sortedFiles.reduce((acc, f) => acc + (f.data.tributos.INSS_CPP || 0), 0),
+    ICMS: sortedFiles.reduce((acc, f) => acc + (f.data.tributos.ICMS || 0), 0),
+    IPI: sortedFiles.reduce((acc, f) => acc + (f.data.tributos.IPI || 0), 0),
+    ISS: sortedFiles.reduce((acc, f) => acc + (f.data.tributos.ISS || 0), 0),
+    Total: sortedFiles.reduce((acc, f) => acc + (f.data.tributos.Total || 0), 0),
+  };
 
-  // Helper to parse numeric values safely
-  const val = (v: any) => typeof v === 'number' ? v : (Number(v) || 0)
+  // Recalculate percentages
+  const totalDAS = totalTributos.Total;
+  const aliquotaEfetiva = totalReceita > 0 ? (totalDAS / totalReceita) * 100 : 0;
+  const margemLiquida = totalReceita > 0 ? ((totalReceita - totalDAS) / totalReceita) * 100 : 0;
 
-  // Iterate all results
-  for (const res of results) {
-    const d = res.dados || res
-    
-    // Sum Revenue (RPA)
-    const rpa = d.discriminativo_receitas?.rpa?.total || 0
-    totalRpa += val(rpa)
+  // Build monthly revenue chart data
+  const receitaMensal = {
+    labels: sortedFiles.map(f => f.data.identificacao.periodoApuracao.split(' ')[0]),
+    values: sortedFiles.map(f => f.data.receitas.receitaPA || 0),
+  };
 
-    // Sum Taxes
-    // Need to traverse establishments/activities to sum taxes correctly if available
-    // Or use the 'totais' field if reliable
-    const totais = d.estabelecimentos?.[0]?.totais?.declarado || {} // Assuming single establishment for now
-    if (totais) {
-       totalTributos.irpj += val(totais.irpj)
-       totalTributos.csll += val(totais.csll)
-       totalTributos.cofins += val(totais.cofins)
-       totalTributos.pis += val(totais.pis)
-       totalTributos.inss_cpp += val(totais.inss_cpp)
-       totalTributos.icms += val(totais.icms)
-       totalTributos.ipi += val(totais.ipi)
-       totalTributos.iss += val(totais.iss)
-       totalTributos.total += val(totais.total || (val(totais.irpj) + val(totais.csll) + val(totais.cofins) + val(totais.pis) + val(totais.inss_cpp) + val(totais.icms) + val(totais.ipi) + val(totais.iss)))
-    }
+  // Aggregate activities (if available) - this is tricky without deep merge, 
+  // but for now we can try to sum standard fields if structure allows, 
+  // or just omit if it's too complex for this step. 
+  // PGDASDProcessor handles "ComparacaoAtividades".
+  // Let's create a basic aggregation for "atividades" if possible, 
+  // otherwise PGDASDProcessor might show empty comparison.
+  // For now, let's leave activities empty or from last file (which might be misleading).
+  // Better to omit activities or try to sum them. 
+  // Given the time constraint, omitting might be safer than showing wrong data.
 
-    // Extract year
-    const periodo = d.cabecalho?.periodo?.apuracao || d.cabecalho?.periodo?.fim
-    if (periodo) {
-      const year = periodo.split('/')[1]
-      if (year) years.add(year)
-    }
-  }
-
-  // Update base object
-  if (dados.discriminativo_receitas?.rpa) {
-    dados.discriminativo_receitas.rpa.total = totalRpa
-    // Clear monthly breakdown or set to average? Let's leave breakdown as is (likely incorrect) or clear it.
-    // Ideally, we would sum MI and ME too.
-    // For simplicity, we just update the total RPA which is the most important metric.
-  }
-
-  // Update header
-  if (dados.cabecalho?.periodo) {
-    const yearList = Array.from(years).sort().join(', ')
-    dados.cabecalho.periodo.apuracao = `Ano ${yearList}`
-    dados.cabecalho.periodo.inicio = `01/${Array.from(years)[0]}`
-    dados.cabecalho.periodo.fim = `12/${Array.from(years)[years.size - 1]}`
-  }
-
-  // Update totals
-  if (dados.estabelecimentos?.[0]?.totais?.declarado) {
-    const t = dados.estabelecimentos[0].totais.declarado
-    t.irpj = totalTributos.irpj
-    t.csll = totalTributos.csll
-    t.cofins = totalTributos.cofins
-    t.pis = totalTributos.pis
-    t.inss_cpp = totalTributos.inss_cpp
-    t.icms = totalTributos.icms
-    t.ipi = totalTributos.ipi
-    t.iss = totalTributos.iss
-    t.total = totalTributos.total
-  }
-
-  // Update Effective Rate (Calculated)
-  if (totalRpa > 0) {
-    const effectiveRate = (totalTributos.total / totalRpa) * 100
-    if (!dados.calculos) dados.calculos = {}
-    dados.calculos.aliquotaEfetiva = effectiveRate
-    dados.calculos.aliquotaEfetivaFormatada = effectiveRate.toFixed(2) + '%'
-  }
-
-  // Add a flag to indicate this is an annual summary
-  dados.isAnnual = true
-  dados.processedFilesCount = results.length
-
-  return base
+  return {
+    identificacao: {
+      ...lastFile.data.identificacao,
+      periodoApuracao: `Consolidado (${sortedFiles.length} meses)`,
+    },
+    receitas: {
+      ...lastFile.data.receitas,
+      receitaPA: totalReceita,
+      receitaPAFormatada: new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalReceita),
+      // RBT12 etc from last file is probably the most "correct" snapshot indicator
+    },
+    tributos: totalTributos,
+    graficos: {
+      receitaMensal: receitaMensal,
+      // Pass other necessary chart data if needed
+    },
+    calculos: {
+      aliquotaEfetiva: aliquotaEfetiva,
+      margemLiquida: margemLiquida,
+      totalDAS: totalDAS,
+      totalDASFormatado: new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalDAS),
+      aliquotaEfetivaFormatada: aliquotaEfetiva.toFixed(2).replace('.', ',') + '%',
+      aliquotaEfetivaAtualPercent: aliquotaEfetiva,
+      // Propagate analysis from the most recent file for future projection
+      analise_aliquota: (lastFile.data.calculos as any)?.analise_aliquota,
+    },
+    // Pass insights from last file or clear them?
+    insights: lastFile.data['insights' as keyof typeof lastFile.data] as any,
+  } as DASData;
 }

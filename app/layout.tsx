@@ -33,14 +33,6 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <header className="flex items-center justify-between p-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50 print:hidden">
-            <div className="flex items-center gap-4">
-              <HeaderLogo className="h-8 sm:h-10" />
-              <div className="h-6 w-px bg-border hidden sm:block" />
-              <span className="font-semibold text-lg hidden sm:inline-block">Integra Dashboard</span>
-            </div>
-            <ModeToggle />
-          </header>
           {children}
           <AppToaster />
         </ThemeProvider>
