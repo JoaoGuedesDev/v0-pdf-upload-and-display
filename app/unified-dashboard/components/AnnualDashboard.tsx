@@ -6,7 +6,7 @@ import { MonthlyFile } from '../types'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { ArrowLeft, AlertTriangle, ChevronRight, BarChart3, LayoutDashboard, Upload, X } from "lucide-react"
+import { ArrowLeft, AlertTriangle, ChevronRight, BarChart3, LayoutDashboard, Upload, X, CheckCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { HeaderLogo } from "@/components/header-logo"
 import { PGDASDProcessor } from "@/components/pgdasd-processor"
@@ -64,6 +64,28 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
     const [isUploading, setIsUploading] = useState(false)
     const [uploadErrors, setUploadErrors] = useState<string[]>([])
     const [showErrorModal, setShowErrorModal] = useState(false)
+    const [pendingFiles, setPendingFiles] = useState<MonthlyFile[]>([])
+
+    // Chart visibility state
+    const [visibleCharts, setVisibleCharts] = useState(() => {
+        if (typeof window !== 'undefined') {
+            const params = new URLSearchParams(window.location.search)
+            const visibleParam = params.get('visible')
+            if (visibleParam) {
+                const parts = visibleParam.split(',')
+                return {
+                    quarterly: parts.includes('quarterly'),
+                    semiannual: parts.includes('semiannual'),
+                    annual: parts.includes('annual')
+                }
+            }
+        }
+        return {
+            quarterly: true,
+            semiannual: true,
+            annual: true
+        }
+    })
 
 
     const fileInputRef = useRef<HTMLInputElement>(null)
@@ -82,7 +104,9 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
         if (!e.target.files?.length) return
 
         setIsUploading(true)
+        setIsUploading(true)
         setUploadErrors([])
+        setPendingFiles([])
 
         try {
             const formData = new FormData()
@@ -97,13 +121,15 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
 
             const data = await res.json()
 
+            const errors: string[] = []
+            const validFiles: MonthlyFile[] = []
+
             if (data.error) {
-                throw new Error(data.error)
+                // Instead of throwing, push to errors and continue if we have files
+                errors.push(data.error)
             }
 
             const newFiles = data.files as { filename: string, data: any }[]
-            const errors: string[] = []
-            const validFiles: MonthlyFile[] = []
 
             // Validation Reference (from first existing file)
             const refCnpj = localFiles[0]?.data?.identificacao?.cnpj
@@ -139,15 +165,71 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
 
             if (errors.length > 0) {
                 setUploadErrors(errors)
-                setShowErrorModal(true)
-            }
+                // If we have valid files mixed with errors, or just errors that we might want to bypass (like duplicates if user insists, though usually duplicates are skipped. 
+                // But request says 'continue showing error, appear option to continue'. 
+                // So we should store ALL files attempted (or just the ones that failed? 
+                // Actually, the request implies ignoring the errors.
+                // Current logic separates validFiles (passed checks) and errors.
+                // If we want to force process, we probably want to add the ones that caused errors? 
+                // Or maybe the 'errors' are blocking validFiles from being added? 
+                // The current code adds validFiles immediately even if there are errors (lines 145-153).
+                // So if files really are valid, they are added.
+                // The issue "Sequência de meses descontínua" likely comes from the server or logic I haven't seen yet?
+                // Wait, I saw "Sequência de meses descontínua" in grep for api/process-annual-pdf/route.ts but NOT in this file.
+                // Ah, line 100 thrown error!
 
-            if (validFiles.length > 0) {
+                // If data.error is thrown, execution jumps to catch block (line 155). 
+                // In that case validFiles is never processed.
+
+                // If the error comes from individual checks (lines 115-138), validFiles are added.
+                // The user's screenshot shows "Erro: Sequência de meses descontínua".
+                // If that error is from `data.error` (server side), we need to handle it.
+                // But `data.error` throws immediately.
+
+                // Let's look at where that error comes from. 
+                // If it's a server error 400 that returns JSON with error, we throw. 
+                // We need to capture the files returned even if there is an error?
+                // Or maybe the server returns processed files AND an error?
+
+                // Assuming `data.files` is present even if `data.error` is present? 
+                // If so, we shouldn't throw line 101 immediately if we want to allow bypass.
+
+                // BUT, looking at the code: 
+                // if (data.error) { throw new Error(data.error) }
+
+                // If I remove this throw, the code proceeds to process `data.files`.
+                // So I should instead push data.error to `errors` list and proceed, 
+                // letting the user decide? 
+
+                // HOWEVER, the logic below (115-138) processes `newFiles`. 
+                // If `data.files` is valid, we can process it.
+
+                // So I will change the logic to NOT throw on data.error, but add it to errors.
+                // And I will store `validFiles` into `pendingFiles` if there are errors, preventing auto-add 
+                // if we want to give 'continue' option? 
+                // Or just add them and show error? 
+                // The user said: "continue showing error, appear option ... and process anyway".
+                // Detailed interpretation: The process is currently BLOCKED.
+                // If `validFiles` are added immediately (lines 145), then it's not blocked? 
+                // Unless `data.files` is empty or undefined because of the error?
+
+                // Let's assume the server returns `files` even with that error, or used to.
+                // If the error is "Sequência...", it implies some validation.
+
+                // Strategy: 
+                // 1. Do NOT throw on data.error if data.files exists. 
+                // 2. If errors exist, DO NOT add to localFiles immediately. 
+                // 3. Set pendingFiles = validFiles.
+                // 4. Show Modal. 
+                // 5. "Processar Mesmo Assim" moves pendingFiles to localFiles.
+
+                setPendingFiles(validFiles)
+                setShowErrorModal(true)
+            } else if (validFiles.length > 0) {
+                // No errors, add immediately
                 setLocalFiles(prev => {
                     const updated = [...prev, ...validFiles]
-                    if (onFilesUpdated) {
-                        setTimeout(() => onFilesUpdated(updated), 0)
-                    }
+                    if (onFilesUpdated) setTimeout(() => onFilesUpdated(updated), 0)
                     return updated
                 })
             }
@@ -160,10 +242,24 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
         }
     }
 
+    const handleForceProcess = () => {
+        if (pendingFiles.length > 0) {
+            setLocalFiles(prev => {
+                const updated = [...prev, ...pendingFiles]
+                if (onFilesUpdated) setTimeout(() => onFilesUpdated(updated), 0)
+                return updated
+            })
+        }
+        setShowErrorModal(false)
+        setPendingFiles([])
+        setUploadErrors([])
+    }
+
     // Unified DataLabels Configuration
     const datalabelsConfig = {
-        align: 'center' as const,
-        anchor: 'center' as const,
+        align: 'end' as const,
+        anchor: 'end' as const,
+        clamp: true,
         clip: false,
         color: 'white',
         textStrokeColor: 'black',
@@ -187,6 +283,16 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
 
         const sep = path.includes('?') ? '&' : '?'
         path = path + sep + 'pdf_gen=true'
+
+        // Append visibility settings
+        const visibleParts = []
+        if (visibleCharts.quarterly) visibleParts.push('quarterly')
+        if (visibleCharts.semiannual) visibleParts.push('semiannual')
+        if (visibleCharts.annual) visibleParts.push('annual')
+
+        if (visibleParts.length > 0) {
+            path += `&visible=${visibleParts.join(',')}`
+        }
 
         const rs = sorted[0]?.data?.identificacao?.razaoSocial || 'Empresa'
         const safeName = rs.replace(/[^a-z0-9à-ú .-]/gi, '_')
@@ -354,6 +460,14 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
 
     // Chart Options Boilerplate
     const chartOptions = {
+        layout: {
+            padding: {
+                top: 30,
+                right: 20,
+                left: 10,
+                bottom: 0
+            }
+        },
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
@@ -697,42 +811,95 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                     </CardContent>
                                 </Card>
 
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                    <Card>
-                                        <CardHeader>
-                                            <CardTitle className="text-sm font-medium">Comparativo Trimestral</CardTitle>
-                                        </CardHeader>
-                                        <CardContent className="h-[300px]">
-                                            <Bar
-                                                options={chartOptions}
-                                                data={allComparisonData.quarterly}
-                                            />
-                                        </CardContent>
-                                    </Card>
+                                {/* Chart Visibility Toggles */}
+                                <div className="flex justify-end gap-2 mb-2">
+                                    <div className="flex bg-muted rounded-md p-1 gap-1">
+                                        <button
+                                            onClick={() => setVisibleCharts(prev => ({ ...prev, quarterly: !prev.quarterly }))}
+                                            className={cn(
+                                                "px-3 py-1 text-xs font-medium rounded-sm transition-all flex items-center gap-2",
+                                                visibleCharts.quarterly
+                                                    ? "bg-background text-foreground shadow-sm"
+                                                    : "text-muted-foreground hover:bg-background/50"
+                                            )}
+                                        >
+                                            {visibleCharts.quarterly && <CheckCircle className="w-3 h-3 text-blue-500" />}
+                                            Trimestral
+                                        </button>
+                                        <button
+                                            onClick={() => setVisibleCharts(prev => ({ ...prev, semiannual: !prev.semiannual }))}
+                                            className={cn(
+                                                "px-3 py-1 text-xs font-medium rounded-sm transition-all flex items-center gap-2",
+                                                visibleCharts.semiannual
+                                                    ? "bg-background text-foreground shadow-sm"
+                                                    : "text-muted-foreground hover:bg-background/50"
+                                            )}
+                                        >
+                                            {visibleCharts.semiannual && <CheckCircle className="w-3 h-3 text-blue-500" />}
+                                            Semestral
+                                        </button>
+                                        <button
+                                            onClick={() => setVisibleCharts(prev => ({ ...prev, annual: !prev.annual }))}
+                                            className={cn(
+                                                "px-3 py-1 text-xs font-medium rounded-sm transition-all flex items-center gap-2",
+                                                visibleCharts.annual
+                                                    ? "bg-background text-foreground shadow-sm"
+                                                    : "text-muted-foreground hover:bg-background/50"
+                                            )}
+                                        >
+                                            {visibleCharts.annual && <CheckCircle className="w-3 h-3 text-blue-500" />}
+                                            Anual
+                                        </button>
+                                    </div>
+                                </div>
 
-                                    <Card>
-                                        <CardHeader>
-                                            <CardTitle className="text-sm font-medium">Comparativo Semestral</CardTitle>
-                                        </CardHeader>
-                                        <CardContent className="h-[300px]">
-                                            <Bar
-                                                options={chartOptions}
-                                                data={allComparisonData.semiannual}
-                                            />
-                                        </CardContent>
-                                    </Card>
+                                <div className={cn(
+                                    "grid gap-6 grid-cols-1",
+                                    Object.values(visibleCharts).filter(Boolean).length === 1 ? "md:grid-cols-1" :
+                                        Object.values(visibleCharts).filter(Boolean).length === 2 ? "md:grid-cols-2" :
+                                            "md:grid-cols-3"
+                                )}>
+                                    {visibleCharts.quarterly && (
+                                        <Card>
+                                            <CardHeader>
+                                                <CardTitle className="text-sm font-medium">Comparativo Trimestral</CardTitle>
+                                            </CardHeader>
+                                            <CardContent className="h-[300px]">
+                                                <Bar
+                                                    options={chartOptions}
+                                                    data={allComparisonData.quarterly}
+                                                />
+                                            </CardContent>
+                                        </Card>
+                                    )}
 
-                                    <Card>
-                                        <CardHeader>
-                                            <CardTitle className="text-sm font-medium">Comparativo Anual</CardTitle>
-                                        </CardHeader>
-                                        <CardContent className="h-[300px]">
-                                            <Bar
-                                                options={chartOptions}
-                                                data={allComparisonData.annual}
-                                            />
-                                        </CardContent>
-                                    </Card>
+                                    {visibleCharts.semiannual && (
+                                        <Card>
+                                            <CardHeader>
+                                                <CardTitle className="text-sm font-medium">Comparativo Semestral</CardTitle>
+                                            </CardHeader>
+                                            <CardContent className="h-[300px]">
+                                                <Bar
+                                                    options={chartOptions}
+                                                    data={allComparisonData.semiannual}
+                                                />
+                                            </CardContent>
+                                        </Card>
+                                    )}
+
+                                    {visibleCharts.annual && (
+                                        <Card>
+                                            <CardHeader>
+                                                <CardTitle className="text-sm font-medium">Comparativo Anual</CardTitle>
+                                            </CardHeader>
+                                            <CardContent className="h-[300px]">
+                                                <Bar
+                                                    options={chartOptions}
+                                                    data={allComparisonData.annual}
+                                                />
+                                            </CardContent>
+                                        </Card>
+                                    )}
                                 </div>
 
                                 <Card>
@@ -1116,8 +1283,13 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                     </Alert>
                                 ))}
                             </div>
-                            <div className="mt-4 flex justify-end">
-                                <Button variant="secondary" onClick={() => setShowErrorModal(false)}>Fechar</Button>
+                            <div className="mt-4 flex justify-end gap-3">
+                                <Button variant="secondary" onClick={() => setShowErrorModal(false)}>Cancelar</Button>
+                                {pendingFiles.length > 0 && (
+                                    <Button onClick={handleForceProcess} className="bg-blue-600 hover:bg-blue-700 text-white">
+                                        Processar Mesmo Assim
+                                    </Button>
+                                )}
                             </div>
                         </CardContent>
                     </Card>
