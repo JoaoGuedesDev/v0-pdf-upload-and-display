@@ -785,37 +785,158 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                         <TableHeader>
                                             <TableRow>
                                                 <TableHead>Período</TableHead>
-                                                <TableHead>Faturamento (M/S)</TableHead>
-                                                <TableHead>IRPJ (M/S)</TableHead>
-                                                <TableHead>Base de Cálculo (DL)</TableHead>
+                                                <TableHead>Receita Bruta</TableHead>
+                                                <TableHead>IRPJ</TableHead>
+                                                <TableHead>Alíquota</TableHead>
                                                 <TableHead>Distribuição</TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
                                             {sortedFiles.map((file, index) => {
                                                 const breakdown = monthlyRevenueBreakdown[index]
-                                                const irpj = file.data.tributos?.IRPJ || 0
-                                                const periodoSimple = file.data.identificacao.periodoApuracao.split(' ')[0]
+                                                const irpjTotal = file.data.tributos?.IRPJ || 0
+                                                const rawPeriod = file.data.identificacao.periodoApuracao
 
-                                                // Calculations
-                                                // Base = (Serviços * 32%) + (Mercadorias * 8%)
-                                                const baseCalculo = (breakdown.servicos * 0.32) + (breakdown.mercadorias * 0.08)
-                                                // Distribuição = Base - IRPJ
-                                                const distribuicao = baseCalculo - irpj
+                                                // Format period: 01/06/2024 -> 06/2024
+                                                let periodoDisplay = rawPeriod
+                                                const pParts = rawPeriod.split(' ')[0].split('/')
+                                                if (pParts.length === 3) {
+                                                    periodoDisplay = `${pParts[1]}/${pParts[2]}`
+                                                }
+
+                                                // Base Calculations for IRPJ proration
+                                                const baseMerc = breakdown.mercadorias * 0.08
+                                                const baseServ = breakdown.servicos * 0.32
+                                                // Assuming Industry follows Mercadorias logic or similar for simplicity unless specified otherwise in future
+                                                // For now, we only focus on Merc/Serv as requested in prompt for the text
+
+                                                const totalBase = baseMerc + baseServ
+                                                const irpjMerc = totalBase > 0 ? (irpjTotal * (baseMerc / totalBase)) : 0
+                                                const irpjServ = totalBase > 0 ? (irpjTotal * (baseServ / totalBase)) : 0
+
+                                                const totalRevenue = breakdown.mercadorias + breakdown.servicos + breakdown.industria
 
                                                 return (
-                                                    <TableRow key={index} className="hover:bg-muted/50">
-                                                        <TableCell className="font-medium">{periodoSimple}</TableCell>
-                                                        <TableCell>{breakdown.mercadorias.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</TableCell>
-                                                        <TableCell>{breakdown.servicos.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</TableCell>
-                                                        <TableCell>{irpj.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</TableCell>
-                                                        <TableCell>{baseCalculo.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</TableCell>
-                                                        <TableCell className="font-bold text-emerald-600 dark:text-emerald-400">
-                                                            {distribuicao.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                                    <TableRow key={index} className="hover:bg-muted/50 align-top">
+                                                        <TableCell className="font-medium whitespace-nowrap py-2 text-sm">{periodoDisplay}</TableCell>
+                                                        <TableCell className="min-w-[300px] py-2">
+                                                            <div className="flex flex-col gap-1">
+                                                                <div className="flex flex-col">
+                                                                    <span className="text-[11px] font-semibold uppercase text-muted-foreground">Mercadorias</span>
+                                                                    <span className="font-medium text-sm">{breakdown.mercadorias.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                                                                </div>
+                                                                <div className="flex flex-col">
+                                                                    <span className="text-[11px] font-semibold uppercase text-muted-foreground">Serviços</span>
+                                                                    <span className="font-medium text-sm">{breakdown.servicos.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                                                                </div>
+                                                            </div>
+                                                        </TableCell>
+                                                        <TableCell className="py-2">
+                                                            <div className="flex flex-col gap-1">
+                                                                <div className="flex flex-col">
+                                                                    <span className="text-[11px] text-muted-foreground">Mercadorias</span>
+                                                                    <span className="font-medium text-sm">{irpjMerc.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                                                                </div>
+                                                                <div className="flex flex-col">
+                                                                    <span className="text-[11px] text-muted-foreground">Serviços</span>
+                                                                    <span className="font-medium text-sm">{irpjServ.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                                                                </div>
+                                                            </div>
+                                                        </TableCell>
+                                                        <TableCell className="py-2">
+                                                            <div className="flex flex-col gap-1">
+                                                                <div className="text-sm font-medium">Mercadorias: <span className="font-bold">8%</span></div>
+                                                                <div className="text-sm font-medium">Serviços: <span className="font-bold">32%</span></div>
+                                                            </div>
+                                                        </TableCell>
+                                                        <TableCell className="py-2">
+                                                            <div className="flex flex-col gap-1">
+                                                                <div className="flex flex-col">
+                                                                    <span className="text-[11px] text-muted-foreground">Mercadorias</span>
+                                                                    <span className="font-medium text-sm text-emerald-600 dark:text-emerald-400">
+                                                                        {(baseMerc - irpjMerc).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                                                    </span>
+                                                                </div>
+                                                                <div className="flex flex-col">
+                                                                    <span className="text-[11px] text-muted-foreground">Serviços</span>
+                                                                    <span className="font-medium text-sm text-emerald-600 dark:text-emerald-400">
+                                                                        {(baseServ - irpjServ).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
                                                         </TableCell>
                                                     </TableRow>
                                                 )
                                             })}
+                                            {(() => {
+                                                const totals = sortedFiles.reduce((acc, file, index) => {
+                                                    const breakdown = monthlyRevenueBreakdown[index]
+                                                    const irpjTotal = file.data.tributos?.IRPJ || 0
+
+                                                    const baseMerc = breakdown.mercadorias * 0.08
+                                                    const baseServ = breakdown.servicos * 0.32
+                                                    const totalBase = baseMerc + baseServ
+
+                                                    const irpjMerc = totalBase > 0 ? (irpjTotal * (baseMerc / totalBase)) : 0
+                                                    const irpjServ = totalBase > 0 ? (irpjTotal * (baseServ / totalBase)) : 0
+
+                                                    return {
+                                                        recMerc: acc.recMerc + breakdown.mercadorias,
+                                                        recServ: acc.recServ + breakdown.servicos,
+                                                        irpjMerc: acc.irpjMerc + irpjMerc,
+                                                        irpjServ: acc.irpjServ + irpjServ,
+                                                        distMerc: acc.distMerc + (baseMerc - irpjMerc),
+                                                        distServ: acc.distServ + (baseServ - irpjServ)
+                                                    }
+                                                }, { recMerc: 0, recServ: 0, irpjMerc: 0, irpjServ: 0, distMerc: 0, distServ: 0 })
+
+                                                return (
+                                                    <TableRow className="bg-muted/50 font-bold border-t-2 border-border">
+                                                        <TableCell className="py-2 text-sm">Total Anual</TableCell>
+                                                        <TableCell className="py-2">
+                                                            <div className="flex flex-col gap-1">
+                                                                <div className="flex flex-col">
+                                                                    <span className="text-[11px] font-bold uppercase text-muted-foreground">Mercadorias</span>
+                                                                    <span className="font-bold text-sm">{totals.recMerc.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                                                                </div>
+                                                                <div className="flex flex-col">
+                                                                    <span className="text-[11px] font-bold uppercase text-muted-foreground">Serviços</span>
+                                                                    <span className="font-bold text-sm">{totals.recServ.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                                                                </div>
+                                                            </div>
+                                                        </TableCell>
+                                                        <TableCell className="py-2">
+                                                            <div className="flex flex-col gap-1">
+                                                                <div className="flex flex-col">
+                                                                    <span className="text-[11px] font-bold text-muted-foreground">Mercadorias</span>
+                                                                    <span className="font-bold text-sm">{totals.irpjMerc.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                                                                </div>
+                                                                <div className="flex flex-col">
+                                                                    <span className="text-[11px] font-bold text-muted-foreground">Serviços</span>
+                                                                    <span className="font-bold text-sm">{totals.irpjServ.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                                                                </div>
+                                                            </div>
+                                                        </TableCell>
+                                                        <TableCell className="py-2"></TableCell>
+                                                        <TableCell className="py-2">
+                                                            <div className="flex flex-col gap-1">
+                                                                <div className="flex flex-col">
+                                                                    <span className="text-[11px] font-bold text-muted-foreground">Mercadorias</span>
+                                                                    <span className="font-bold text-sm text-emerald-700 dark:text-emerald-300">
+                                                                        {totals.distMerc.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                                                    </span>
+                                                                </div>
+                                                                <div className="flex flex-col">
+                                                                    <span className="text-[11px] font-bold text-muted-foreground">Serviços</span>
+                                                                    <span className="font-bold text-sm text-emerald-700 dark:text-emerald-300">
+                                                                        {totals.distServ.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                )
+                                            })()}
                                         </TableBody>
                                     </Table>
                                 </CardContent>
