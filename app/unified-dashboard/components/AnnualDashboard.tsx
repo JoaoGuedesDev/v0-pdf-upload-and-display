@@ -64,7 +64,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
     const [isUploading, setIsUploading] = useState(false)
     const [uploadErrors, setUploadErrors] = useState<string[]>([])
     const [showErrorModal, setShowErrorModal] = useState(false)
-    const [granularity, setGranularity] = useState<'monthly' | 'quarterly' | 'semiannual' | 'annual'>('quarterly')
+
 
     const fileInputRef = useRef<HTMLInputElement>(null)
     const { theme } = useTheme()
@@ -283,63 +283,66 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
         return map
     }, [years, sortedFiles])
 
-    // Aggregated Data for Comparison
-    const aggregatedComparisonData = useMemo(() => {
-        if (granularity === 'monthly') return null
+    // Aggregated Data for Comparison (Multi-View)
+    const allComparisonData = useMemo(() => {
+        const generateData = (gran: 'quarterly' | 'semiannual' | 'annual') => {
+            let labels: string[] = []
+            let bucketCount = 0
 
-        // Label Mapping
-        let labels: string[] = []
-        let bucketCount = 0
+            if (gran === 'quarterly') {
+                labels = ['1º Trim', '2º Trim', '3º Trim', '4º Trim']
+                bucketCount = 4
+            } else if (gran === 'semiannual') {
+                labels = ['1º Semestre', '2º Semestre']
+                bucketCount = 2
+            } else if (gran === 'annual') {
+                labels = ['Total Anual']
+                bucketCount = 1
+            }
 
-        if (granularity === 'quarterly') {
-            labels = ['1º Trim', '2º Trim', '3º Trim', '4º Trim']
-            bucketCount = 4
-        } else if (granularity === 'semiannual') {
-            labels = ['1º Semestre', '2º Semestre']
-            bucketCount = 2
-        } else if (granularity === 'annual') {
-            labels = ['Total Anual']
-            bucketCount = 1
+            const datasets: any[] = []
+            const colors = ['#2563eb', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#6366f1'] // Blue, Green, Amber, Violet, Pink, Indigo
+
+            years.forEach((y, idx) => {
+                const data = new Array(bucketCount).fill(0)
+                sortedFiles.forEach(f => {
+                    const { m, y: fy } = parsePeriod(f.data.identificacao.periodoApuracao)
+                    if (fy !== y) return
+                    const val = f.data.receitas.receitaPA || 0
+
+                    if (gran === 'quarterly') {
+                        const q = Math.ceil(m / 3) - 1
+                        if (q >= 0 && q < 4) data[q] += val
+                    } else if (gran === 'semiannual') {
+                        const s = m <= 6 ? 0 : 1
+                        data[s] += val
+                    } else {
+                        data[0] += val
+                    }
+                })
+
+                datasets.push({
+                    label: `${y}`,
+                    data,
+                    backgroundColor: colors[idx % colors.length],
+                    borderRadius: 4,
+                    barPercentage: 0.6,
+                    categoryPercentage: 0.8,
+                    datalabels: {
+                        display: true,
+                        ...datalabelsConfig
+                    }
+                })
+            })
+            return { labels, datasets }
         }
 
-        const datasets: any[] = []
-        const colors = ['#2563eb', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#6366f1'] // Blue, Green, Amber, Violet, Pink, Indigo
-
-        years.forEach((y, idx) => {
-            const data = new Array(bucketCount).fill(0)
-
-            sortedFiles.forEach(f => {
-                const { m, y: fy } = parsePeriod(f.data.identificacao.periodoApuracao)
-                if (fy !== y) return
-                const val = f.data.receitas.receitaPA || 0
-
-                if (granularity === 'quarterly') {
-                    const q = Math.ceil(m / 3) - 1
-                    if (q >= 0 && q < 4) data[q] += val
-                } else if (granularity === 'semiannual') {
-                    const s = m <= 6 ? 0 : 1
-                    data[s] += val
-                } else {
-                    data[0] += val
-                }
-            })
-
-            datasets.push({
-                label: `${y}`,
-                data,
-                backgroundColor: colors[idx % colors.length],
-                borderRadius: 4,
-                barPercentage: 0.6,
-                categoryPercentage: 0.8,
-                datalabels: {
-                    display: true,
-                    ...datalabelsConfig
-                }
-            })
-        })
-
-        return { labels, datasets }
-    }, [granularity, years, sortedFiles])
+        return {
+            quarterly: generateData('quarterly'),
+            semiannual: generateData('semiannual'),
+            annual: generateData('annual')
+        }
+    }, [years, sortedFiles])
 
 
     // Calculate totals for consolidated view
@@ -694,37 +697,43 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                     </CardContent>
                                 </Card>
 
-                                <Card>
-                                    <CardHeader className="flex flex-row items-center justify-between pb-2">
-                                        <CardTitle>Comparativo Temporal</CardTitle>
-                                        <div className="flex bg-muted rounded-md p-1 gap-1">
-                                            {(['quarterly', 'semiannual', 'annual'] as const).map((m) => (
-                                                <button
-                                                    key={m}
-                                                    onClick={() => setGranularity(m)}
-                                                    className={cn(
-                                                        "px-3 py-1 text-xs font-medium rounded-sm transition-all",
-                                                        granularity === m
-                                                            ? "bg-background text-foreground shadow-sm"
-                                                            : "text-muted-foreground hover:bg-background/50"
-                                                    )}
-                                                >
-                                                    {m === 'quarterly' && 'Trimestral'}
-                                                    {m === 'semiannual' && 'Semestral'}
-                                                    {m === 'annual' && 'Anual'}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </CardHeader>
-                                    <CardContent className="h-[350px]">
-                                        {granularity !== 'monthly' && aggregatedComparisonData && (
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                    <Card>
+                                        <CardHeader>
+                                            <CardTitle className="text-sm font-medium">Comparativo Trimestral</CardTitle>
+                                        </CardHeader>
+                                        <CardContent className="h-[300px]">
                                             <Bar
                                                 options={chartOptions}
-                                                data={aggregatedComparisonData as ChartData<"bar">}
+                                                data={allComparisonData.quarterly}
                                             />
-                                        )}
-                                    </CardContent>
-                                </Card>
+                                        </CardContent>
+                                    </Card>
+
+                                    <Card>
+                                        <CardHeader>
+                                            <CardTitle className="text-sm font-medium">Comparativo Semestral</CardTitle>
+                                        </CardHeader>
+                                        <CardContent className="h-[300px]">
+                                            <Bar
+                                                options={chartOptions}
+                                                data={allComparisonData.semiannual}
+                                            />
+                                        </CardContent>
+                                    </Card>
+
+                                    <Card>
+                                        <CardHeader>
+                                            <CardTitle className="text-sm font-medium">Comparativo Anual</CardTitle>
+                                        </CardHeader>
+                                        <CardContent className="h-[300px]">
+                                            <Bar
+                                                options={chartOptions}
+                                                data={allComparisonData.annual}
+                                            />
+                                        </CardContent>
+                                    </Card>
+                                </div>
 
                                 <Card>
                                     <CardHeader>
