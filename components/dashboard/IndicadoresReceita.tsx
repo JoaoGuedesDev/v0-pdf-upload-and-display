@@ -587,48 +587,43 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
     return { value: aliquotaEfetiva, faixa }
   }
 
-  const nextByAnexo = useMemo(() => {
-    const parseSimPercent = (v: any): number | undefined => {
-      if (typeof v === 'number') return Number.isFinite(v) ? v : undefined
-      const s = String(v ?? '').trim()
-      if (!s) return undefined
-      const cleaned = s.includes(',') ? s.replace(/\./g, '').replace(',', '.') : s
-      const n = Number(cleaned)
-      if (!Number.isFinite(n)) return undefined
-      if (n > 0 && n <= 1) return n * 100
-      return n
-    }
-
-    // 1. Tenta pegar do backend (simulacao_todos_anexos)
-    const bySim: Record<number, { value?: number; faixa?: number }> = {}
-      ; (simulacaoTodosAnexos || []).forEach((it: any) => {
-        const an = Number(it?.anexo)
-        const v = parseSimPercent(it?.aliquota_efetiva_percent)
-        const f = Number(it?.faixa)
-        if (!Number.isFinite(an)) return
-        if (v != null) bySim[an] = { ...(bySim[an] || {}), value: v }
-        if (Number.isFinite(f)) bySim[an] = { ...(bySim[an] || {}), faixa: f }
+  const rbt12Projetado = useMemo(() => {
+    let rbt = Number(receitas?.rbt12 || 0)
+    if (Array.isArray(aliquotaItems) && aliquotaItems.length > 0) {
+      const found = aliquotaItems.find((it: any) => {
+        const v = Number(it?.rbt12_atual)
+        return Number.isFinite(v) && v > 0
       })
+      if (found) rbt = Number(found.rbt12_atual)
+    }
+    return rbt
+  }, [receitas?.rbt12, aliquotaItems])
 
-    // 2. Preenche buracos calculando via RBT12
-    const currentRbt12 = Number(receitas?.rbt12 || 0)
+  const nextFaixa = useMemo(() => {
+    const v = rbt12Projetado
+    if (!(v > 0)) return undefined
+    if (v <= 180000) return 1
+    if (v <= 360000) return 2
+    if (v <= 720000) return 3
+    if (v <= 1800000) return 4
+    if (v <= 3600000) return 5
+    if (v <= 4800000) return 6
+    return 6
+  }, [rbt12Projetado])
+
+  const nextByAnexo = useMemo(() => {
     const anexos = [1, 2, 3, 4, 5]
 
     return anexos.map(an => {
-      // Se já tem valor vindo do backend, usa
-      if (bySim[an]?.value != null) {
-        return { anexo: an, value: bySim[an].value, faixa: bySim[an].faixa }
-      }
-
-      // Senão calcula
-      const calc = calculateSimplesRate(currentRbt12, an)
+      // Para projeção futura, calculamos sempre com base no RBT12 projetado
+      const calc = calculateSimplesRate(rbt12Projetado, an)
       if (calc) {
         return { anexo: an, value: calc.value, faixa: calc.faixa }
       }
 
       return { anexo: an, value: undefined, faixa: undefined }
     })
-  }, [aliquotaItems, simulacaoTodosAnexos, receitas?.rbt12])
+  }, [rbt12Projetado])
 
   const nextPeriodoLabel = useMemo(() => {
     const s = String(periodoApuracao || '').trim()
@@ -844,15 +839,15 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
           </CardHeader>
           <CardContent className="p-1 sm:p-2 pt-0">
             <div className="mt-1 space-y-1">
-              {faixaFromRBT12 != null && (
+              {nextFaixa != null && (
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] sm:text-xs opacity-90">Faixa baseada no RBT12</span>
-                  <span className="text-[10px] sm:text-xs font-semibold">Faixa {faixaFromRBT12}</span>
+                  <span className="text-[10px] sm:text-xs font-semibold">Faixa {nextFaixa}</span>
                 </div>
               )}
               {nextByAnexo.map((row, i) => (
                 <div key={`anexo-next-${i}`} className="flex items-center justify-between">
-                  <span className="text-[10px] sm:text-xs opacity-90">Anexo {row.anexo}{(row as any)?.faixa ? ` — Faixa ${(row as any)?.faixa}` : (faixaFromRBT12 ? ` — Faixa ${faixaFromRBT12}` : '')}</span>
+                  <span className="text-[10px] sm:text-xs opacity-90">Anexo {row.anexo}{(row as any)?.faixa ? ` — Faixa ${(row as any)?.faixa}` : (nextFaixa ? ` — Faixa ${nextFaixa}` : '')}</span>
                   <span className="text-xs sm:text-sm font-semibold font-sans">{fmtPct4(row.value)}</span>
                 </div>
               ))}
