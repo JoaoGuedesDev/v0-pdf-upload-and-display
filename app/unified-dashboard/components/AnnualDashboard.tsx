@@ -2,11 +2,11 @@
 
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { useTheme } from "next-themes"
-import { MonthlyFile } from '../types'
+import { MonthlyFile, ReceitasAnteriores } from '../types'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { ArrowLeft, AlertTriangle, ChevronRight, BarChart3, LayoutDashboard, Upload, X, CheckCircle } from "lucide-react"
+import { ArrowLeft, AlertTriangle, ChevronRight, BarChart3, LayoutDashboard, Upload, X, CheckCircle, ArrowUpRight, ArrowDownRight, Minus } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { HeaderLogo } from "@/components/header-logo"
 import { PGDASDProcessor } from "@/components/pgdasd-processor"
@@ -56,9 +56,10 @@ interface AnnualDashboardProps {
     initialViewIndex?: number
     isPdfGen?: boolean
     onFilesUpdated?: (files: MonthlyFile[]) => void
+    receitas_anteriores?: ReceitasAnteriores
 }
 
-export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex, isPdfGen, onFilesUpdated }: AnnualDashboardProps) {
+export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex, isPdfGen, onFilesUpdated, receitas_anteriores }: AnnualDashboardProps) {
     const [localFiles, setLocalFiles] = useState<MonthlyFile[]>(files)
     const [selectedFileIndex, setSelectedFileIndex] = useState<number | null>(initialViewIndex ?? null)
     const [isUploading, setIsUploading] = useState(false)
@@ -337,20 +338,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
     const currentFile = selectedFileIndex !== null ? sortedFiles[selectedFileIndex] : null
 
     // --- Aggregation Logic ---
-    const years = useMemo(() => {
-        const s = new Set<number>()
-        sortedFiles.forEach(f => {
-            const p = f.data.identificacao.periodoApuracao
-            const parts = p.split(' ')[0].split('/')
-            if (parts.length >= 2) {
-                const y = parseInt(parts.length === 3 ? parts[2] : parts[1])
-                if (!isNaN(y)) s.add(y)
-            }
-        })
-        return Array.from(s).sort((a, b) => a - b)
-    }, [sortedFiles])
-
-    // Helper to parse date
+    // Helper to parse date (Moved up to be available for consolidatedData)
     const parsePeriod = (p: string) => {
         const parts = p.split(' ')[0].split('/')
         if (parts.length === 2) return { m: parseInt(parts[0]), y: parseInt(parts[1]) }
@@ -358,7 +346,137 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
         return { m: 0, y: 0 }
     }
 
-    // Monthly Data By Year
+    const consolidatedData = useMemo(() => {
+        const map = new Map<string, number>() // "YYYY-MM" -> Value
+
+        // Helper to parse history label
+        const parseHistoryLabel = (lbl: string) => {
+            if (!lbl) return null
+            
+            // Try standard date formats
+            // DD/MM/YYYY or MM/YYYY
+            const partsSlash = lbl.split('/')
+            if (partsSlash.length === 3) {
+                 const m = parseInt(partsSlash[1])
+                 const y = parseInt(partsSlash[2])
+                 if (!isNaN(m) && !isNaN(y)) return { m, y }
+            }
+            if (partsSlash.length === 2) {
+                // MM/YYYY
+                const m = parseInt(partsSlash[0])
+                const y = parseInt(partsSlash[1])
+                if (!isNaN(m) && !isNaN(y)) return { m, y: y < 100 ? 2000 + y : y }
+            }
+            
+            // YYYY-MM-DD or YYYY-MM
+            const partsDash = lbl.split('-')
+            if (partsDash.length === 3) {
+                const y = parseInt(partsDash[0])
+                const m = parseInt(partsDash[1])
+                if (!isNaN(m) && !isNaN(y)) return { m, y }
+            }
+            if (partsDash.length === 2) {
+                // YYYY-MM
+                const y = parseInt(partsDash[0])
+                const m = parseInt(partsDash[1])
+                if (!isNaN(m) && !isNaN(y)) return { m, y }
+            }
+
+            return null
+        }
+
+        // 1. Populate from explicit files (Highest priority)
+        sortedFiles.forEach(f => {
+            const { m, y } = parsePeriod(f.data.identificacao.periodoApuracao)
+            if (m && y) {
+                const key = `${y}-${String(m).padStart(2, '0')}`
+                // Always overwrite with explicit file data as it is the source of truth for that month
+                map.set(key, f.data.receitas.receitaPA || 0)
+            }
+        })
+
+        // 2. Populate from receitas_anteriores (Explicitly requested by user: n8n data format)
+        // Format example: { mes: "01/2024", valor: 59442.2 }
+        // We also support 'historico' format from direct PDF parsing to ensure compatibility.
+        const processExternalData = (items: any[]) => {
+             if (!items || !Array.isArray(items)) return
+
+             const parseValue = (val: any) => {
+                 if (typeof val === 'number') return val
+                 if (typeof val === 'string') {
+                     // Remove "R$", spaces, and handle both comma/dot formats
+                     let v = val.replace(/[R$\s]/g, '')
+                     if (v.includes(',') && !v.includes('.')) {
+                         v = v.replace(',', '.')
+                     } else if (v.includes('.') && v.includes(',')) {
+                         const lastDot = v.lastIndexOf('.')
+                         const lastComma = v.lastIndexOf(',')
+                         if (lastComma > lastDot) { // 1.000,00
+                             v = v.replace(/\./g, '').replace(',', '.')
+                         } else { // 1,000.00
+                             v = v.replace(/,/g, '')
+                         }
+                     }
+                     return Number(v) || 0
+                 }
+                 return 0
+             }
+
+             items.forEach(item => {
+                 const p = parseHistoryLabel(item.mes || item.periodo)
+                 if (p) {
+                     const key = `${p.y}-${String(p.m).padStart(2, '0')}`
+                     const val = parseValue(item.valor)
+                     // Only overwrite if we have a valid positive value
+                     // This allows merging history fragments without erasing data with 0s
+                     if (val > 0) map.set(key, val)
+                 }
+             })
+        }
+
+        // Apply logic to first and last file as requested
+        // We process both 'receitas_anteriores' (n8n) and 'historico' (das-parse)
+        if (sortedFiles.length > 0) {
+            const filesToProcess = [sortedFiles[0]]
+            if (sortedFiles.length > 1) {
+                filesToProcess.push(sortedFiles[sortedFiles.length - 1])
+            }
+            
+            filesToProcess.forEach(f => {
+                const d = f.data as any
+                // 1. Check receitas_anteriores (n8n standard - snake_case)
+                if (d.receitas_anteriores) {
+                    processExternalData(d.receitas_anteriores.mercado_interno)
+                    processExternalData(d.receitas_anteriores.mercado_externo)
+                }
+                // 2. Check historico (das-parse standard - camelCase)
+                if (d.historico) {
+                    processExternalData(d.historico.mercadoInterno)
+                    processExternalData(d.historico.mercadoExterno)
+                }
+            })
+        }
+        
+        // Also check global prop just in case it's passed directly
+        if (receitas_anteriores) {
+            if (receitas_anteriores.mercado_interno) processExternalData(receitas_anteriores.mercado_interno)
+            if (receitas_anteriores.mercado_externo) processExternalData(receitas_anteriores.mercado_externo)
+        }
+
+        return map
+    }, [sortedFiles, receitas_anteriores])
+
+    const years = useMemo(() => {
+        const s = new Set<number>()
+        // From consolidated data
+        consolidatedData.forEach((_, key) => {
+            const y = parseInt(key.split('-')[0])
+            if (!isNaN(y)) s.add(y)
+        })
+        return Array.from(s).sort((a, b) => a - b)
+    }, [consolidatedData])
+
+    // Monthly Data By Year (Updated to use consolidatedData)
     const monthlyDataByYear = useMemo(() => {
         const map = new Map<number, { labels: string[], revenue: number[], taxes: number[] }>()
         years.forEach(y => {
@@ -366,32 +484,35 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
             const revenue: number[] = []
             const taxes: number[] = []
 
-            // Sort files first to ensure chronological order
-            const filesForYear = sortedFiles.filter(f => {
-                const { y: fy } = parsePeriod(f.data.identificacao.periodoApuracao)
-                return fy === y
-            }).sort((a, b) => {
-                const { m: ma } = parsePeriod(a.data.identificacao.periodoApuracao)
-                const { m: mb } = parsePeriod(b.data.identificacao.periodoApuracao)
-                return ma - mb
-            })
-
-            filesForYear.forEach(f => {
-                const { m } = parsePeriod(f.data.identificacao.periodoApuracao)
-                const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
-                labels.push(monthNames[m - 1])
-                revenue.push(f.data.receitas.receitaPA || 0)
-                taxes.push(f.data.tributos.Total || 0)
-            })
-
-            map.set(y, { labels, revenue, taxes })
+            // We iterate 1-12
+            for (let m = 1; m <= 12; m++) {
+                const key = `${y}-${String(m).padStart(2, '0')}`
+                const val = consolidatedData.get(key)
+                if (val !== undefined) {
+                    const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+                    labels.push(monthNames[m - 1])
+                    revenue.push(val)
+                    // Taxes only available for explicit files, difficult to get from history if not stored
+                    // Attempt to find explicit file for taxes
+                    const file = sortedFiles.find(f => {
+                        const p = parsePeriod(f.data.identificacao.periodoApuracao)
+                        return p.y === y && p.m === m
+                    })
+                    taxes.push(file?.data.tributos.Total || 0)
+                }
+            }
+            if (labels.length > 0) {
+                 map.set(y, { labels, revenue, taxes })
+            }
         })
         return map
-    }, [years, sortedFiles])
+    }, [years, consolidatedData, sortedFiles])
 
     // Aggregated Data for Comparison (Multi-View)
     const allComparisonData = useMemo(() => {
-        const generateData = (gran: 'quarterly' | 'semiannual' | 'annual') => {
+        const colors = ['#2563eb', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#6366f1'] // Blue, Green, Amber, Violet, Pink, Indigo
+
+        const generateData = (gran: 'quarterly' | 'semiannual') => {
             let labels: string[] = []
             let bucketCount = 0
 
@@ -401,31 +522,28 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
             } else if (gran === 'semiannual') {
                 labels = ['1º Semestre', '2º Semestre']
                 bucketCount = 2
-            } else if (gran === 'annual') {
-                labels = ['Total Anual']
-                bucketCount = 1
             }
 
             const datasets: any[] = []
-            const colors = ['#2563eb', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#6366f1'] // Blue, Green, Amber, Violet, Pink, Indigo
 
             years.forEach((y, idx) => {
                 const data = new Array(bucketCount).fill(0)
-                sortedFiles.forEach(f => {
-                    const { m, y: fy } = parsePeriod(f.data.identificacao.periodoApuracao)
-                    if (fy !== y) return
-                    const val = f.data.receitas.receitaPA || 0
-
-                    if (gran === 'quarterly') {
-                        const q = Math.ceil(m / 3) - 1
-                        if (q >= 0 && q < 4) data[q] += val
-                    } else if (gran === 'semiannual') {
-                        const s = m <= 6 ? 0 : 1
-                        data[s] += val
-                    } else {
-                        data[0] += val
-                    }
-                })
+                
+                // Iterate months 1-12 for this year
+                for (let m = 1; m <= 12; m++) {
+                     const key = `${y}-${String(m).padStart(2, '0')}`
+                     const val = consolidatedData.get(key) || 0
+                     
+                     if (val > 0) {
+                        if (gran === 'quarterly') {
+                            const q = Math.ceil(m / 3) - 1
+                            if (q >= 0 && q < 4) data[q] += val
+                        } else if (gran === 'semiannual') {
+                            const s = m <= 6 ? 0 : 1
+                            data[s] += val
+                        }
+                     }
+                }
 
                 datasets.push({
                     label: `${y}`,
@@ -443,12 +561,39 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
             return { labels, datasets }
         }
 
+        // Generate Annual (Year vs Year) Data
+        const generateAnnualData = () => {
+            const labels = years.map(String)
+            const data = years.map(y => {
+                let sum = 0
+                for(let m=1; m<=12; m++) {
+                    sum += consolidatedData.get(`${y}-${String(m).padStart(2, '0')}`) || 0
+                }
+                return sum
+            })
+            
+            return {
+                labels,
+                datasets: [{
+                    label: 'Receita Anual',
+                    data,
+                    backgroundColor: years.map((_, i) => colors[i % colors.length]),
+                    borderRadius: 4,
+                    barThickness: 60,
+                    datalabels: {
+                        display: true,
+                        ...datalabelsConfig
+                    }
+                }]
+            }
+        }
+
         return {
             quarterly: generateData('quarterly'),
             semiannual: generateData('semiannual'),
-            annual: generateData('annual')
+            annual: generateAnnualData()
         }
-    }, [years, sortedFiles])
+    }, [years, consolidatedData, datalabelsConfig])
 
 
     // Calculate totals for consolidated view
@@ -472,7 +617,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
         maintainAspectRatio: false,
         plugins: {
             legend: {
-                position: 'top' as const,
+                position: 'bottom' as const,
                 labels: { color: chartTheme.text }
             },
             title: { display: false },
@@ -673,6 +818,96 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
 
         return { servicos, mercadorias, industrializacao }
     }, [sortedFiles])
+
+    const detailedAnalysis = useMemo(() => {
+        const sortedYears = [...years].sort((a, b) => b - a)
+        
+        const formatCurrency = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val)
+        const formatPercent = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'percent', minimumFractionDigits: 2 }).format(val / 100)
+
+        const calcVar = (curr: number, prev: number) => {
+            const abs = curr - prev
+            const pct = prev !== 0 ? (abs / prev) * 100 : 0
+            return {
+                abs: formatCurrency(abs),
+                pct: formatPercent(pct),
+                isPositive: abs > 0,
+                isNeutral: abs === 0,
+                rawPct: pct
+            }
+        }
+
+        // Annual
+        const annual = sortedYears.map((year, i) => {
+            if (i === sortedYears.length - 1) return null 
+            const prevYear = year - 1
+            if (!years.includes(prevYear)) return null
+
+            const currVal = allComparisonData.annual.datasets[0].data[years.indexOf(year)] || 0
+            const prevVal = allComparisonData.annual.datasets[0].data[years.indexOf(prevYear)] || 0
+
+            return {
+                period: `${year} vs ${prevYear}`,
+                currentLabel: `${year}`,
+                prevLabel: `${prevYear}`,
+                current: formatCurrency(currVal),
+                previous: formatCurrency(prevVal),
+                ...calcVar(currVal, prevVal)
+            }
+        }).filter(Boolean)
+
+        // Semiannual
+        const semiannual = sortedYears.flatMap(year => {
+             const prevYear = year - 1
+             if (!years.includes(prevYear)) return []
+
+             return [1, 2].map(sem => {
+                 const currDataset = allComparisonData.semiannual.datasets.find((d: any) => d.label === String(year))
+                 const prevDataset = allComparisonData.semiannual.datasets.find((d: any) => d.label === String(prevYear))
+                 
+                 const currVal = currDataset?.data[sem - 1] || 0
+                 const prevVal = prevDataset?.data[sem - 1] || 0
+                 
+                 if (currVal === 0 && prevVal === 0) return null
+
+                 return {
+                     period: `${sem}º Semestre`,
+                     currentLabel: `${sem}º Sem ${year}`,
+                     prevLabel: `${sem}º Sem ${prevYear}`,
+                     current: formatCurrency(currVal),
+                     previous: formatCurrency(prevVal),
+                     ...calcVar(currVal, prevVal)
+                 }
+             }).filter(Boolean)
+        })
+
+        // Quarterly
+        const quarterly = sortedYears.flatMap(year => {
+             const prevYear = year - 1
+             if (!years.includes(prevYear)) return []
+
+             return [1, 2, 3, 4].map(q => {
+                 const currDataset = allComparisonData.quarterly.datasets.find((d: any) => d.label === String(year))
+                 const prevDataset = allComparisonData.quarterly.datasets.find((d: any) => d.label === String(prevYear))
+                 
+                 const currVal = currDataset?.data[q - 1] || 0
+                 const prevVal = prevDataset?.data[q - 1] || 0
+
+                 if (currVal === 0 && prevVal === 0) return null
+
+                 return {
+                     period: `${q}º Trimestre`,
+                     currentLabel: `${q}º Trim ${year}`,
+                     prevLabel: `${q}º Trim ${prevYear}`,
+                     current: formatCurrency(currVal),
+                     previous: formatCurrency(prevVal),
+                     ...calcVar(currVal, prevVal)
+                 }
+             }).filter(Boolean)
+        })
+
+        return { annual, semiannual, quarterly }
+    }, [years, allComparisonData])
 
     const barChartData = useMemo(() => {
         const labels = []
@@ -915,7 +1150,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                                     ...chartOptions.plugins,
                                                     legend: {
                                                         display: true,
-                                                        position: 'top',
+                                                        position: 'bottom',
                                                         labels: { color: chartTheme.text }
                                                     },
                                                     tooltip: {
@@ -951,6 +1186,89 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                     </CardContent>
                                 </Card>
                             </div>
+
+                            {/* Analysis Report */}
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle>Relatório de Análise Comparativa</CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="space-y-8">
+                                        {[
+                                            { title: 'Comparativo Anual', data: detailedAnalysis.annual },
+                                            { title: 'Comparativo Semestral', data: detailedAnalysis.semiannual },
+                                            { title: 'Comparativo Trimestral', data: detailedAnalysis.quarterly }
+                                        ].map((section, idx) => (
+                                            <div key={idx} className="space-y-4">
+                                                <h3 className="text-lg font-semibold flex items-center gap-2">
+                                                    {section.title}
+                                                </h3>
+                                                {section.data.length > 0 ? (
+                                                    <div className="rounded-md border">
+                                                        <Table>
+                                                            <TableHeader>
+                                                                <TableRow>
+                                                                    <TableHead className="w-[200px]">Período</TableHead>
+                                                                    <TableHead>Receita Atual</TableHead>
+                                                                    <TableHead>Receita Anterior</TableHead>
+                                                                    <TableHead>Variação (R$)</TableHead>
+                                                                    <TableHead>Variação (%)</TableHead>
+                                                                    <TableHead className="text-right">Tendência</TableHead>
+                                                                </TableRow>
+                                                            </TableHeader>
+                                                            <TableBody>
+                                                                {section.data.map((row: any, rIdx: number) => (
+                                                                    <TableRow key={rIdx}>
+                                                                        <TableCell className="font-medium">
+                                                                            <div className="flex flex-col">
+                                                                                <span>{row.period}</span>
+                                                                                <span className="text-xs text-muted-foreground">{row.currentLabel} vs {row.prevLabel}</span>
+                                                                            </div>
+                                                                        </TableCell>
+                                                                        <TableCell>{row.current}</TableCell>
+                                                                        <TableCell className="text-muted-foreground">{row.previous}</TableCell>
+                                                                        <TableCell className={cn(
+                                                                            "font-medium",
+                                                                            row.isPositive ? "text-emerald-600" : row.isNeutral ? "text-muted-foreground" : "text-red-600"
+                                                                        )}>
+                                                                            {row.isPositive ? '+' : ''}{row.abs}
+                                                                        </TableCell>
+                                                                        <TableCell className={cn(
+                                                                            "font-bold",
+                                                                            row.isPositive ? "text-emerald-600" : row.isNeutral ? "text-muted-foreground" : "text-red-600"
+                                                                        )}>
+                                                                            {row.isPositive ? '+' : ''}{row.pct}
+                                                                        </TableCell>
+                                                                        <TableCell className="text-right">
+                                                                            {row.isNeutral ? (
+                                                                                <Minus className="inline h-4 w-4 text-muted-foreground" />
+                                                                            ) : row.isPositive ? (
+                                                                                <div className="flex items-center justify-end gap-1 text-emerald-600">
+                                                                                    <ArrowUpRight className="h-4 w-4" />
+                                                                                    <span className="text-xs">Crescimento</span>
+                                                                                </div>
+                                                                            ) : (
+                                                                                <div className="flex items-center justify-end gap-1 text-red-600">
+                                                                                    <ArrowDownRight className="h-4 w-4" />
+                                                                                    <span className="text-xs">Queda</span>
+                                                                                </div>
+                                                                            )}
+                                                                        </TableCell>
+                                                                    </TableRow>
+                                                                ))}
+                                                            </TableBody>
+                                                        </Table>
+                                                    </div>
+                                                ) : (
+                                                    <div className="text-sm text-muted-foreground italic">
+                                                        Dados insuficientes para comparação neste período.
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </CardContent>
+                            </Card>
 
                             <Card>
                                 <CardHeader>

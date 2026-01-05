@@ -104,6 +104,7 @@ export default async function Page({ params, searchParams }: any) {
           dashboardCode={id}
           initialViewIndex={viewFileIndex}
           isPdfGen={isPdfGen}
+          receitas_anteriores={(data as any).receitas_anteriores}
         />
       </main>
     )

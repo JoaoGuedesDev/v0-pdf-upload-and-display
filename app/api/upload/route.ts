@@ -162,6 +162,10 @@ export async function POST(req: NextRequest) {
                   ;(meta as any).protocolo = protocolo
                   ;(root as any).protocolo = protocolo
                 }
+                const ra = src?.receitas_anteriores || src?.dados?.receitas_anteriores
+                if (ra) {
+                    (root as any).receitas_anteriores = ra
+                }
               }
             } catch {}
             const genId = await saveDashboard(normalized, 60)

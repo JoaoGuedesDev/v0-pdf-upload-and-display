@@ -28,9 +28,20 @@ export interface Tributos {
   Total: number;
 }
 
+export interface ReceitasAnterioresItem {
+  mes: string;
+  valor: number;
+}
+
+export interface ReceitasAnteriores {
+  mercado_interno?: ReceitasAnterioresItem[];
+  mercado_externo?: ReceitasAnterioresItem[];
+}
+
 export interface DashboardData {
   identificacao: Identificacao;
   receitas: Receitas;
+  receitas_anteriores?: ReceitasAnteriores;
   tributos: Tributos;
   tributosMercadoriasInterno?: Tributos;
   tributosMercadoriasExterno?: Tributos;

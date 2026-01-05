@@ -692,12 +692,12 @@ export function processDasData(textRaw: string) {
       blocoMI = bloco22.slice(startIdx, endIdx)
     }
   }
-  // Aceita ausência de espaço entre MM/YYYY e valor: usa \s* em vez de \s+
-  const pares = [...(blocoMI || '').matchAll(/(\d{2}\/\d{4})\s*((?:\d{1,3}(?:\.\d{3})+|\d+),(?:\d{2}))/g)]
+  // Aceita ausência de espaço entre MM/YYYY e valor, e ignora "R$" ou texto entre data e valor
+  const pares = [...(blocoMI || '').matchAll(/(\d{2}\/\d{4})[^\d\n]*?((?:\d{1,3}(?:\.\d{3})+|\d+),(?:\d{2}))/g)]
     .map((m) => ({ mes: m[1], valor: brToFloat(m[2]), valorStr: m[2] }))
 
   const blocoME = sliceBetween(text, /2\.2\.2\)?\s*Mercado Externo/i, /\n\s*2\.[0-9]+\)/)
-  const paresME = [...blocoME.matchAll(/(\d{2}\/\d{4})\s*((?:\d{1,3}(?:\.\d{3})+|\d+),(?:\d{2,4}))/gm)]
+  const paresME = [...blocoME.matchAll(/(\d{2}\/\d{4})[^\d\n]*?((?:\d{1,3}(?:\.\d{3})+|\d+),(?:\d{2,4}))/gm)]
     .map((m) => {
       const mes = m[1]
       const raw = m[2]
