@@ -61,23 +61,23 @@ export const ComparacaoAtividades = memo(function ComparacaoAtividades({ ativida
 
   return (
     <Card
-      className={`bg-card border-border shadow-lg hover:shadow-xl transition-all duration-200 print:inline-block print:w-1/3 print:align-top print:break-inside-avoid ${className}`}
+      className={`bg-[#3A3A3A] border border-[#00C2FF] shadow-lg hover:shadow-xl transition-all duration-200 print:inline-block print:w-1/3 print:align-top print:break-inside-avoid ${className}`}
     >
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <div>
           <CardTitle
-            className={`text-base sm:text-[9px] flex items-center gap-2 text-card-foreground`}
+            className={`text-base sm:text-[9px] flex items-center gap-2 text-white`}
           >
-            <BarChartHorizontal className={`h-5 w-5 text-primary`} />
+            <BarChartHorizontal className={`h-5 w-5 text-[#00C2FF]`} />
             Tributos por Atividade (exigível)
           </CardTitle>
           <CardDescription
-            className={`text-xs sm:text-[9px] text-muted-foreground`}
+            className={`text-xs sm:text-[9px] text-gray-400`}
           >
             Distribuição do DAS entre Mercadorias e Serviços
           </CardDescription>
         </div>
-        <div className={`text-[9px] font-semibold text-muted-foreground`}>
+        <div className={`text-[9px] font-semibold text-gray-400`}>
           Total: {formatCurrency(total)}
         </div>
       </CardHeader>
@@ -89,38 +89,38 @@ export const ComparacaoAtividades = memo(function ComparacaoAtividades({ ativida
               return (
                 <div
                   key={`atv-${i}`}
-                  className={`flex items-center justify-between p-2 rounded-lg bg-muted/50 hover:shadow-md transition-all duration-200`}
+                  className={`flex items-center justify-between p-2 rounded-lg bg-[#007AFF]/10 hover:shadow-md transition-all duration-200`}
                 >
                   <div className="flex items-center gap-2">
                     <div className="w-4 h-4 rounded-full flex-shrink-0 shadow-sm" style={{ backgroundColor: ATIVIDADES_COLORS?.mercadorias || "#007AFF" }} />
                     <div>
-                      <div className={`font-medium text-sm text-card-foreground`}>{row.nome}</div>
-                      <div className={`text-xs text-muted-foreground`}>{pct.toFixed(5)}%</div>
+                      <div className={`font-medium text-sm text-white`}>{row.nome}</div>
+                      <div className={`text-xs text-gray-400`}>{pct.toFixed(5)}%</div>
                     </div>
                   </div>
-                  <div className={`font-bold text-sm text-card-foreground`}>{formatCurrency(Number(row.valor || 0))}</div>
+                  <div className={`font-bold text-sm text-white`}>{formatCurrency(Number(row.valor || 0))}</div>
                 </div>
               )
             })}
             <div
-              className={`flex items-center justify-between p-2 rounded-lg border-2 bg-[#007AFF]/5 dark:bg-[#007AFF]/10 border-[#007AFF]/30 font-bold`}
+              className={`flex items-center justify-between p-2 rounded-lg border-2 bg-[#007AFF]/5 border-[#00C2FF] font-bold`}
             >
               <div className="flex items-center gap-2">
                 <div
-                  className={`w-4 h-4 rounded-full bg-[#007AFF]`}
+                  className={`w-4 h-4 rounded-full bg-[#00C2FF]`}
                 />
                 <div>
                   <div
-                    className={`font-bold text-sm text-[#007AFF] dark:text-[#00C2FF]`}
+                    className={`font-bold text-sm text-[#00C2FF]`}
                   >
                     TOTAL DAS (Atividades)
                   </div>
-                  <div className={`text-xs text-[#00C2FF] dark:text-[#3D5AFE]`}>
+                  <div className={`text-xs text-[#007AFF]`}>
                     100.00000%
                   </div>
                 </div>
               </div>
-                  <div className={`font-bold text-lg text-[#007AFF] dark:text-[#00C2FF]`}>{formatCurrency(total)}</div>
+                  <div className={`font-bold text-lg text-white`}>{formatCurrency(total)}</div>
               </div>
             </div>
           </div>

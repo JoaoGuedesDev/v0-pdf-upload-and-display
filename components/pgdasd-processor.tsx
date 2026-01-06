@@ -413,18 +413,18 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
 
 
 
-        <Card className="bg-[#050B14] text-[#FFFFFF] border border-[#007AFF]/30 shadow-xl py-2">
+        <Card className="bg-[#3A3A3A] text-white border border-[#5A5A5A] shadow-xl py-2">
           <CardContent className="grid sm:grid-cols-2 md:grid-cols-3 gap-2">
             <div>
-              <p className="text-[#00C2FF] text-xs sm:text-sm">CNPJ</p>
+              <p className="text-[#8A8A8A] text-xs sm:text-sm">CNPJ</p>
               <p className="text-base sm:text-lg font-semibold break-words">{data?.identificacao?.cnpj}</p>
             </div>
             <div className="sm:col-span-2 md:col-span-1">
-              <p className="text-[#00C2FF] text-xs sm:text-sm">Razão Social</p>
+              <p className="text-[#8A8A8A] text-xs sm:text-sm">Razão Social</p>
               <p className="text-base sm:text-lg font-semibold break-words">{data?.identificacao?.razaoSocial}</p>
             </div>
             <div className="sm:col-span-2 md:col-span-1">
-              <p className="text-[#00C2FF] text-xs sm:text-sm">Período</p>
+              <p className="text-[#8A8A8A] text-xs sm:text-sm">Período</p>
               <p className="text-base sm:text-lg font-semibold break-words">{data?.identificacao?.periodoApuracao}</p>
             </div>
           </CardContent>
@@ -550,7 +550,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                       <Card className="bg-[#00C2FF]/10 border-0 dark:bg-[#00C2FF]/20">
                         <CardContent className="p-3">
                           <p className="text-xs text-[#00C2FF] dark:text-[#00C2FF]">Utilização do Limite</p>
-                          <p className="text-lg font-semibold text-[#050B14] dark:text-[#FFFFFF]">{pct(utilizacaoLimite)}</p>
+                          <p className="text-lg font-semibold text-[#3A3A3A] dark:text-[#FFFFFF]">{pct(utilizacaoLimite)}</p>
                         </CardContent>
                       </Card>
                     )}
@@ -558,7 +558,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                       <Card className="bg-[#007AFF]/10 border-0 dark:bg-[#007AFF]/20">
                         <CardContent className="p-3">
                           <p className="text-xs text-[#007AFF] dark:text-[#007AFF]">Comparativo de Crescimento</p>
-                          <p className="text-lg font-semibold text-[#050B14] dark:text-[#FFFFFF]">{pct(growth)}</p>
+                          <p className="text-lg font-semibold text-[#3A3A3A] dark:text-[#FFFFFF]">{pct(growth)}</p>
                         </CardContent>
                       </Card>
                     )}
@@ -566,7 +566,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                       <Card className="bg-[#007AFF]/5 dark:bg-[#007AFF]/10 border-0">
                         <CardContent className="pb-2">
                           <p className="text-xs text-[#007AFF] dark:text-[#007AFF]">Média no último trimestre</p>
-                          <p className="text-lg font-semibold text-[#050B14] dark:text-[#FFFFFF]">{formatCurrency(mediaTri)}</p>
+                          <p className="text-lg font-semibold text-[#3A3A3A] dark:text-[#FFFFFF]">{formatCurrency(mediaTri)}</p>
                         </CardContent>
                       </Card>
                     )}
@@ -1175,7 +1175,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
               const cy = (chartArea.top + chartArea.bottom) / 2
               ctx.save()
               ctx.textAlign = 'center'
-              ctx.fillStyle = theme === 'dark' ? '#FAF5FF' : '#111827'
+              ctx.fillStyle = theme === 'dark' ? '#FAF5FF' : '#050B14'
               ctx.font = '600 14px Inter, system-ui, -apple-system, Segoe UI'
               ctx.fillText('Total de Tributos', cx, cy - 10)
               ctx.font = '700 14px Inter, system-ui, -apple-system, Segoe UI'
@@ -1237,7 +1237,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                 ctx.lineTo(n.lx, n.ly)
                 ctx.stroke()
                 ctx.textAlign = n.right ? 'left' : 'right'
-                ctx.fillStyle = String(n.color || (theme === 'dark' ? '#FAF5FF' : '#111827'))
+                ctx.fillStyle = String(n.color || (theme === 'dark' ? '#FAF5FF' : '#050B14'))
                 ctx.font = '600 14px Inter, system-ui, -apple-system, Segoe UI'
                 const txt = `${n.label}: ${formatCurrency(Number(n.value || 0))} (${n.pct.toFixed(1)}%)`
                 ctx.fillText(txt, n.lx, n.ly - 2)
@@ -1309,15 +1309,15 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                       const showServ = servicosTotal > 0
                       const showMerc = mercadoriasTotal > 0
                       return (
-                        <div className="flex items-center justify-between bg-[#007AFF]/5 dark:bg-[#050B14]/50 rounded-lg px-2 py-2 border border-[#007AFF]/10 dark:border-[#007AFF]/30">
+                        <div className="flex items-center justify-between bg-[#007AFF]/5 dark:bg-[#3A3A3A]/50 rounded-lg px-2 py-2 border border-[#007AFF]/10 dark:border-[#007AFF]/30">
                           <div className="flex-1">
                             <div className="flex items-center gap-2">
                               <span className="inline-block w-3 h-2 rounded-full bg-[#007AFF]" />
-                              <div className="text-[#050B14] dark:text-[#FFFFFF] text-xs font-semibold">TOTAL DAS</div>
+                              <div className="text-[#3A3A3A] dark:text-[#FFFFFF] text-xs font-semibold">TOTAL DAS</div>
                             </div>
                             <div className="flex flex-wrap gap-2 mt-2">
                               {showServ && (
-                                <span className="inline-flex items-center rounded-full bg-[#050B14]/5 text-[#050B14] dark:bg-[#FFFFFF]/10 dark:text-[#FFFFFF] px-2 py-1 text-[11px] font-semibold">
+                                <span className="inline-flex items-center rounded-full bg-[#3A3A3A]/5 text-[#3A3A3A] dark:bg-[#FFFFFF]/10 dark:text-[#FFFFFF] px-2 py-1 text-[11px] font-semibold">
                                   Serviços: {formatCurrency(servicosTotal)}
                                 </span>
                               )}
@@ -1338,7 +1338,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                               )}
                             </div>
                           </div>
-                          <div className="text-right text-[#050B14] dark:text-[#FFFFFF] text-xs font-semibold">
+                          <div className="text-right text-[#3A3A3A] dark:text-[#FFFFFF] text-xs font-semibold">
                             <div>100%</div>
                             <div>{formatCurrency(totalDAS)}</div>
                           </div>
@@ -1436,7 +1436,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
           <CardContent className="py-2">
             <div className="grid md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <div className="rounded-xl p-3 bg-muted/50 dark:bg-[#050B14]/50">
+                <div className="rounded-xl p-3 bg-muted/50 dark:bg-[#3A3A3A]/50">
                   <ul className="space-y-2 text-[#007AFF] dark:text-[#00C2FF]">
                     <li className="flex items-start gap-2"><span className="mt-1 inline-block w-1.5 h-1.5 rounded-full bg-[#007AFF]" />Cenários comparativos entre regimes tributários</li>
                     <li className="flex items-start gap-2"><span className="mt-1 inline-block w-1.5 h-1.5 rounded-full bg-[#007AFF]" />Simulações de economia fiscal</li>
@@ -1445,8 +1445,8 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                 </div>
               </div>
               <div>
-                <div className={`rounded-xl p-4 bg-muted/70 dark:bg-[#050B14]/70 text-[#050B14] dark:text-[#FFFFFF] border border-border dark:border-[#007AFF]/30`}>
-                  <p className="font-semibold text-[#050B14] dark:text-[#FFFFFF] mb-2">Fale com a Integra</p>
+                <div className={`rounded-xl p-4 bg-muted/70 dark:bg-[#3A3A3A]/70 text-[#3A3A3A] dark:text-[#FFFFFF] border border-border dark:border-[#007AFF]/30`}>
+                  <p className="font-semibold text-[#3A3A3A] dark:text-[#FFFFFF] mb-2">Fale com a Integra</p>
                   <div className="space-y-2">
                     <a className="flex items-center gap-2 hover:text-[#007AFF] dark:hover:text-[#00C2FF]" href="https://wa.me/559481264638" target="_blank" rel="noreferrer"><MessageCircle className="h-4 w-4 text-[#007AFF]" />WhatsApp: 94 8126-4638</a>
                     <a className="flex items-center gap-2 hover:text-[#007AFF] dark:hover:text-[#00C2FF]" href="mailto:atendimento@integratecnologia.inf.br"><Mail className="h-4 w-4 text-[#007AFF]" />E-mail: atendimento@integratecnologia.inf.br</a>

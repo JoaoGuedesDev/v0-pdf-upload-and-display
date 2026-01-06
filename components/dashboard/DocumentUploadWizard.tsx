@@ -202,7 +202,7 @@ export function DocumentUploadWizard({ onComplete }: DocumentUploadWizardProps) 
                     className={cn(
                         "border-2 border-dashed rounded-xl p-10 flex flex-col items-center justify-center transition-all cursor-pointer",
                         dragActive
-                            ? "bg-[#00C2FF]/10 border-[#007AFF] dark:bg-[#050B14]/50"
+                            ? "bg-[#00C2FF]/10 border-[#007AFF] dark:bg-[#3A3A3A]/50"
                             : "bg-muted/30 border-muted-foreground/25 hover:bg-muted/50"
                     )}
                     onDragEnter={handleDrag}

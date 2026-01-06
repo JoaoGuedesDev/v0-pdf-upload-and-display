@@ -167,7 +167,7 @@ export function FileCorrectionWizard({
                     "flex items-center justify-between p-3 rounded-lg border transition-all",
                     isValid ? "bg-green-50 border-green-200 dark:bg-green-900/10 dark:border-green-900/30" :
                       isInvalid ? "bg-red-50 border-red-200 dark:bg-red-900/10 dark:border-red-900/30" :
-                        "bg-muted/30 border-border dark:bg-[#050B14]/50 dark:border-[#007AFF]/30"
+                        "bg-muted/30 border-border dark:bg-[#3A3A3A]/50 dark:border-[#007AFF]/30"
                   )}
                 >
                   <div className="flex items-center gap-3 overflow-hidden">

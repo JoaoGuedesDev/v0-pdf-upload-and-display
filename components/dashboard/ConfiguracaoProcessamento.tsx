@@ -117,7 +117,7 @@ export const ConfiguracaoProcessamento = memo(function ConfiguracaoProcessamento
         <div
           className={`border-2 border-dashed rounded-lg p-6 sm:p-10 flex flex-col items-center justify-center transition-colors cursor-pointer ${
             dragActive
-              ? `bg-[#00C2FF]/10 border-[#007AFF] dark:bg-[#050B14]/50`
+              ? `bg-[#00C2FF]/10 border-[#007AFF] dark:bg-[#3A3A3A]/50`
               : `bg-muted/30 border-muted-foreground/25 hover:bg-muted/50`
           }`}
           onDragEnter={handleDrag}
@@ -261,7 +261,7 @@ export const ConfiguracaoProcessamento = memo(function ConfiguracaoProcessamento
                           title={`Preview de ${file.name}`}
                         />
                       </div>
-                      <div className="absolute bottom-2 right-2 bg-black/75 text-white text-xs px-2 py-1 rounded pointer-events-none">
+                      <div className="absolute bottom-2 right-2 bg-[#3A3A3A]/75 text-white text-xs px-2 py-1 rounded pointer-events-none">
                         Preview
                       </div>
                     </div>

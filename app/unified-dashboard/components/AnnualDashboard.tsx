@@ -269,7 +269,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
         },
         borderRadius: 4,
         padding: 4,
-        textStrokeColor: 'black',
+        textStrokeColor: 'transparent',
         textStrokeWidth: 0,
         font: { weight: 'bold' as const, size: 10 },
         formatter: (value: number | null) => {
@@ -484,11 +484,12 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
 
     // Monthly Data By Year (Updated to use consolidatedData)
     const monthlyDataByYear = useMemo(() => {
-        const map = new Map<number, { labels: string[], revenue: number[], taxes: number[] }>()
+        const map = new Map<number, { labels: string[], revenue: number[], taxes: number[], interest: number[] }>()
         years.forEach(y => {
             const labels: string[] = []
             const revenue: number[] = []
             const taxes: number[] = []
+            const interest: number[] = []
 
             // We iterate 1-12
             for (let m = 1; m <= 12; m++) {
@@ -504,11 +505,22 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                         const p = parsePeriod(f.data.identificacao.periodoApuracao)
                         return p.y === y && p.m === m
                     })
-                    taxes.push(file?.data.tributos.Total || 0)
+                    const tVal = file?.data.tributos.Total || 0
+                    taxes.push(tVal)
+
+                    let interestVal = 0
+                    if (file) {
+                        const totalToPay = Number((file.data as any).valorTotalDAS || 0)
+                        const totalTaxesVal = Number(tVal)
+                        if (totalToPay > totalTaxesVal + 0.05) {
+                            interestVal = totalToPay - totalTaxesVal
+                        }
+                    }
+                    interest.push(interestVal)
                 }
             }
             if (labels.length > 0) {
-                 map.set(y, { labels, revenue, taxes })
+                 map.set(y, { labels, revenue, taxes, interest })
             }
         })
         return map
@@ -1071,7 +1083,15 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                                                     backgroundColor: 'rgba(219, 39, 119, 0.1)',
                                                                     tension: 0.4,
                                                                     fill: true
-                                                                }
+                                                                },
+                                                                ...(yearData?.interest?.some(v => v > 0) ? [{
+                                                                    label: 'Juros/Multa',
+                                                                    data: yearData?.interest || [],
+                                                                    borderColor: '#EF4444',
+                                                                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                                                                    tension: 0.4,
+                                                                    fill: true
+                                                                }] : [])
                                                             ]
                                                         }}
                                                     />
@@ -1472,7 +1492,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                         <>
                             {!isPdfGen && onBack && (
                                 <div className="absolute top-4 left-4 z-10 print:hidden">
-                                    <Button variant="ghost" onClick={onBack} className="bg-white/50 hover:bg-white/80 dark:bg-black/20 dark:hover:bg-black/40 backdrop-blur-sm gap-2 shadow-sm border border-white/20 dark:border-white/10">
+                                    <Button variant="ghost" onClick={onBack} className="bg-white/50 hover:bg-white/80 dark:bg-[#3A3A3A]/20 dark:hover:bg-[#3A3A3A]/40 backdrop-blur-sm gap-2 shadow-sm border border-white/20 dark:border-white/10">
                                         <ArrowLeft className="h-4 w-4" />
                                         Voltar
                                     </Button>
@@ -1537,23 +1557,23 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                         className={cn(
                             "w-full flex items-center gap-3 p-3 rounded-lg text-left transition-all",
                             isConsolidated
-                                ? "bg-[#205F82]/5 dark:bg-[#205F82]/20 border-[#205F82]/20 dark:border-[#205F82]/50 shadow-sm ring-1 ring-[#205F82]/20 dark:ring-[#205F82]/50"
+                                ? "bg-[#3A3A3A]/10 dark:bg-[#3A3A3A]/40 border-[#5A5A5A]/30 dark:border-[#5A5A5A]/60 shadow-sm ring-1 ring-[#5A5A5A]/20 dark:ring-[#5A5A5A]/50"
                                 : "hover:bg-muted/50 border-transparent"
                         )}
                     >
                         <div className={cn(
                             "w-10 h-10 rounded-full flex items-center justify-center",
-                            isConsolidated ? "bg-[#205F82]/20 dark:bg-[#205F82]/40 text-[#205F82] dark:text-[#DCE0E1]" : "bg-muted text-muted-foreground"
+                            isConsolidated ? "bg-[#3A3A3A] text-white" : "bg-muted text-muted-foreground"
                           )}>
                             <LayoutDashboard className="w-4 h-4" />
                           </div>
                           <div>
-                            <p className={cn("font-medium text-sm", isConsolidated ? "text-[#205F82] dark:text-[#93A5AF]" : "text-foreground")}>
+                            <p className={cn("font-medium text-sm", isConsolidated ? "text-[#3A3A3A] dark:text-[#8A8A8A]" : "text-foreground")}>
                               Visão Consolidada
                             </p>
                             <p className="text-xs text-muted-foreground">Consolidado Anual</p>
                         </div>
-                        {isConsolidated && <ChevronRight className="w-4 h-4 text-[#205F82] dark:text-[#93A5AF]" />}
+                        {isConsolidated && <ChevronRight className="w-4 h-4 text-[#3A3A3A] dark:text-[#8A8A8A]" />}
                     </button>
 
                     <div className="h-px bg-border my-2" />
@@ -1612,7 +1632,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
 
             {/* Error Modal */}
             {showErrorModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#3A3A3A]/50 p-4">
                     <Card className="w-full max-w-lg shadow-xl border-destructive/50 bg-card">
                         <CardHeader className="flex flex-row items-center justify-between pb-2">
                             <CardTitle className="text-destructive flex items-center gap-2">
@@ -1636,7 +1656,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                             <div className="mt-4 flex justify-end gap-3">
                                 <Button variant="secondary" onClick={() => setShowErrorModal(false)}>Cancelar</Button>
                                 {pendingFiles.length > 0 && (
-                                    <Button onClick={handleForceProcess} className="bg-[#007AFF] hover:bg-[#050B14] text-white">
+                                    <Button onClick={handleForceProcess} className="bg-[#007AFF] hover:bg-[#3A3A3A] text-white">
                                         Processar Mesmo Assim
                                     </Button>
                                 )}
