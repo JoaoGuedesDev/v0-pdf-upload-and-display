@@ -662,7 +662,11 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
         scales: {
             y: {
                 grid: { color: chartTheme.grid },
-                ticks: { color: chartTheme.text, callback: (v: any) => new Intl.NumberFormat('pt-BR', { notation: 'compact' }).format(v) }
+                ticks: { 
+                    color: chartTheme.text, 
+                    callback: (v: any) => new Intl.NumberFormat('pt-BR', { notation: 'compact' }).format(v),
+                    padding: 25, // Increased padding to separate Y-axis labels from chart area
+                }
             },
             x: {
                 grid: { color: chartTheme.grid },
@@ -1119,13 +1123,13 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                     </div>
                                 </div>
 
-                                <div className="grid gap-6 grid-cols-1">
+                                <div className="space-y-6">
                                     {visibleCharts.quarterly && (
                                         <Card>
                                             <CardHeader>
                                                 <CardTitle className="text-sm font-medium">Comparativo Trimestral</CardTitle>
                                             </CardHeader>
-                                            <CardContent className="h-[200px]">
+                                            <CardContent className="h-[300px]">
                                                 <Bar
                                                     options={chartOptions}
                                                     data={allComparisonData.quarterly}
@@ -1134,33 +1138,35 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                         </Card>
                                     )}
 
-                                    {visibleCharts.semiannual && (
-                                        <Card>
-                                            <CardHeader>
-                                                <CardTitle className="text-sm font-medium">Comparativo Semestral</CardTitle>
-                                            </CardHeader>
-                                            <CardContent className="h-[200px]">
-                                                <Bar
-                                                    options={chartOptions}
-                                                    data={allComparisonData.semiannual}
-                                                />
-                                            </CardContent>
-                                        </Card>
-                                    )}
+                                    <div className="grid gap-6 grid-cols-1 md:grid-cols-2">
+                                        {visibleCharts.semiannual && (
+                                            <Card className={visibleCharts.annual ? "" : "md:col-span-2"}>
+                                                <CardHeader>
+                                                    <CardTitle className="text-sm font-medium">Comparativo Semestral</CardTitle>
+                                                </CardHeader>
+                                                <CardContent className="h-[300px]">
+                                                    <Bar
+                                                        options={chartOptions}
+                                                        data={allComparisonData.semiannual}
+                                                    />
+                                                </CardContent>
+                                            </Card>
+                                        )}
 
-                                    {visibleCharts.annual && (
-                                        <Card>
-                                            <CardHeader>
-                                                <CardTitle className="text-sm font-medium">Comparativo Anual</CardTitle>
-                                            </CardHeader>
-                                            <CardContent className="h-[200px]">
-                                                <Bar
-                                                    options={chartOptions}
-                                                    data={allComparisonData.annual}
-                                                />
-                                            </CardContent>
-                                        </Card>
-                                    )}
+                                        {visibleCharts.annual && (
+                                            <Card className={visibleCharts.semiannual ? "" : "md:col-span-2"}>
+                                                <CardHeader>
+                                                    <CardTitle className="text-sm font-medium">Comparativo Anual</CardTitle>
+                                                </CardHeader>
+                                                <CardContent className="h-[300px]">
+                                                    <Bar
+                                                        options={chartOptions}
+                                                        data={allComparisonData.annual}
+                                                    />
+                                                </CardContent>
+                                            </Card>
+                                        )}
+                                    </div>
                                 </div>
 
                                 <Card>
