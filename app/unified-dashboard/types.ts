@@ -2,7 +2,7 @@ export interface Identificacao {
   cnpj: string;
   razaoSocial: string;
   periodoApuracao: string;
-  abertura: string;
+  abertura?: string;
   municipio: string;
   uf: string;
 }
@@ -12,8 +12,15 @@ export interface Receitas {
   rbt12: number;
   rba: number;
   rbaa: number;
-  limite: number;
-  receitaPAFormatada: string;
+  limite?: number;
+  receitaPAFormatada?: string;
+  mercadoExterno?: {
+    rpa: number;
+    rbt12: number;
+    rba: number;
+    rbaa: number;
+    limite?: number;
+  };
 }
 
 export interface Tributos {
@@ -38,6 +45,11 @@ export interface ReceitasAnteriores {
   mercado_externo?: ReceitasAnterioresItem[];
 }
 
+export interface Atividade {
+  descricao: string;
+  Total: number;
+}
+
 export interface DashboardData {
   identificacao: Identificacao;
   receitas: Receitas;
@@ -48,9 +60,53 @@ export interface DashboardData {
   tributosServicosInterno?: Tributos;
   tributosServicosExterno?: Tributos;
   cenario?: string;
-  valorTotalDAS: number;
-  valorTotalDASFormatado: string;
+  atividades?: {
+    [key: string]: Atividade | undefined;
+  };
+  calculos?: {
+    aliquotaEfetiva?: number;
+    margemLiquida?: number;
+    totalDAS?: number;
+    totalDASFormatado?: string;
+    aliquotaEfetivaFormatada?: string;
+    aliquotaEfetivaAtualPercent?: number;
+    analise_aliquota?: any;
+    [key: string]: any;
+  };
+  graficos?: {
+    tributosBar?: {
+      labels: string[];
+      values: number[];
+    };
+    totalTributos?: {
+      labels: string[];
+      values: number[];
+    };
+    dasPie?: {
+      labels: string[];
+      values: number[];
+    };
+    receitaLine?: {
+      labels: string[];
+      values: number[];
+    };
+    receitaMensal?: {
+      labels: string[];
+      values: number[];
+    };
+    receitaLineExterno?: {
+      labels: string[];
+      values: number[];
+    };
+    atividadesComparativo?: any;
+    [key: string]: any;
+  };
+  insights?: any;
+  debug?: any;
 }
+
+// Alias for compatibility if needed
+export type DASData = DashboardData;
 
 export interface MonthlyFile {
   filename: string;

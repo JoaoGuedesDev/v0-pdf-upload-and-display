@@ -180,8 +180,12 @@ export async function POST(request: NextRequest) {
             }
           }
           // Fallback: tentar processar texto bruto como DAS
-          const parsed = processDasData(bodyText)
-          const share = await persistShare(parsed)
+      const parsed = processDasData(bodyText)
+      const dasData = parsed as any
+      const cnpj = dasData.cabecalho?.identificacao?.cnpj || 'unknown'
+      const period = dasData.cabecalho?.periodo?.apuracao || dasData.cabecalho?.periodo?.fim || 'unknown'
+      
+      const share = await persistShare(parsed)
           const origin = getOrigin(request)
           const pdfUrl = `${origin}/api/pdf?path=${encodeURIComponent(share.url)}&type=print&w=1280&scale=1`
           return NextResponse.json({ ...parsed, dashboardUrl: share.url, dashboardAdminUrl: share.adminUrl, dashboardCode: share.code, pdfUrl })
@@ -228,7 +232,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Texto do PDF está vazio" }, { status: 400 })
       }
 
-      const dasData = processDasData(text)
+      const dasData = processDasData(text) as any
       
       // Save file to organized storage
       const cnpj = dasData.cabecalho?.identificacao?.cnpj || 'unknown'

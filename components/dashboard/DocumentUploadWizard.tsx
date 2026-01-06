@@ -140,18 +140,18 @@ export function DocumentUploadWizard({ onComplete }: DocumentUploadWizardProps) 
                 <div key={label} className="flex flex-col items-center flex-1 relative">
                     <div className={cn(
                         "w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold z-10 transition-colors",
-                        isCompleted ? "bg-green-600 text-white" : isActive ? "bg-violet-600 text-white" : "bg-slate-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
+                        isCompleted ? "bg-green-600 text-white" : isActive ? "bg-[#007AFF] text-white" : "bg-muted text-muted-foreground"
                     )}>
                         {isCompleted ? <CheckCircle2 className="w-5 h-5" /> : idx + 1}
                     </div>
                     <div className={cn(
                         "text-xs mt-2 font-medium",
-                        isActive ? "text-violet-700 dark:text-violet-400" : "text-slate-500 dark:text-slate-400"
+                        isActive ? "text-[#007AFF] dark:text-[#00C2FF]" : "text-muted-foreground"
                     )}>{label}</div>
                     {idx !== 3 && (
                         <div className={cn(
                             "absolute top-4 left-1/2 w-full h-0.5 -z-0",
-                            isCompleted ? "bg-green-600" : "bg-slate-200 dark:bg-slate-800"
+                            isCompleted ? "bg-green-600" : "bg-muted"
                         )} />
                     )}
                 </div>
@@ -167,8 +167,8 @@ export function DocumentUploadWizard({ onComplete }: DocumentUploadWizardProps) 
                         onClick={() => handleModeSelect('monthly')}
                         className="flex flex-col items-center justify-center p-8 rounded-xl border-2 border-dashed border-border hover:border-primary/50 hover:bg-muted/50 transition-all group text-center space-y-4"
                     >
-                        <div className="w-16 h-16 rounded-full bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center group-hover:scale-110 transition-transform">
-                            <Calendar className="w-8 h-8 text-violet-600 dark:text-violet-400" />
+                        <div className="w-16 h-16 rounded-full bg-[#00C2FF]/10 dark:bg-[#00C2FF]/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+                            <Calendar className="w-8 h-8 text-[#00C2FF]" />
                         </div>
                         <div>
                             <h3 className="font-bold text-lg text-foreground">Declaração Mensal</h3>
@@ -182,8 +182,8 @@ export function DocumentUploadWizard({ onComplete }: DocumentUploadWizardProps) 
                         onClick={() => handleModeSelect('annual')}
                         className="flex flex-col items-center justify-center p-8 rounded-xl border-2 border-dashed border-border hover:border-primary/50 hover:bg-muted/50 transition-all group text-center space-y-4"
                     >
-                        <div className="w-16 h-16 rounded-full bg-fuchsia-100 dark:bg-fuchsia-900/30 flex items-center justify-center group-hover:scale-110 transition-transform">
-                            <FileType className="w-8 h-8 text-fuchsia-600 dark:text-fuchsia-400" />
+                        <div className="w-16 h-16 rounded-full bg-[#007AFF]/10 dark:bg-[#007AFF]/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+                            <FileType className="w-8 h-8 text-[#007AFF] dark:text-[#00C2FF]" />
                         </div>
                         <div>
                             <h3 className="font-bold text-lg text-foreground">Análise Anual</h3>
@@ -202,7 +202,7 @@ export function DocumentUploadWizard({ onComplete }: DocumentUploadWizardProps) 
                     className={cn(
                         "border-2 border-dashed rounded-xl p-10 flex flex-col items-center justify-center transition-all cursor-pointer",
                         dragActive
-                            ? "bg-violet-50/50 border-violet-400 dark:bg-violet-950/20"
+                            ? "bg-[#00C2FF]/10 border-[#007AFF] dark:bg-[#050B14]/50"
                             : "bg-muted/30 border-muted-foreground/25 hover:bg-muted/50"
                     )}
                     onDragEnter={handleDrag}
@@ -211,7 +211,7 @@ export function DocumentUploadWizard({ onComplete }: DocumentUploadWizardProps) 
                     onDrop={handleDrop}
                     onClick={() => fileInputRef.current?.click()}
                 >
-                    <Upload className={cn("w-12 h-12 mb-4", dragActive ? "text-violet-600 dark:text-violet-400" : "text-muted-foreground")} />
+                    <Upload className={cn("w-12 h-12 mb-4", dragActive ? "text-[#007AFF] dark:text-[#00C2FF]" : "text-muted-foreground")} />
                     <h3 className="text-lg font-semibold text-foreground mb-1">
                         {mode === 'monthly' ? "Upload do PGDAS Mensal" : "Upload dos Arquivos Mensais"}
                     </h3>

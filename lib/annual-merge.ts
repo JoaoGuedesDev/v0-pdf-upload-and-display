@@ -1,5 +1,4 @@
-import { MonthlyFile } from "@/app/unified-dashboard/types";
-import { DASData } from "@/components/pgdasd-processor";
+import { MonthlyFile, DASData } from "@/app/unified-dashboard/types";
 
 export function mergeAnnualData(files: MonthlyFile[]): DASData {
   if (!files || files.length === 0) {

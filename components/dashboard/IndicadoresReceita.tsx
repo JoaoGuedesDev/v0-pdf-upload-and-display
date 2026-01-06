@@ -685,7 +685,7 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
       datasets: [{
         label: 'Receita',
         data: [s, m],
-        backgroundColor: ['#7c3aed', '#d946ef'],
+        backgroundColor: ['#007AFF', '#00C2FF'],
         borderRadius: 4,
         barThickness: 24,
       }]
@@ -699,7 +699,7 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
     plugins: {
       legend: { display: false },
       datalabels: {
-        color: isDark ? '#e9d5ff' : '#3b0764',
+        color: isDark ? '#FFFFFF' : '#050B14',
         formatter: (val: number) => formatCurrency(val),
         anchor: 'end' as const,
         align: 'end' as const,
@@ -709,10 +709,10 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
         }
       },
       tooltip: {
-        backgroundColor: isDark ? '#1e293b' : 'rgba(255,255,255,0.95)',
-        borderColor: isDark ? '#334155' : '#e2e8f0',
-        titleColor: isDark ? '#f8fafc' : '#1e293b',
-        bodyColor: isDark ? '#f8fafc' : '#475569',
+        backgroundColor: isDark ? 'rgba(5, 11, 20, 0.95)' : 'rgba(255,255,255,0.95)',
+        borderColor: isDark ? '#007AFF' : '#007AFF33',
+        titleColor: isDark ? '#FFFFFF' : '#050B14',
+        bodyColor: isDark ? '#00C2FF' : '#007AFF',
         callbacks: {
           label: function (context: any) {
             let label = context.dataset.label || '';
@@ -735,7 +735,7 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
       },
       y: {
         grid: { display: false },
-        ticks: { font: { weight: 'bold' as const, size: 12 }, color: isDark ? '#e9d5ff' : '#3b0764' }
+        ticks: { font: { weight: 'bold' as const, size: 12 }, color: isDark ? '#FFFFFF' : '#050B14' }
       }
     },
     layout: { padding: { right: 20 } }
@@ -746,11 +746,11 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
   return (
     <div className={`flex flex-col gap-4 ${className}`}>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-2">
-        {/* Receita Bruta PA - Roxo Escuro */}
-        <Card className="h-full bg-gradient-to-br from-violet-800 to-violet-950 dark:from-violet-900 dark:to-violet-950 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200 py-1 rounded-2xl flex flex-col justify-between">
+        {/* Receita Bruta PA - Azul Elétrico */}
+        <Card className="h-full bg-[#050B14] dark:bg-[#050B14] text-white border border-[#007AFF] shadow-lg hover:shadow-xl transition-all duration-200 py-1 rounded-2xl flex flex-col justify-between">
           <CardHeader className="pb-0.5 p-1 sm:p-2 flex flex-row items-center justify-between space-y-0">
             <CardTitle className="text-[12px] sm:text-sm font-semibold tracking-tight">Receita Bruta PA</CardTitle>
-            <DollarSign className="h-4 w-4 text-violet-200" />
+            <DollarSign className="h-4 w-4 text-[#007AFF]" />
           </CardHeader>
           <CardContent className="p-1 sm:p-2 pt-0 flex flex-col justify-between flex-1">
             <div>
@@ -771,7 +771,7 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
             <div>
               <div className="flex items-center justify-between mt-1">
                 <p className="text-[10px] sm:text-[11px] opacity-85 flex items-center gap-1">
-                  <span className="inline-block w-3 h-3 rounded-full bg-violet-400" /> Período
+                  <span className="inline-block w-3 h-3 rounded-full bg-[#007AFF]" /> Período
                 </p>
               </div>
               <div className="mt-2 pt-1 border-t border-white/10 flex justify-between items-center">
@@ -784,22 +784,22 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
 
 
 
-        {/* Total DAS - Fuchsia */}
-        <Card className="h-full bg-gradient-to-br from-fuchsia-600 to-fuchsia-800 dark:from-fuchsia-700 dark:to-fuchsia-900 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200 rounded-2xl flex flex-col justify-between">
+        {/* Total DAS - Ciano Vibrante */}
+        <Card className="h-full bg-[#00C2FF] dark:bg-[#00C2FF] text-[#050B14] border-0 shadow-lg hover:shadow-xl transition-all duration-200 rounded-2xl flex flex-col justify-between">
           <CardHeader className="pb-0.5 p-1 sm:p-2 flex flex-row items-center justify-between space-y-0">
             <CardTitle className="text-[12px] sm:text-sm font-semibold tracking-tight">Total DAS</CardTitle>
-            <FileText className="h-4 w-4 text-fuchsia-100" />
+            <FileText className="h-4 w-4 text-[#050B14]" />
           </CardHeader>
           <CardContent className="p-1 sm:p-2 pt-0 flex flex-col justify-between flex-1">
             <div>
               <div className="flex flex-col gap-1 mb-1 min-h-[42px] justify-end">
                 {servicosTotal > 0 && (
-                  <span className="inline-flex items-center rounded-full bg-white/15 text-white px-2 py-0.5 text-[10px] font-semibold w-fit">
+                  <span className="inline-flex items-center rounded-full bg-black/10 text-[#050B14] px-2 py-0.5 text-[10px] font-semibold w-fit">
                     Serviços: {formatCurrency(servicosTotal)}
                   </span>
                 )}
                 {mercadoriasTotal > 0 && (
-                  <span className="inline-flex items-center rounded-full bg-white/15 text-white px-2 py-0.5 text-[10px] font-semibold w-fit">
+                  <span className="inline-flex items-center rounded-full bg-black/10 text-[#050B14] px-2 py-0.5 text-[10px] font-semibold w-fit">
                     Mercadorias: {formatCurrency(mercadoriasTotal)}
                   </span>
                 )}
@@ -808,18 +808,18 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
             </div>
             <div>
               <p className="text-[10px] sm:text-[11px] opacity-85 mt-1">Total de tributos pagos</p>
-              <div className="mt-2 pt-1 border-t border-white/10 flex justify-between items-center opacity-0 pointer-events-none">
+              <div className="mt-2 pt-1 border-t border-black/10 flex justify-between items-center opacity-0 pointer-events-none">
                 <span className="text-[10px]">Spacer</span>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Alíquota do Período Atual - Purple */}
-        <Card className="h-full bg-gradient-to-br from-purple-500 to-purple-700 dark:from-purple-600 dark:to-purple-800 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200 py-1 rounded-2xl flex flex-col">
+        {/* Alíquota do Período Atual - Azul Elétrico */}
+        <Card className="h-full bg-[#007AFF] dark:bg-[#007AFF] text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200 py-1 rounded-2xl flex flex-col">
           <CardHeader className="pb-0.5 p-1 sm:p-2 flex flex-row items-center justify-between space-y-0">
             <CardTitle className="text-[12px] sm:text-sm font-semibold tracking-tight">Alíquota {currentPeriodoLabel}</CardTitle>
-            <TrendingUp className="h-4 w-4 text-purple-100" />
+            <TrendingUp className="h-4 w-4 text-white" />
           </CardHeader>
           <CardContent className="p-1 sm:p-2 pt-0">
             <div className="mt-1 space-y-1">
@@ -839,8 +839,8 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
           </CardContent>
         </Card>
 
-        {/* Alíquota do Próximo Mês - Roxo */}
-        <Card className="h-full bg-gradient-to-br from-purple-600 to-purple-700 dark:from-purple-700 dark:to-purple-900 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200 py-1 rounded-2xl flex flex-col">
+        {/* Alíquota do Próximo Mês - Índigo Elétrico */}
+        <Card className="h-full bg-[#3D5AFE] dark:bg-[#3D5AFE] text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200 py-1 rounded-2xl flex flex-col">
           <CardHeader className="pb-0.5 p-1 sm:p-2 flex flex-row items-center justify-between">
             <CardTitle className="text-[12px] sm:text-sm font-semibold tracking-tight">Alíquota {nextPeriodoLabel}</CardTitle>
           </CardHeader>

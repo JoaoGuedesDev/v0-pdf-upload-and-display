@@ -13,108 +13,12 @@ import { formatCurrency, computeTotalDAS } from "@/lib/utils"
 import { Doughnut } from 'react-chartjs-2'
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, Title } from 'chart.js'
 import ChartDataLabels from 'chartjs-plugin-datalabels'
-import { CHART_CONFIG } from '@/lib/constants'
+import { CHART_CONFIG, CHART_COLORS } from '@/lib/constants'
 import { MessageCircle, Mail, Download, Moon, Sun } from 'lucide-react'
 import { useTheme } from "next-themes"
 
 ChartJS.register(ArcElement, Tooltip, Legend, Title, ChartDataLabels)
-export interface DASData {
-  identificacao: {
-    cnpj: string
-    razaoSocial: string
-    periodoApuracao: string
-    abertura?: string
-    municipio: string
-    uf: string
-  }
-  receitas: {
-    receitaPA: number
-    rbt12: number
-    rba: number
-    rbaa: number
-    limite?: number
-    receitaPAFormatada?: string
-    mercadoExterno?: {
-      rpa: number
-      rbt12: number
-      rba: number
-      rbaa: number
-      limite?: number
-    }
-  }
-  tributos: {
-    IRPJ: number
-    CSLL: number
-    COFINS: number
-    PIS_Pasep: number
-    INSS_CPP: number
-    ICMS: number
-    IPI: number
-    ISS: number
-    Total: number
-  }
-  cenario?: string
-  atividades?: {
-    atividade1?: {
-      descricao: string
-      Total: number
-    }
-    atividade2?: {
-      descricao: string
-      Total: number
-    }
-  }
-  graficos?: {
-    tributosBar?: {
-      labels: string[]
-      values: number[]
-    }
-    totalTributos?: {
-      labels: string[]
-      values: number[]
-    }
-    dasPie?: {
-      labels: string[]
-      values: number[]
-    }
-    receitaLine?: {
-      labels: string[]
-      values: number[]
-    }
-    receitaMensal?: {
-      labels: string[]
-      values: number[]
-    }
-    receitaLineExterno?: {
-      labels: string[]
-      values: number[]
-    }
-    atividadesComparativo?: any
-  }
-  calculos?: {
-    aliquotaEfetiva?: number
-    margemLiquida?: number
-    aliquotaEfetivaFormatada?: string
-    totalDAS?: number
-    totalDASFormatado?: string
-    aliquotaEfetivaAtualPercent?: number
-    aliquotaEfetivaOriginalPercent?: number
-    analiseAliquota?: any[]
-    analiseAliquotaItems?: any[]
-    analiseAliquotaMeta?: any
-  }
-  tributosMercadoriasInterno?: Record<string, number>
-  tributosMercadoriasExterno?: Record<string, number>
-  tributosServicosInterno?: Record<string, number>
-  tributosServicosExterno?: Record<string, number>
-  insights?: {
-    comparativoSetorial: string
-    pontosAtencao: string[]
-    oportunidades: string[]
-    recomendacoes: string[]
-  }
-  debug?: any
-}
+import { DASData } from "@/app/unified-dashboard/types"
 
 interface PGDASDProcessorProps {
   initialData?: DASData
@@ -245,7 +149,10 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
     }
   }, [initialData, data])
 
-  const handleProcessPDF = useCallback(async (file: File) => {
+  const handleProcessPDF = useCallback(async (files: File[], isAnnual: boolean) => {
+    if (files.length === 0) return
+    const file = files[0]
+    
     setLoading(true)
     setError(null)
 
@@ -440,7 +347,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
         <div className="min-h-screen bg-background p-4">
           <div className="max-w-4xl mx-auto flex items-center justify-center h-64">
             <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-violet-600 mx-auto mb-4"></div>
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#007AFF] mx-auto mb-4"></div>
               <p className="text-muted-foreground">Carregando dados...</p>
             </div>
           </div>
@@ -484,7 +391,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
             <div className="print:hidden flex items-center gap-2">
               <Button
                  variant="ghost" 
-                 className="bg-violet-100 text-violet-700 hover:bg-violet-200 dark:bg-violet-900/30 dark:text-violet-300 gap-2"
+                 className="bg-[#007AFF]/10 text-[#007AFF] hover:bg-[#007AFF]/20 dark:bg-[#007AFF]/20 dark:text-[#00C2FF] gap-2"
                  onClick={handleDownloadPDF}
               >
                 <Download className="h-4 w-4" />
@@ -506,18 +413,18 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
 
 
 
-        <Card className="bg-gradient-to-br from-slate-900 to-slate-800 dark:from-slate-950 dark:to-slate-900 text-white border-0 shadow-xl py-2">
+        <Card className="bg-[#050B14] text-[#FFFFFF] border border-[#007AFF]/30 shadow-xl py-2">
           <CardContent className="grid sm:grid-cols-2 md:grid-cols-3 gap-2">
             <div>
-              <p className="text-muted-foreground text-xs sm:text-sm">CNPJ</p>
+              <p className="text-[#00C2FF] text-xs sm:text-sm">CNPJ</p>
               <p className="text-base sm:text-lg font-semibold break-words">{data?.identificacao?.cnpj}</p>
             </div>
             <div className="sm:col-span-2 md:col-span-1">
-              <p className="text-muted-foreground text-xs sm:text-sm">Razão Social</p>
+              <p className="text-[#00C2FF] text-xs sm:text-sm">Razão Social</p>
               <p className="text-base sm:text-lg font-semibold break-words">{data?.identificacao?.razaoSocial}</p>
             </div>
             <div className="sm:col-span-2 md:col-span-1">
-              <p className="text-muted-foreground text-xs sm:text-sm">Período</p>
+              <p className="text-[#00C2FF] text-xs sm:text-sm">Período</p>
               <p className="text-base sm:text-lg font-semibold break-words">{data?.identificacao?.periodoApuracao}</p>
             </div>
           </CardContent>
@@ -640,34 +547,34 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                 return (
                   <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-3">
                     {utilizacaoLimite > 0 && (
-                      <Card className="bg-emerald-50 border-0">
+                      <Card className="bg-[#00C2FF]/10 border-0 dark:bg-[#00C2FF]/20">
                         <CardContent className="p-3">
-                          <p className="text-xs text-emerald-700">Utilização do Limite</p>
-                          <p className="text-lg font-semibold text-emerald-800">{pct(utilizacaoLimite)}</p>
+                          <p className="text-xs text-[#00C2FF] dark:text-[#00C2FF]">Utilização do Limite</p>
+                          <p className="text-lg font-semibold text-[#050B14] dark:text-[#FFFFFF]">{pct(utilizacaoLimite)}</p>
                         </CardContent>
                       </Card>
                     )}
                     {Math.abs(growth) > 0 && (
-                      <Card className="bg-blue-50 border-0">
+                      <Card className="bg-[#007AFF]/10 border-0 dark:bg-[#007AFF]/20">
                         <CardContent className="p-3">
-                          <p className="text-xs text-blue-700">Comparativo de Crescimento</p>
-                          <p className="text-lg font-semibold text-blue-800">{pct(growth)}</p>
+                          <p className="text-xs text-[#007AFF] dark:text-[#007AFF]">Comparativo de Crescimento</p>
+                          <p className="text-lg font-semibold text-[#050B14] dark:text-[#FFFFFF]">{pct(growth)}</p>
                         </CardContent>
                       </Card>
                     )}
                     {mediaTri > 0 && (
-                      <Card className="bg-violet-50 border-0">
-                        <CardContent className="p-3">
-                          <p className="text-xs text-violet-700">Média no último trimestre</p>
-                          <p className="text-lg font-semibold text-violet-800">{formatCurrency(mediaTri)}</p>
+                      <Card className="bg-[#007AFF]/5 dark:bg-[#007AFF]/10 border-0">
+                        <CardContent className="pb-2">
+                          <p className="text-xs text-[#007AFF] dark:text-[#007AFF]">Média no último trimestre</p>
+                          <p className="text-lg font-semibold text-[#050B14] dark:text-[#FFFFFF]">{formatCurrency(mediaTri)}</p>
                         </CardContent>
                       </Card>
                     )}
                     {consistency !== 0 && (
-                      <Card className="bg-orange-50 border-0">
+                      <Card className="bg-orange-500/10 border-0">
                         <CardContent className="p-3">
-                          <p className="text-xs text-orange-700">Consistência</p>
-                          <p className="text-lg font-semibold text-orange-800">{pct(consistency)}</p>
+                          <p className="text-xs text-orange-600 dark:text-orange-400">Consistência</p>
+                          <p className="text-lg font-semibold text-orange-700 dark:text-orange-300">{pct(consistency)}</p>
                         </CardContent>
                       </Card>
                     )}
@@ -879,13 +786,13 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
               return (
                 <div className="rounded-md border overflow-hidden">
                   <table className="w-full text-sm">
-                    <thead className="bg-muted">
+                    <thead className="bg-[#007AFF]/5 dark:bg-[#007AFF]/10">
                       <tr>
-                        <th className="px-3 py-2 text-left w-[160px]">Período</th>
-                        <th className="px-3 py-2 text-left">Receita Bruta</th>
-                        <th className="px-3 py-2 text-left">IRPJ</th>
-                        <th className="px-3 py-2 text-left">Alíquota</th>
-                        <th className="px-3 py-2 text-left">Distribuição</th>
+                        <th className="px-3 py-2 text-left w-[160px] text-[#007AFF] dark:text-[#00C2FF]">Período</th>
+                        <th className="px-3 py-2 text-left text-[#007AFF] dark:text-[#00C2FF]">Receita Bruta</th>
+                        <th className="px-3 py-2 text-left text-[#007AFF] dark:text-[#00C2FF]">IRPJ</th>
+                        <th className="px-3 py-2 text-left text-[#007AFF] dark:text-[#00C2FF]">Alíquota</th>
+                        <th className="px-3 py-2 text-left text-[#007AFF] dark:text-[#00C2FF]">Distribuição</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -894,7 +801,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                         <td className="px-3 py-2">
                           <div className="flex flex-col gap-1">
                             <div className="flex flex-col">
-                              <span className="text-[11px] font-semibold uppercase text-muted-foreground">Mercadorias</span>
+                              <span className="text-[11px] font-semibold uppercase text-[#007AFF] dark:text-[#00C2FF]">Mercadorias</span>
                               <span className="font-medium">{mercadorias.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
                             </div>
                             <div className="flex flex-col">
@@ -1134,10 +1041,10 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                 const totServInt = rows.reduce((acc, [lbl]) => acc + getVal(tsI, lbl), 0)
                 const totServExt = rows.reduce((acc, [lbl]) => acc + getVal(tsE, lbl), 0)
                 const catCols = [
-                  { label: 'Mercadorias (interno)', get: (lbl: string) => getVal(tmI, lbl), total: totMercInt, cls: 'text-blue-600' },
-                  { label: 'Mercadorias (externo)', get: (lbl: string) => getVal(tmE, lbl), total: totMercExt, cls: 'text-blue-600' },
-                  { label: 'Serviços (interno)', get: (lbl: string) => getVal(tsI, lbl), total: totServInt, cls: 'text-indigo-600' },
-                  { label: 'Serviços (externo)', get: (lbl: string) => getVal(tsE, lbl), total: totServExt, cls: 'text-indigo-600' },
+                  { label: 'Mercadorias (interno)', get: (lbl: string) => getVal(tmI, lbl), total: totMercInt, cls: 'text-[#007AFF] dark:text-[#00C2FF]' },
+                  { label: 'Mercadorias (externo)', get: (lbl: string) => getVal(tmE, lbl), total: totMercExt, cls: 'text-[#007AFF] dark:text-[#00C2FF]' },
+                  { label: 'Serviços (interno)', get: (lbl: string) => getVal(tsI, lbl), total: totServInt, cls: 'text-[#00C2FF] dark:text-[#3D5AFE]' },
+                  { label: 'Serviços (externo)', get: (lbl: string) => getVal(tsE, lbl), total: totServExt, cls: 'text-[#00C2FF] dark:text-[#3D5AFE]' },
                 ]
                 const visible = catCols.filter(c => Number(c.total || 0) > 0)
                 const totalGet = (lbl: string) => Number(getVal(t, lbl) || 0)
@@ -1146,7 +1053,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                 return (
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="text-muted-foreground">
+                      <tr className="bg-[#007AFF]/5 dark:bg-[#007AFF]/10 text-[#007AFF] dark:text-[#00C2FF]">
                         <th className="text-left py-1 px-2">Tributo</th>
                         {cols.map((h, i) => (
                           <th key={i} className="text-right py-1 px-2">{h.label}</th>
@@ -1176,7 +1083,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                           const tv = Number(c.total || 0)
                           const isTotal = c.label === 'Total'
                           const show = isTotal ? true : tv > 0
-                          return <td key={ci} className={`text-right py-1 px-2 text-blue-600 font-semibold`}>{show ? formatCurrency(tv) : ''}</td>
+                          return <td key={ci} className={`text-right py-1 px-2 text-[#007AFF] dark:text-[#00C2FF] font-semibold`}>{show ? formatCurrency(tv) : ''}</td>
                         })}
                       </tr>
                     </tbody>
@@ -1217,14 +1124,14 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
             return 0
           }
           const items = [
-            { key: 'IRPJ', label: 'IRPJ', color: '#3b82f6' },
-            { key: 'CSLL', label: 'CSLL', color: '#8b5cf6' },
-            { key: 'COFINS', label: 'COFINS', color: '#ec4899' },
-            { key: 'PIS_Pasep', label: 'PIS/PASEP', color: '#f59e0b' },
-            { key: 'INSS_CPP', label: 'INSS/CPP', color: '#10b981' },
-            { key: 'ICMS', label: 'ICMS', color: '#06b6d4' },
-            { key: 'IPI', label: 'IPI', color: '#ef4444' },
-            { key: 'ISS', label: 'ISS', color: '#94a3b8' },
+            { key: 'IRPJ', label: 'IRPJ', color: CHART_COLORS[0] },
+            { key: 'CSLL', label: 'CSLL', color: CHART_COLORS[1] },
+            { key: 'COFINS', label: 'COFINS', color: CHART_COLORS[2] },
+            { key: 'PIS_Pasep', label: 'PIS/PASEP', color: CHART_COLORS[3] },
+            { key: 'INSS_CPP', label: 'INSS/CPP', color: CHART_COLORS[4] },
+            { key: 'ICMS', label: 'ICMS', color: CHART_COLORS[5] },
+            { key: 'IPI', label: 'IPI', color: CHART_COLORS[0] }, // Reuse
+            { key: 'ISS', label: 'ISS', color: CHART_COLORS[1] }, // Reuse
           ].map(it => ({
             ...it,
             value: Number((trib as any)?.[it.key] || 0)
@@ -1237,7 +1144,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
             datasets: [{
               data: items.map(i => i.value),
               backgroundColor: items.map(i => i.color),
-              borderColor: '#ffffff',
+              borderColor: theme === 'dark' ? '#050B14' : '#ffffff',
               borderWidth: 1,
               cutout: '68%',
               radius: '95%',
@@ -1402,36 +1309,36 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                       const showServ = servicosTotal > 0
                       const showMerc = mercadoriasTotal > 0
                       return (
-                        <div className="flex items-center justify-between bg-slate-200 rounded-lg px-2 py-2 border border-slate-200">
+                        <div className="flex items-center justify-between bg-[#007AFF]/5 dark:bg-[#050B14]/50 rounded-lg px-2 py-2 border border-[#007AFF]/10 dark:border-[#007AFF]/30">
                           <div className="flex-1">
                             <div className="flex items-center gap-2">
-                              <span className="inline-block w-3 h-2 rounded-full bg-slate-600" />
-                              <div className="text-slate-700 text-xs font-semibold">TOTAL DAS</div>
+                              <span className="inline-block w-3 h-2 rounded-full bg-[#007AFF]" />
+                              <div className="text-[#050B14] dark:text-[#FFFFFF] text-xs font-semibold">TOTAL DAS</div>
                             </div>
                             <div className="flex flex-wrap gap-2 mt-2">
                               {showServ && (
-                                <span className="inline-flex items-center rounded-full bg-indigo-600/15 text-indigo-700 px-2 py-1 text-[11px] font-semibold">
+                                <span className="inline-flex items-center rounded-full bg-[#050B14]/5 text-[#050B14] dark:bg-[#FFFFFF]/10 dark:text-[#FFFFFF] px-2 py-1 text-[11px] font-semibold">
                                   Serviços: {formatCurrency(servicosTotal)}
                                 </span>
                               )}
                               {showMerc && (
-                                <span className="inline-flex items-center rounded-full bg-blue-600/15 text-blue-700 px-2 py-1 text-[11px] font-semibold">
+                                <span className="inline-flex items-center rounded-full bg-[#007AFF]/10 text-[#007AFF] dark:bg-[#00C2FF]/10 dark:text-[#00C2FF] px-2 py-1 text-[11px] font-semibold">
                                   Mercadorias: {formatCurrency(mercadoriasTotal)}
                                 </span>
                               )}
                               {transSem > 0 && (
-                                <span className="inline-flex items-center rounded-full bg-purple-600/15 text-purple-700 px-2 py-1 text-[11px] font-semibold">
+                                <span className="inline-flex items-center rounded-full bg-[#3D5AFE]/10 text-[#3D5AFE] dark:text-[#3D5AFE] px-2 py-1 text-[11px] font-semibold">
                                   Transporte — sem ST: {formatCurrency(transSem)}
                                 </span>
                               )}
                               {transCom > 0 && (
-                                <span className="inline-flex items-center rounded-full bg-fuchsia-600/15 text-fuchsia-700 px-2 py-1 text-[11px] font-semibold">
+                                <span className="inline-flex items-center rounded-full bg-[#007AFF]/20 text-[#007AFF] dark:text-[#00C2FF] px-2 py-1 text-[11px] font-semibold">
                                   Transporte — com ST: {formatCurrency(transCom)}
                                 </span>
                               )}
                             </div>
                           </div>
-                          <div className="text-right text-slate-900 text-xs font-semibold">
+                          <div className="text-right text-[#050B14] dark:text-[#FFFFFF] text-xs font-semibold">
                             <div>100%</div>
                             <div>{formatCurrency(totalDAS)}</div>
                           </div>
@@ -1466,8 +1373,8 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
             </CardHeader>
             <CardContent className="space-y-3 p-3">
               {data?.insights?.comparativoSetorial && (
-                <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                  <p className="text-sm text-blue-800 dark:text-blue-200">
+                <div className="p-4 bg-[#007AFF]/10 dark:bg-[#007AFF]/20 rounded-lg">
+                  <p className="text-sm text-[#007AFF] dark:text-[#00C2FF]">
                     {data.insights.comparativoSetorial}
                   </p>
                 </div>
@@ -1490,12 +1397,12 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
 
               {data?.insights?.oportunidades?.length > 0 && (
                 <div>
-                  <h4 className="font-semibold text-emerald-600 dark:text-emerald-400 mb-2">
+                  <h4 className="font-semibold text-[#007AFF] dark:text-[#00C2FF] mb-2">
                     Oportunidades
                   </h4>
                   <ul className="list-disc list-inside space-y-1">
                     {data.insights.oportunidades.map((oportunidade, index) => (
-                      <li key={index} className="text-sm text-emerald-700 dark:text-emerald-300">
+                      <li key={index} className="text-sm text-[#007AFF] dark:text-[#00C2FF]">
                         {oportunidade}
                       </li>
                     ))}
@@ -1505,12 +1412,12 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
 
               {data?.insights?.recomendacoes?.length > 0 && (
                 <div>
-                  <h4 className="font-semibold text-purple-600 mb-2">
+                  <h4 className="font-semibold text-[#007AFF] dark:text-[#00C2FF] mb-2">
                     Recomendações
                   </h4>
                   <ul className="list-disc list-inside space-y-1">
                     {data.insights.recomendacoes.map((recomendacao, index) => (
-                      <li key={index} className="text-sm text-purple-700">
+                      <li key={index} className="text-sm text-[#007AFF] dark:text-[#00C2FF]">
                         {recomendacao}
                       </li>
                     ))}
@@ -1529,20 +1436,20 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
           <CardContent className="py-2">
             <div className="grid md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <div className="rounded-xl p-3 bg-slate-50 dark:bg-slate-900/50">
-                  <ul className="space-y-2 text-slate-700 dark:text-slate-300">
-                    <li className="flex items-start gap-2"><span className="mt-1 inline-block w-1.5 h-1.5 rounded-full bg-blue-600" />Cenários comparativos entre regimes tributários</li>
-                    <li className="flex items-start gap-2"><span className="mt-1 inline-block w-1.5 h-1.5 rounded-full bg-indigo-600" />Simulações de economia fiscal</li>
-                    <li className="flex items-start gap-2"><span className="mt-1 inline-block w-1.5 h-1.5 rounded-full bg-emerald-600" />Recomendações exclusivas para o seu ramo</li>
+                <div className="rounded-xl p-3 bg-muted/50 dark:bg-[#050B14]/50">
+                  <ul className="space-y-2 text-[#007AFF] dark:text-[#00C2FF]">
+                    <li className="flex items-start gap-2"><span className="mt-1 inline-block w-1.5 h-1.5 rounded-full bg-[#007AFF]" />Cenários comparativos entre regimes tributários</li>
+                    <li className="flex items-start gap-2"><span className="mt-1 inline-block w-1.5 h-1.5 rounded-full bg-[#007AFF]" />Simulações de economia fiscal</li>
+                    <li className="flex items-start gap-2"><span className="mt-1 inline-block w-1.5 h-1.5 rounded-full bg-[#007AFF]" />Recomendações exclusivas para o seu ramo</li>
                   </ul>
                 </div>
               </div>
               <div>
-                <div className={`rounded-xl p-4 bg-slate-100/70 dark:bg-slate-800/70 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700`}>
-                  <p className="font-semibold text-slate-900 dark:text-slate-100 mb-2">Fale com a Integra</p>
+                <div className={`rounded-xl p-4 bg-muted/70 dark:bg-[#050B14]/70 text-[#050B14] dark:text-[#FFFFFF] border border-border dark:border-[#007AFF]/30`}>
+                  <p className="font-semibold text-[#050B14] dark:text-[#FFFFFF] mb-2">Fale com a Integra</p>
                   <div className="space-y-2">
-                    <a className="flex items-center gap-2 hover:text-emerald-700 dark:hover:text-emerald-500" href="https://wa.me/559481264638" target="_blank" rel="noreferrer"><MessageCircle className="h-4 w-4 text-emerald-600" />WhatsApp: 94 8126-4638</a>
-                    <a className="flex items-center gap-2 hover:text-blue-700 dark:hover:text-blue-500" href="mailto:atendimento@integratecnologia.inf.br"><Mail className="h-4 w-4 text-blue-600" />E-mail: atendimento@integratecnologia.inf.br</a>
+                    <a className="flex items-center gap-2 hover:text-[#007AFF] dark:hover:text-[#00C2FF]" href="https://wa.me/559481264638" target="_blank" rel="noreferrer"><MessageCircle className="h-4 w-4 text-[#007AFF]" />WhatsApp: 94 8126-4638</a>
+                    <a className="flex items-center gap-2 hover:text-[#007AFF] dark:hover:text-[#00C2FF]" href="mailto:atendimento@integratecnologia.inf.br"><Mail className="h-4 w-4 text-[#007AFF]" />E-mail: atendimento@integratecnologia.inf.br</a>
                   </div>
                 </div>
               </div>

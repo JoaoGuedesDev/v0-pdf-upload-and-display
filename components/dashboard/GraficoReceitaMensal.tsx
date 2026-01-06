@@ -147,8 +147,8 @@ export const GraficoReceitaMensal = memo(function GraficoReceitaMensal({
       {
         label: 'Mercado Externo',
         data: externaSorted,
-        backgroundColor: 'rgba(217, 70, 239, 0.45)', // Fuchsia 500
-        borderColor: '#d946ef',
+        backgroundColor: '#00C2FF', // Ciano vibrante
+        borderColor: '#00C2FF',
         borderWidth: 1,
         borderRadius: 4,
         borderSkipped: false,
@@ -160,8 +160,8 @@ export const GraficoReceitaMensal = memo(function GraficoReceitaMensal({
       {
         label: 'Mercado Interno',
         data: internaSorted,
-        backgroundColor: 'rgba(124, 58, 237, 0.85)', // Violet 600
-        borderColor: '#7c3aed',
+        backgroundColor: '#007AFF', // Azul elétrico
+        borderColor: '#007AFF',
         borderWidth: 0,
         borderRadius: 99,
         borderSkipped: false,
@@ -202,25 +202,25 @@ export const GraficoReceitaMensal = memo(function GraficoReceitaMensal({
         },
         labels: {
           ...CHART_CONFIG.plugins.legend.labels,
-          color: isDark ? '#e2e8f0' : '#000000',
+          color: isDark ? '#FFFFFF' : '#050B14',
           generateLabels: (chart) => {
             const getHidden = (i: number) => {
               const ds: any = chart.data?.datasets?.[i]
               return !!(ds && ds.hidden)
             }
             return [
-              { text: 'Mercado Externo', fillStyle: '#8b5cf6', strokeStyle: '#8b5cf6', hidden: getHidden(0), datasetIndex: 0 },
-              { text: 'Mercado Interno', fillStyle: '#3b82f6', strokeStyle: '#3b82f6', hidden: getHidden(1), datasetIndex: 1 },
+              { text: 'Mercado Externo', fillStyle: '#00C2FF', strokeStyle: '#00C2FF', hidden: getHidden(0), datasetIndex: 0 },
+              { text: 'Mercado Interno', fillStyle: '#007AFF', strokeStyle: '#007AFF', hidden: getHidden(1), datasetIndex: 1 },
             ] as any
           },
         },
       },
       tooltip: {
         padding: 10,
-        backgroundColor: isDark ? '#1e293b' : 'rgba(255,255,255,0.95)',
-        borderColor: isDark ? '#334155' : '#e2e8f0',
-        titleColor: isDark ? '#f8fafc' : '#1e293b',
-        bodyColor: isDark ? '#f8fafc' : '#475569',
+        backgroundColor: isDark ? '#050B14' : 'rgba(255,255,255,0.95)',
+        borderColor: isDark ? '#007AFF' : '#007AFF33',
+        titleColor: isDark ? '#FFFFFF' : '#050B14',
+        bodyColor: isDark ? '#00C2FF' : '#007AFF',
         borderWidth: 1,
         callbacks: {
           label: (context: any) => {
@@ -248,7 +248,7 @@ export const GraficoReceitaMensal = memo(function GraficoReceitaMensal({
         align: 'end',
         rotation: -30,
         color: (ctx: Context) => {
-          return isDark ? '#cbd5e1' : '#000000'
+          return isDark ? '#FFFFFF' : '#050B14'
         },
         font: { size: 11, weight: 600 },
         formatter: (value: unknown, ctx: Context) => {
@@ -303,19 +303,19 @@ export const GraficoReceitaMensal = memo(function GraficoReceitaMensal({
         ...CHART_CONFIG.scales.x,
         stacked: true,
         ticks: { 
-          color: isDark ? '#94a3b8' : '#020617', 
+          color: isDark ? '#FFFFFF' : '#050B14', 
           font: { weight: 'bold' },
           padding: 16
         },
         grid: {
-          color: isDark ? '#334155' : '#e2e8f0',
+          color: isDark ? '#007AFF' : '#007AFF33',
         }
       },
       y: {
         ...CHART_CONFIG.scales.y,
         stacked: true,
         ticks: { 
-          color: isDark ? '#94a3b8' : '#020617', 
+          color: isDark ? '#FFFFFF' : '#050B14', 
           font: { weight: 'bold' },
           callback: function(value: any) {
              return 'R$ ' + new Intl.NumberFormat('pt-BR', {
@@ -325,7 +325,7 @@ export const GraficoReceitaMensal = memo(function GraficoReceitaMensal({
            }
         },
         grid: {
-          color: isDark ? '#334155' : '#e2e8f0',
+          color: isDark ? '#007AFF' : '#007AFF33',
         }
       }
     },

@@ -146,7 +146,7 @@ export function FileCorrectionWizard({
                 />
                 <label
                 htmlFor="add-more-files"
-                className="text-xs flex items-center gap-1 cursor-pointer bg-violet-50 text-violet-700 px-3 py-1.5 rounded hover:bg-violet-100 transition-colors"
+                className="text-xs flex items-center gap-1 cursor-pointer bg-[#007AFF]/10 text-[#007AFF] px-3 py-1.5 rounded hover:bg-[#007AFF]/20 transition-colors"
               >
                 <Upload className="w-3 h-3" /> Adicionar Arquivos
               </label>
@@ -167,7 +167,7 @@ export function FileCorrectionWizard({
                     "flex items-center justify-between p-3 rounded-lg border transition-all",
                     isValid ? "bg-green-50 border-green-200 dark:bg-green-900/10 dark:border-green-900/30" :
                       isInvalid ? "bg-red-50 border-red-200 dark:bg-red-900/10 dark:border-red-900/30" :
-                        "bg-gray-50 border-gray-200 dark:bg-gray-800/50 dark:border-gray-700"
+                        "bg-muted/30 border-border dark:bg-[#050B14]/50 dark:border-[#007AFF]/30"
                   )}
                 >
                   <div className="flex items-center gap-3 overflow-hidden">
@@ -181,7 +181,7 @@ export function FileCorrectionWizard({
 
                     <div className="min-w-0">
                       <div className="font-medium text-sm truncate max-w-[300px]" title={file.name}>
-                        {file.name} {isNew && <span className="text-xs bg-blue-100 text-blue-700 px-1.5 rounded ml-2">Novo</span>}
+                        {file.name} {isNew && <span className="text-xs bg-[#007AFF]/10 text-[#007AFF] dark:bg-[#007AFF]/20 dark:text-[#00C2FF] px-1.5 rounded ml-2">Novo</span>}
                       </div>
                       <div className="text-xs text-muted-foreground flex gap-2">
                         {info.period && <span>{info.period}</span>}
@@ -204,7 +204,7 @@ export function FileCorrectionWizard({
                       />
                       <label
                         htmlFor={`replace-${index}`}
-                        className="text-xs cursor-pointer text-violet-600 hover:text-violet-800 hover:underline px-2 py-1"
+                        className="text-xs cursor-pointer text-[#007AFF] hover:text-[#00C2FF] dark:hover:text-[#00C2FF] hover:underline px-2 py-1"
                       >
                         Substituir
                       </label>

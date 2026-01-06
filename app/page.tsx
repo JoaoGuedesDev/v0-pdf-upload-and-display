@@ -286,15 +286,15 @@ export default function Home() {
               <div className="grid md:grid-cols-2 gap-6">
                 <Card
                   className={cn(
-                    "p-8 cursor-pointer transition-all hover:shadow-lg hover:border-violet-300 dark:hover:border-violet-700 group relative overflow-hidden bg-card",
-                    selectedMode === 'monthly' && "ring-2 ring-violet-600 border-transparent"
+                    "p-8 cursor-pointer transition-all hover:shadow-lg hover:border-[#007AFF]/50 dark:hover:border-[#007AFF] group relative overflow-hidden bg-card",
+                    selectedMode === 'monthly' && "ring-2 ring-[#007AFF] border-transparent"
                   )}
                   onClick={() => handleSelection('monthly')}
                 >
-                  <div className="absolute top-0 left-0 w-full h-1 bg-violet-600/0 group-hover:bg-violet-600 transition-colors" />
+                  <div className="absolute top-0 left-0 w-full h-1 bg-[#007AFF]/0 group-hover:bg-[#007AFF] transition-colors" />
                   <div className="flex flex-col items-center text-center space-y-4">
-                    <div className="w-16 h-16 rounded-full bg-violet-50 dark:bg-violet-900/20 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                      <Calendar className="w-8 h-8 text-violet-600 dark:text-violet-400" />
+                    <div className="w-16 h-16 rounded-full bg-[#007AFF]/10 dark:bg-[#007AFF]/20 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                      <Calendar className="w-8 h-8 text-[#007AFF] dark:text-[#00C2FF]" />
                     </div>
                     <div className="space-y-2">
                       <h3 className="text-xl font-bold text-foreground">Processo Mensal</h3>
@@ -307,15 +307,15 @@ export default function Home() {
 
                 <Card
                   className={cn(
-                    "p-8 cursor-pointer transition-all hover:shadow-lg hover:border-purple-300 dark:hover:border-purple-700 group relative overflow-hidden bg-card",
-                    selectedMode === 'annual' && "ring-2 ring-purple-600 border-transparent"
+                    "p-8 cursor-pointer transition-all hover:shadow-lg hover:border-[#00C2FF]/50 dark:hover:border-[#00C2FF] group relative overflow-hidden bg-card",
+                    selectedMode === 'annual' && "ring-2 ring-[#00C2FF] border-transparent"
                   )}
                   onClick={() => handleSelection('annual')}
                 >
-                  <div className="absolute top-0 left-0 w-full h-1 bg-purple-600/0 group-hover:bg-purple-600 transition-colors" />
+                  <div className="absolute top-0 left-0 w-full h-1 bg-[#00C2FF]/0 group-hover:bg-[#00C2FF] transition-colors" />
                   <div className="flex flex-col items-center text-center space-y-4">
-                    <div className="w-16 h-16 rounded-full bg-purple-50 dark:bg-purple-900/20 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                      <FileText className="w-8 h-8 text-purple-600 dark:text-purple-400" />
+                    <div className="w-16 h-16 rounded-full bg-[#00C2FF]/10 dark:bg-[#00C2FF]/20 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                      <FileText className="w-8 h-8 text-[#00C2FF] dark:text-[#3D5AFE]" />
                     </div>
                     <div className="space-y-2">
                       <h3 className="text-xl font-bold text-foreground">Relatório Anual</h3>
@@ -346,7 +346,7 @@ export default function Home() {
                           <div className="flex items-center gap-3">
                             <div className={cn(
                               "w-10 h-10 rounded-full flex items-center justify-center shrink-0",
-                              item.type === 'annual' ? "bg-purple-100 text-purple-600" : "bg-violet-100 text-violet-600"
+                              item.type === 'annual' ? "bg-[#00C2FF]/20 text-[#00C2FF]" : "bg-[#007AFF]/20 text-[#007AFF]"
                             )}>
                               {item.type === 'annual' ? <FileText className="w-5 h-5" /> : <Calendar className="w-5 h-5" />}
                             </div>
@@ -404,7 +404,7 @@ export default function Home() {
                         ) : res.status === 'error' ? (
                           <XCircle className="w-5 h-5 text-red-600 dark:text-red-500" />
                         ) : (
-                          <div className="w-5 h-5 border-2 border-muted border-t-violet-600 rounded-full animate-spin" />
+                          <div className="w-5 h-5 border-2 border-muted border-t-[#007AFF] rounded-full animate-spin" />
                         )}
                         <div>
                           <p className="font-medium text-foreground">{res.filename}</p>
@@ -414,7 +414,7 @@ export default function Home() {
                       {res.url && (
                         <a
                           href={res.url}
-                          className="text-violet-600 dark:text-violet-400 hover:text-violet-800 dark:hover:text-violet-300 font-medium text-sm flex items-center gap-1"
+                          className="text-[#007AFF] dark:text-[#00C2FF] hover:text-[#0056B3] dark:hover:text-[#E0E0E0] font-medium text-sm flex items-center gap-1"
                         >
                           Visualizar Dashboard <ExternalLink className="w-4 h-4" />
                         </a>

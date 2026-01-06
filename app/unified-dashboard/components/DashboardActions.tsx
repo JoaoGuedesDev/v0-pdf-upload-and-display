@@ -18,7 +18,7 @@ export function DashboardActions({ onUpload, isUploading, onExportPdf, className
     <div className={`flex items-center gap-2 ${className}`}>
       <Button 
         variant="ghost" 
-        className="bg-violet-100 text-violet-700 hover:bg-violet-200 dark:bg-violet-900/30 dark:text-violet-300 gap-2" 
+        className="bg-[#007AFF]/20 text-[#007AFF] hover:bg-[#007AFF]/30 dark:bg-[#007AFF]/40 dark:text-[#FFFFFF] gap-2" 
         onClick={onExportPdf}
       >
         <Download className="h-4 w-4" />

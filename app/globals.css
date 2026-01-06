@@ -4,74 +4,74 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --background: #FAF5FF; /* Purple 50 */
-  --foreground: #3B0764; /* Purple 950 */
+  --background: #FFFFFF;
+  --foreground: #050B14; /* Azul profundo vibrante */
   --card: #FFFFFF;
-  --card-foreground: #3B0764;
+  --card-foreground: #050B14;
   --popover: #FFFFFF;
-  --popover-foreground: #3B0764;
-  --primary: #7C3AED; /* Violet 600 */
+  --popover-foreground: #050B14;
+  --primary: #007AFF; /* Azul elétrico vibrante */
   --primary-foreground: #FFFFFF;
-  --secondary: #F3E8FF; /* Purple 100 */
-  --secondary-foreground: #581C87; /* Purple 900 */
-  --muted: #F3E8FF; /* Purple 100 */
-  --muted-foreground: #7E22CE; /* Purple 700 */
-  --accent: #E9D5FF; /* Purple 200 */
-  --accent-foreground: #4C1D95; /* Purple 900 */
+  --secondary: #F0F9FF; /* Azul gelo muito claro */
+  --secondary-foreground: #050B14;
+  --muted: #F0F9FF;
+  --muted-foreground: #007AFF;
+  --accent: #F0F9FF;
+  --accent-foreground: #050B14;
   --destructive: #EF4444;
   --destructive-foreground: #FFFFFF;
-  --border: #E9D5FF; /* Purple 200 */
-  --input: #E9D5FF; /* Purple 200 */
-  --ring: #7C3AED; /* Violet 600 */
-  --chart-1: #8B5CF6; /* Violet 500 */
-  --chart-2: #D946EF; /* Fuchsia 500 */
-  --chart-3: #6366F1; /* Indigo 500 */
-  --chart-4: #A855F7; /* Purple 500 */
-  --chart-5: #EC4899; /* Pink 500 */
+  --border: #E2E8F0;
+  --input: #E2E8F0;
+  --ring: #007AFF;
+  --chart-1: #007AFF;
+  --chart-2: #00C2FF; /* Ciano vibrante */
+  --chart-3: #3D5AFE; /* Índigo vibrante */
+  --chart-4: #0F1C36; /* Azul marinho rico */
+  --chart-5: #050B14;
   --radius: 0.75rem;
-  --sidebar: #FAF5FF;
-  --sidebar-foreground: #3B0764;
-  --sidebar-primary: #7C3AED;
+  --sidebar: #FFFFFF;
+  --sidebar-foreground: #050B14;
+  --sidebar-primary: #007AFF;
   --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #E9D5FF;
-  --sidebar-accent-foreground: #3B0764;
-  --sidebar-border: #E9D5FF;
-  --sidebar-ring: #7C3AED;
+  --sidebar-accent: #F0F9FF;
+  --sidebar-accent-foreground: #050B14;
+  --sidebar-border: #E2E8F0;
+  --sidebar-ring: #007AFF;
 }
 
 .dark {
-  --background: #0F0518; /* Very Dark Purple */
-  --foreground: #FAF5FF; /* Purple 50 */
-  --card: #2E1065; /* Purple 950 */
-  --card-foreground: #FAF5FF;
-  --popover: #2E1065;
-  --popover-foreground: #FAF5FF;
-  --primary: #A78BFA; /* Violet 400 */
+  --background: #050B14; /* Azul marinho profundo e vibrante */
+  --foreground: #FFFFFF; /* Branco puro para contraste máximo */
+  --card: #0F1C36; /* Azul petróleo rico e saturado */
+  --card-foreground: #FFFFFF;
+  --popover: #0F1C36;
+  --popover-foreground: #FFFFFF;
+  --primary: #007AFF; /* Azul elétrico vibrante */
   --primary-foreground: #FFFFFF;
-  --secondary: #581C87; /* Purple 900 */
-  --secondary-foreground: #FAF5FF;
-  --muted: #581C87; /* Purple 900 */
-  --muted-foreground: #D8B4FE; /* Purple 300 */
-  --accent: #581C87; /* Purple 900 */
-  --accent-foreground: #FAF5FF;
-  --destructive: #7F1D1D;
-  --destructive-foreground: #FAF5FF;
-  --border: #581C87;
-  --input: #581C87;
-  --ring: #A78BFA;
-  --chart-1: #A78BFA; /* Violet 400 */
-  --chart-2: #E879F9; /* Fuchsia 400 */
-  --chart-3: #818CF8; /* Indigo 400 */
-  --chart-4: #C084FC; /* Purple 400 */
-  --chart-5: #F472B6; /* Pink 400 */
-  --sidebar: #0F0518;
-  --sidebar-foreground: #FAF5FF;
-  --sidebar-primary: #A78BFA;
+  --secondary: #1A2C4E; /* Azul médio saturado */
+  --secondary-foreground: #FFFFFF;
+  --muted: #0F1C36;
+  --muted-foreground: #00C2FF; /* Ciano vibrante para textos secundários */
+  --accent: #1A2C4E;
+  --accent-foreground: #FFFFFF;
+  --destructive: #FF453A; /* Vermelho vibrante */
+  --destructive-foreground: #FFFFFF;
+  --border: #1E3A5F; /* Borda azul vibrante */
+  --input: #1E3A5F;
+  --ring: #007AFF;
+  --chart-1: #007AFF; /* Azul elétrico */
+  --chart-2: #00C2FF; /* Ciano vibrante */
+  --chart-3: #3D5AFE; /* Índigo elétrico */
+  --chart-4: #1A2C4E; /* Azul médio */
+  --chart-5: #FFFFFF; /* Branco */
+  --sidebar: #050B14;
+  --sidebar-foreground: #FFFFFF;
+  --sidebar-primary: #007AFF;
   --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #581C87;
-  --sidebar-accent-foreground: #FAF5FF;
-  --sidebar-border: #581C87;
-  --sidebar-ring: #A78BFA;
+  --sidebar-accent: #0F1C36;
+  --sidebar-accent-foreground: #FFFFFF;
+  --sidebar-border: #1E3A5F;
+  --sidebar-ring: #007AFF;
 }
 
 @theme inline {

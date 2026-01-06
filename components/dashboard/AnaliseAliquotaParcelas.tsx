@@ -234,7 +234,7 @@ export const AnaliseAliquotaParcelas = memo(function AnaliseAliquotaParcelas({ d
                       )}
                       <div className="text-xs font-semibold text-card-foreground mt-1">{`RBT12 ${docPeriodoLabel || ''}`.trim()}: {Number.isFinite(rbt12Orig) ? formatCurrency(rbt12Orig) : '-'}</div>
                     </div>
-                    <div className="bg-muted/50 rounded p-2">
+                    <div className="bg-[#007AFF]/5 dark:bg-[#007AFF]/10 rounded p-2">
                     <div className="text-[11px] text-muted-foreground mt-2">{`Faixa ${nextPeriodoLabel || ''}`.trim()}</div>
                       {typeof fxA?.faixa !== 'undefined' && (
                         <div className="text-xs text-card-foreground">Faixa: {fxA?.faixa}</div>

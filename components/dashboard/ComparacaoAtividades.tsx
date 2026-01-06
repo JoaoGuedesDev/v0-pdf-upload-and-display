@@ -92,7 +92,7 @@ export const ComparacaoAtividades = memo(function ComparacaoAtividades({ ativida
                   className={`flex items-center justify-between p-2 rounded-lg bg-muted/50 hover:shadow-md transition-all duration-200`}
                 >
                   <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 rounded-full flex-shrink-0 shadow-sm" style={{ backgroundColor: ATIVIDADES_COLORS?.mercadorias || "#7c3aed" }} />
+                    <div className="w-4 h-4 rounded-full flex-shrink-0 shadow-sm" style={{ backgroundColor: ATIVIDADES_COLORS?.mercadorias || "#007AFF" }} />
                     <div>
                       <div className={`font-medium text-sm text-card-foreground`}>{row.nome}</div>
                       <div className={`text-xs text-muted-foreground`}>{pct.toFixed(5)}%</div>
@@ -103,24 +103,24 @@ export const ComparacaoAtividades = memo(function ComparacaoAtividades({ ativida
               )
             })}
             <div
-              className={`flex items-center justify-between p-2 rounded-lg border-2 bg-violet-50 dark:bg-violet-900/20 border-violet-200 dark:border-violet-800 font-bold`}
+              className={`flex items-center justify-between p-2 rounded-lg border-2 bg-[#007AFF]/5 dark:bg-[#007AFF]/10 border-[#007AFF]/30 font-bold`}
             >
               <div className="flex items-center gap-2">
                 <div
-                  className={`w-4 h-4 rounded-full bg-violet-600 dark:bg-violet-500`}
+                  className={`w-4 h-4 rounded-full bg-[#007AFF]`}
                 />
                 <div>
                   <div
-                    className={`font-bold text-sm text-violet-900 dark:text-violet-100`}
+                    className={`font-bold text-sm text-[#007AFF] dark:text-[#00C2FF]`}
                   >
                     TOTAL DAS (Atividades)
                   </div>
-                  <div className={`text-xs text-violet-700 dark:text-violet-300`}>
+                  <div className={`text-xs text-[#00C2FF] dark:text-[#3D5AFE]`}>
                     100.00000%
                   </div>
                 </div>
               </div>
-                  <div className={`font-bold text-lg text-violet-950 dark:text-violet-50`}>{formatCurrency(total)}</div>
+                  <div className={`font-bold text-lg text-[#007AFF] dark:text-[#00C2FF]`}>{formatCurrency(total)}</div>
               </div>
             </div>
           </div>

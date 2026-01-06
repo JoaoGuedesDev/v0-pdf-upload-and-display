@@ -158,12 +158,12 @@ export function MonthlyView({ files, currentIndex, onNavigate, onBack, onFilesUp
   }
 
   const chartTheme = useMemo(() => ({
-      grid: isDark ? '#334155' : '#e2e8f0',
-      text: isDark ? '#94a3b8' : '#64748b',
-      tooltipBg: isDark ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)',
-      tooltipTitle: isDark ? '#f1f5f9' : '#1e293b',
-      tooltipBody: isDark ? '#cbd5e1' : '#475569',
-      tooltipBorder: isDark ? '#475569' : '#e2e8f0'
+      grid: isDark ? '#1A2C4E' : '#e2e8f0', // Azul médio vibrante
+      text: isDark ? '#FFFFFF' : '#64748b', // Branco puro
+      tooltipBg: isDark ? 'rgba(5, 11, 20, 0.95)' : 'rgba(255, 255, 255, 0.95)', // Azul marinho profundo
+      tooltipTitle: isDark ? '#FFFFFF' : '#1e293b',
+      tooltipBody: isDark ? '#00C2FF' : '#475569', // Ciano vibrante
+      tooltipBorder: isDark ? '#007AFF' : '#e2e8f0'
   }), [isDark])
 
   const file = files[currentIndex]
@@ -187,14 +187,14 @@ export function MonthlyView({ files, currentIndex, onNavigate, onBack, onFilesUp
           data.receitas.receitaPA - data.tributos.Total
         ],
         backgroundColor: [
-          'rgba(53, 162, 235, 0.5)',
-          'rgba(255, 99, 132, 0.5)',
-          'rgba(75, 192, 192, 0.5)',
+          '#007AFF', // Azul elétrico vibrante
+          '#3D5AFE', // Índigo vibrante
+          '#00C2FF', // Ciano vibrante
         ],
         borderColor: [
-          'rgb(53, 162, 235)',
-          'rgb(255, 99, 132)',
-          'rgb(75, 192, 192)',
+          '#007AFF',
+          '#3D5AFE',
+          '#00C2FF',
         ],
         borderWidth: 1,
       },
@@ -207,15 +207,15 @@ export function MonthlyView({ files, currentIndex, onNavigate, onBack, onFilesUp
       {
         data: taxValues,
         backgroundColor: [
-          '#FF6384',
-          '#36A2EB',
-          '#FFCE56',
-          '#4BC0C0',
-          '#9966FF',
-          '#FF9F40',
+          '#007AFF', // Azul elétrico vibrante
+          '#00C2FF', // Ciano vibrante
+          '#3D5AFE', // Índigo vibrante
+          '#2962FF', // Azul intenso
+          '#00B0FF', // Azul claro vibrante
+          '#00E5FF', // Ciano elétrico
         ],
         borderWidth: 1,
-        borderColor: isDark ? '#1e293b' : '#ffffff',
+        borderColor: isDark ? '#050B14' : '#ffffff',
       },
     ],
   }), [taxLabels, taxValues, isDark])

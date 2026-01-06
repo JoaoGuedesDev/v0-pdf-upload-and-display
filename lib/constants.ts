@@ -5,20 +5,18 @@
 
 // Cores padrão para gráficos
 export const CHART_COLORS = [
-  '#8b5cf6', // violet-500
-  '#d946ef', // fuchsia-500
-  '#6366f1', // indigo-500
-  '#a855f7', // purple-500
-  '#ec4899', // pink-500
-  '#7c3aed', // violet-600
-  '#c084fc', // purple-400
-  '#e879f9', // fuchsia-400
+  '#007AFF', // Azul Elétrico
+  '#00C2FF', // Ciano Vibrante
+  '#3D5AFE', // Indigo
+  '#2962FF', // Azul Real
+  '#00E5FF', // Ciano Brilhante
+  '#050B14', // Fundo Escuro
 ] as const;
 
 // Cores para atividades
 export const ATIVIDADES_COLORS = {
-  mercadorias: '#7c3aed', // violet-600
-  servicos: '#d946ef', // fuchsia-500
+  mercadorias: '#007AFF', // Azul Elétrico
+  servicos: '#00C2FF', // Ciano Vibrante
 } as const;
 
 // Configurações de UI
@@ -71,10 +69,10 @@ export const CHART_CONFIG = {
       },
     },
     tooltip: {
-      backgroundColor: 'rgba(46, 16, 101, 0.95)', // purple-950
-      titleColor: '#faf5ff', // purple-50
-      bodyColor: '#faf5ff', // purple-50
-      borderColor: '#7c3aed', // violet-600
+      backgroundColor: '#0F1C36', // Azul petróleo rico
+      titleColor: '#FFFFFF', // Branco puro
+      bodyColor: '#00C2FF', // Ciano vibrante
+      borderColor: '#007AFF', // Azul elétrico
       borderWidth: 1,
     },
   },
@@ -87,7 +85,7 @@ export const CHART_CONFIG = {
     y: {
       beginAtZero: true,
       grid: {
-        color: 'rgba(233, 213, 255, 0.5)', // purple-200
+        color: 'rgba(0, 194, 255, 0.2)', // Ciano translúcido
       },
     },
   },

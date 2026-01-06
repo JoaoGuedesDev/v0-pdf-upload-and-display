@@ -84,14 +84,14 @@ const mockData: DashboardData = {
 };
 
 const coresTributos = [
-  '#7c3aed', // Violet 600
-  '#9333ea', // Purple 600
-  '#c026d3', // Fuchsia 600
-  '#db2777', // Pink 600
-  '#4f46e5', // Indigo 600
-  '#8b5cf6', // Violet 500
-  '#a855f7', // Purple 500
-  '#d946ef', // Fuchsia 500
+  '#007AFF', // Electric Blue
+  '#00C2FF', // Cyan
+  '#3D5AFE', // Indigo Accent
+  '#2962FF', // Deep Blue
+  '#00E5FF', // Bright Cyan
+  '#00B0FF', // Light Blue
+  '#007AFF', // Repetido
+  '#00C2FF', // Repetido
 ];
 
 import { useTheme } from "next-themes"
@@ -156,10 +156,10 @@ export default function DashboardDAS() {
         },
       },
       tooltip: {
-        backgroundColor: isDark ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)',
-        titleColor: isDark ? '#f8fafc' : '#0f172a',
-        bodyColor: isDark ? '#e2e8f0' : '#334155',
-        borderColor: isDark ? '#334155' : '#e2e8f0',
+        backgroundColor: isDark ? 'rgba(5, 11, 20, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+        titleColor: isDark ? '#ffffff' : '#050B14',
+        bodyColor: isDark ? '#00C2FF' : '#050B14',
+        borderColor: isDark ? '#007AFF' : '#e2e8f0',
         borderWidth: 1,
         callbacks: {
           label: (context: TooltipItem<'doughnut'>) => {
@@ -180,8 +180,8 @@ export default function DashboardDAS() {
       {
         label: 'Faturamento Mensal',
         data: mockData.faturamentoMensal.map(m => m.valor),
-        borderColor: '#3B82F6',
-        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+        borderColor: '#007AFF',
+        backgroundColor: 'rgba(0, 122, 255, 0.1)',
         tension: 0.4,
         fill: true,
       },
@@ -195,10 +195,10 @@ export default function DashboardDAS() {
         display: false,
       },
       tooltip: {
-        backgroundColor: isDark ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)',
-        titleColor: isDark ? '#f8fafc' : '#0f172a',
-        bodyColor: isDark ? '#e2e8f0' : '#334155',
-        borderColor: isDark ? '#334155' : '#e2e8f0',
+        backgroundColor: isDark ? 'rgba(5, 11, 20, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+        titleColor: isDark ? '#ffffff' : '#050B14',
+        bodyColor: isDark ? '#00C2FF' : '#050B14',
+        borderColor: isDark ? '#007AFF' : '#e2e8f0',
         borderWidth: 1,
         callbacks: {
           label: (context: TooltipItem<'line'>) => {
@@ -216,19 +216,19 @@ export default function DashboardDAS() {
       y: {
         beginAtZero: true,
         grid: {
-          color: isDark ? '#334155' : '#e2e8f0',
+          color: isDark ? '#007AFF' : '#e2e8f0',
         },
         ticks: {
-          color: isDark ? '#94a3b8' : '#64748b',
+          color: isDark ? '#FFFFFF' : '#050B14',
           callback: (value: number | string) => formatarMoeda(Number(value)),
         },
       },
       x: {
         grid: {
-          color: isDark ? '#334155' : '#e2e8f0',
+          color: isDark ? '#007AFF' : '#e2e8f0',
         },
         ticks: {
-          color: isDark ? '#94a3b8' : '#64748b',
+          color: isDark ? '#FFFFFF' : '#050B14',
         }
       }
     },
@@ -259,7 +259,7 @@ export default function DashboardDAS() {
           </div>
 
           {/* Informações do Contribuinte */}
-          <div className="bg-violet-50 dark:bg-violet-900/20 rounded-lg p-6 mb-6">
+          <div className="bg-[#007AFF]/10 dark:bg-[#007AFF]/20 rounded-lg p-6 mb-6">
             <div className="grid grid-cols-2 gap-6">
               <div>
                 <div className="mb-3">
@@ -296,7 +296,7 @@ export default function DashboardDAS() {
           <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
             <div className="bg-card border border-border rounded-lg p-4 text-center">
               <div className="text-sm font-medium text-muted-foreground mb-1">Faturamento bruto do período</div>
-              <div className="text-2xl font-bold text-violet-600 dark:text-violet-400">{formatarMoeda(mockData.faturamentoBruto)}</div>
+              <div className="text-2xl font-bold text-[#007AFF] dark:text-[#00C2FF]">{formatarMoeda(mockData.faturamentoBruto)}</div>
             </div>
             <div className="bg-card border border-border rounded-lg p-4 text-center">
               <div className="text-sm font-medium text-muted-foreground mb-1">Total de tributos</div>
@@ -308,7 +308,7 @@ export default function DashboardDAS() {
             </div>
             <div className="bg-card border border-border rounded-lg p-4 text-center">
               <div className="text-sm font-medium text-muted-foreground mb-1">Alíquota efetiva</div>
-              <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">{formatarPercentual(mockData.aliquotaEfetiva)}</div>
+              <div className="text-2xl font-bold text-[#007AFF] dark:text-[#00C2FF]">{formatarPercentual(mockData.aliquotaEfetiva)}</div>
             </div>
             <div className="bg-card border border-border rounded-lg p-4 text-center">
               <div className="text-sm font-medium text-muted-foreground mb-1">Margem líquida estimada</div>

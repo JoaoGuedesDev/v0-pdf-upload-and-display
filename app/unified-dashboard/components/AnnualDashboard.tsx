@@ -316,12 +316,12 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
 
     const isDark = theme === 'dark'
     const chartTheme = useMemo(() => ({
-        grid: isDark ? '#4c1d95' : '#e9d5ff', // Purple 900 : Purple 200
-        text: isDark ? '#faf5ff' : '#3b0764', // Purple 50 : Purple 950
-        tooltipBg: isDark ? 'rgba(46, 16, 101, 0.95)' : 'rgba(255, 255, 255, 0.95)', // Card dark bg
-        tooltipTitle: isDark ? '#faf5ff' : '#3b0764',
-        tooltipBody: isDark ? '#d8b4fe' : '#581c87',
-        tooltipBorder: isDark ? '#7c3aed' : '#e9d5ff'
+        grid: isDark ? '#007AFF' : '#e2e8f0', // Azul elétrico vibrante
+        text: isDark ? '#FFFFFF' : '#050B14', // Branco puro / Preto profundo
+        tooltipBg: isDark ? 'rgba(5, 11, 20, 0.95)' : 'rgba(255, 255, 255, 0.95)', // Azul marinho profundo
+        tooltipTitle: isDark ? '#FFFFFF' : '#050B14',
+        tooltipBody: isDark ? '#00C2FF' : '#050B14', // Ciano vibrante / Preto profundo
+        tooltipBorder: isDark ? '#007AFF' : '#e2e8f0'
     }), [isDark])
 
     const sortedFiles = [...localFiles].sort((a, b) => {
@@ -516,7 +516,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
 
     // Aggregated Data for Comparison (Multi-View)
     const allComparisonData = useMemo(() => {
-        const colors = ['#8b5cf6', '#d946ef', '#6366f1', '#a855f7', '#ec4899', '#7c3aed'] // Violet, Fuchsia, Indigo, Purple, Pink, Dark Violet
+        const colors = ['#007AFF', '#00C2FF', '#3D5AFE', '#1A2C4E', '#FFFFFF'] // Paleta Vibrante
 
         const generateData = (gran: 'quarterly' | 'semiannual') => {
             let labels: string[] = []
@@ -764,8 +764,8 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
             datasets.push({
                 label: 'Mercadorias',
                 data: monthlyRevenueBreakdown.map(d => d.mercadorias),
-                backgroundColor: '#3b82f6',
-                hoverBackgroundColor: '#2563eb',
+                backgroundColor: '#007AFF', // Azul elétrico vibrante
+                hoverBackgroundColor: '#0056B3',
                 stack: 'Stack 0',
                 ...common
             })
@@ -775,8 +775,8 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
             datasets.push({
                 label: 'Indústria',
                 data: monthlyRevenueBreakdown.map(d => d.industria),
-                backgroundColor: '#10b981',
-                hoverBackgroundColor: '#059669',
+                backgroundColor: '#00C2FF', // Ciano vibrante
+                hoverBackgroundColor: '#009ACD',
                 stack: 'Stack 0',
                 ...common
             })
@@ -786,8 +786,8 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
             datasets.push({
                 label: 'Serviços',
                 data: monthlyRevenueBreakdown.map(d => d.servicos),
-                backgroundColor: '#8b5cf6',
-                hoverBackgroundColor: '#7c3aed',
+                backgroundColor: '#3D5AFE', // Índigo elétrico
+                hoverBackgroundColor: '#304FFE',
                 stack: 'Stack 0',
                 ...common
             })
@@ -931,24 +931,24 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
         if (revenueBreakdown.mercadorias > 0) {
             labels.push('Mercadorias')
             data.push(revenueBreakdown.mercadorias)
-            colors.push('rgba(59, 130, 246, 0.8)')
+            colors.push('#007AFF') // Azul elétrico vibrante
         }
         if (revenueBreakdown.servicos > 0) {
             labels.push('Serviços')
             data.push(revenueBreakdown.servicos)
-            colors.push('rgba(139, 92, 246, 0.8)')
+            colors.push('#3D5AFE') // Índigo elétrico
         }
         if (revenueBreakdown.industrializacao > 0) {
             labels.push('Indústria')
             data.push(revenueBreakdown.industrializacao)
-            colors.push('rgba(16, 185, 129, 0.8)')
+            colors.push('#00C2FF') // Ciano vibrante
         }
 
         // Fallback if empty (shouldn't happen if there is revenue)
         if (labels.length === 0 && totalRevenue > 0) {
             labels.push('Total')
             data.push(totalRevenue)
-            colors.push('rgba(156, 163, 175, 0.8)')
+            colors.push('#3D5AFE') // Índigo elétrico
         }
 
         return {
@@ -991,17 +991,17 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                     <CardContent>
                                         <div className="flex flex-col gap-1 mb-2">
                                             {revenueBreakdown.servicos > 0 && (
-                                                <span className="inline-flex items-center rounded-full bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300 px-2 py-0.5 text-[10px] font-semibold w-fit">
+                                                <span className="inline-flex items-center rounded-full bg-[#007AFF]/20 text-[#007AFF] dark:bg-[#007AFF]/40 dark:text-[#FFFFFF] px-2 py-0.5 text-[10px] font-semibold w-fit">
                                                     Serviços: {revenueBreakdown.servicos.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                                                 </span>
                                             )}
                                             {revenueBreakdown.mercadorias > 0 && (
-                                                <span className="inline-flex items-center rounded-full bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-900/30 dark:text-fuchsia-300 px-2 py-0.5 text-[10px] font-semibold w-fit">
+                                                <span className="inline-flex items-center rounded-full bg-[#3D5AFE]/20 text-[#3D5AFE] dark:bg-[#3D5AFE]/40 dark:text-[#FFFFFF] px-2 py-0.5 text-[10px] font-semibold w-fit">
                                                     Mercadorias: {revenueBreakdown.mercadorias.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                                                 </span>
                                             )}
                                             {revenueBreakdown.industrializacao > 0 && (
-                                                <span className="inline-flex items-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 px-2 py-0.5 text-[10px] font-semibold w-fit">
+                                                <span className="inline-flex items-center rounded-full bg-[#00C2FF]/20 text-[#00C2FF] dark:bg-[#00C2FF]/40 dark:text-[#FFFFFF] px-2 py-0.5 text-[10px] font-semibold w-fit">
                                                     Indústria: {revenueBreakdown.industrializacao.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                                                 </span>
                                             )}
@@ -1032,7 +1032,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                         <CardTitle className="text-sm font-medium text-muted-foreground">Alíquota Efetiva Média</CardTitle>
                                     </CardHeader>
                                     <CardContent>
-                                        <div className="text-2xl font-bold text-violet-600 dark:text-violet-400">
+                                        <div className="text-2xl font-bold text-[#93A5AF]">
                                             {averageTaxRate.toFixed(2)}%
                                         </div>
                                     </CardContent>
@@ -1537,23 +1537,23 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                         className={cn(
                             "w-full flex items-center gap-3 p-3 rounded-lg text-left transition-all",
                             isConsolidated
-                                ? "bg-violet-50 dark:bg-violet-900/20 border-violet-200 dark:border-violet-800 shadow-sm ring-1 ring-violet-200 dark:ring-violet-800"
-                                : "hover:bg-muted border border-transparent"
+                                ? "bg-[#205F82]/5 dark:bg-[#205F82]/20 border-[#205F82]/20 dark:border-[#205F82]/50 shadow-sm ring-1 ring-[#205F82]/20 dark:ring-[#205F82]/50"
+                                : "hover:bg-muted/50 border-transparent"
                         )}
                     >
                         <div className={cn(
                             "w-10 h-10 rounded-full flex items-center justify-center",
-                            isConsolidated ? "bg-violet-100 dark:bg-violet-900 text-violet-600 dark:text-violet-400" : "bg-muted text-muted-foreground"
-                        )}>
-                            <LayoutDashboard className="w-5 h-5" />
-                        </div>
-                        <div className="flex-1">
-                            <p className={cn("font-medium text-sm", isConsolidated ? "text-violet-900 dark:text-violet-100" : "text-foreground")}>
-                                Visão Geral
+                            isConsolidated ? "bg-[#205F82]/20 dark:bg-[#205F82]/40 text-[#205F82] dark:text-[#DCE0E1]" : "bg-muted text-muted-foreground"
+                          )}>
+                            <LayoutDashboard className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <p className={cn("font-medium text-sm", isConsolidated ? "text-[#205F82] dark:text-[#93A5AF]" : "text-foreground")}>
+                              Visão Consolidada
                             </p>
                             <p className="text-xs text-muted-foreground">Consolidado Anual</p>
                         </div>
-                        {isConsolidated && <ChevronRight className="w-4 h-4 text-violet-500" />}
+                        {isConsolidated && <ChevronRight className="w-4 h-4 text-[#205F82] dark:text-[#93A5AF]" />}
                     </button>
 
                     <div className="h-px bg-border my-2" />
@@ -1636,7 +1636,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                             <div className="mt-4 flex justify-end gap-3">
                                 <Button variant="secondary" onClick={() => setShowErrorModal(false)}>Cancelar</Button>
                                 {pendingFiles.length > 0 && (
-                                    <Button onClick={handleForceProcess} className="bg-violet-600 hover:bg-violet-700 text-white">
+                                    <Button onClick={handleForceProcess} className="bg-[#007AFF] hover:bg-[#050B14] text-white">
                                         Processar Mesmo Assim
                                     </Button>
                                 )}
