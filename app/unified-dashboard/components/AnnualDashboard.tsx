@@ -262,13 +262,19 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
         anchor: 'end' as const,
         clamp: true,
         clip: false,
+        offset: 4,
         color: 'white',
+        backgroundColor: (context: any) => {
+             return context.dataset.backgroundColor || context.dataset.borderColor || 'rgba(0,0,0,0.7)'
+        },
+        borderRadius: 4,
+        padding: 4,
         textStrokeColor: 'black',
-        textStrokeWidth: 2,
+        textStrokeWidth: 0,
         font: { weight: 'bold' as const, size: 10 },
-        formatter: (value: number) => {
-            if (value === 0) return ''
-            return value.toFixed(2)
+        formatter: (value: number | null) => {
+            if (value === null || value === undefined || value === 0) return ''
+            return value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
         }
     }
 
@@ -545,9 +551,12 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                      }
                 }
 
+                // Replace 0 with null to hide points
+                const finalData = data.map(v => v === 0 ? null : v)
+
                 datasets.push({
                     label: `${y}`,
-                    data,
+                    data: finalData,
                     backgroundColor: colors[idx % colors.length],
                     borderRadius: 4,
                     barPercentage: 0.6,
@@ -555,7 +564,9 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                     datalabels: {
                         display: true,
                         ...datalabelsConfig
-                    }
+                    },
+                    // Prevent chartjs from connecting lines over nulls (for line charts) or showing empty bars
+                    spanGaps: false 
                 })
             })
             return { labels, datasets }
@@ -569,7 +580,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                 for(let m=1; m<=12; m++) {
                     sum += consolidatedData.get(`${y}-${String(m).padStart(2, '0')}`) || 0
                 }
-                return sum
+                return sum > 0 ? sum : null // Return null if 0
             })
             
             return {
@@ -607,10 +618,10 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
     const chartOptions = {
         layout: {
             padding: {
-                top: 30,
-                right: 20,
-                left: 10,
-                bottom: 0
+                top: 50,
+                right: 30,
+                left: 30, // Increased from 20 to 30 to avoid overlap with Jan values
+                bottom: 20
             }
         },
         responsive: true,
@@ -639,7 +650,6 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                 }
             },
             datalabels: {
-                display: true,
                 // Line chart specific overrides: No stroke, clamp to chart area
                 ...datalabelsConfig,
                 align: 'end' as const,
@@ -660,6 +670,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
             }
         }
     }
+
 
     const monthlyRevenueBreakdown = useMemo(() => {
         return sortedFiles.map(file => {
@@ -741,7 +752,6 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
             barPercentage: 0.6,
             categoryPercentage: 0.8,
             datalabels: {
-                display: true,
                 ...datalabelsConfig
             }
         }
@@ -868,7 +878,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                  const currVal = currDataset?.data[sem - 1] || 0
                  const prevVal = prevDataset?.data[sem - 1] || 0
                  
-                 if (currVal === 0 && prevVal === 0) return null
+                 if (currVal === 0) return null
 
                  return {
                      period: `${sem}º Semestre`,
@@ -893,7 +903,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                  const currVal = currDataset?.data[q - 1] || 0
                  const prevVal = prevDataset?.data[q - 1] || 0
 
-                 if (currVal === 0 && prevVal === 0) return null
+                 if (currVal === 0) return null
 
                  return {
                      period: `${q}º Trimestre`,
@@ -975,6 +985,23 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                         <CardTitle className="text-sm font-medium text-muted-foreground">Receita Bruta Total</CardTitle>
                                     </CardHeader>
                                     <CardContent>
+                                        <div className="flex flex-col gap-1 mb-2">
+                                            {revenueBreakdown.servicos > 0 && (
+                                                <span className="inline-flex items-center rounded-full bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300 px-2 py-0.5 text-[10px] font-semibold w-fit">
+                                                    Serviços: {revenueBreakdown.servicos.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                                </span>
+                                            )}
+                                            {revenueBreakdown.mercadorias > 0 && (
+                                                <span className="inline-flex items-center rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 px-2 py-0.5 text-[10px] font-semibold w-fit">
+                                                    Mercadorias: {revenueBreakdown.mercadorias.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                                </span>
+                                            )}
+                                            {revenueBreakdown.industrializacao > 0 && (
+                                                <span className="inline-flex items-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 px-2 py-0.5 text-[10px] font-semibold w-fit">
+                                                    Indústria: {revenueBreakdown.industrializacao.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                                </span>
+                                            )}
+                                        </div>
                                         <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
                                             {totalRevenue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                                         </div>
@@ -1013,36 +1040,40 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                     <CardHeader className="flex flex-row items-center justify-between pb-2">
                                         <CardTitle>Evolução Financeira</CardTitle>
                                     </CardHeader>
-                                    <CardContent className="space-y-8">
-                                        {years.map(year => (
-                                            <div key={year} className="h-[300px]">
-                                                <h3 className="text-sm font-semibold mb-2 text-center text-muted-foreground">Ano {year}</h3>
-                                                <Line
-                                                    options={chartOptions}
-                                                    data={{
-                                                        labels: monthlyDataByYear.get(year)?.labels || [],
-                                                        datasets: [
-                                                            {
-                                                                label: 'Receita Bruta',
-                                                                data: monthlyDataByYear.get(year)?.revenue || [],
-                                                                borderColor: '#2563eb',
-                                                                backgroundColor: 'rgba(37, 99, 235, 0.1)',
-                                                                tension: 0.4,
-                                                                fill: true
-                                                            },
-                                                            {
-                                                                label: 'Impostos',
-                                                                data: monthlyDataByYear.get(year)?.taxes || [],
-                                                                borderColor: '#dc2626',
-                                                                backgroundColor: 'rgba(220, 38, 38, 0.1)',
-                                                                tension: 0.4,
-                                                                fill: true
-                                                            }
-                                                        ]
-                                                    }}
-                                                />
-                                            </div>
-                                        ))}
+                                    <CardContent className="space-y-12">
+                                        {years.map(year => {
+                                            const yearData = monthlyDataByYear.get(year)
+
+                                            return (
+                                                <div key={year} className="h-[300px]">
+                                                    <h3 className="text-sm font-semibold mb-2 text-center text-muted-foreground">Receita e Impostos - {year}</h3>
+                                                    <Line
+                                                        options={chartOptions}
+                                                        data={{
+                                                            labels: yearData?.labels || [],
+                                                            datasets: [
+                                                                {
+                                                                    label: 'Receita Bruta',
+                                                                    data: yearData?.revenue || [],
+                                                                    borderColor: '#2563eb',
+                                                                    backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                                                                    tension: 0.4,
+                                                                    fill: true
+                                                                },
+                                                                {
+                                                                    label: 'Impostos',
+                                                                    data: yearData?.taxes || [],
+                                                                    borderColor: '#dc2626',
+                                                                    backgroundColor: 'rgba(220, 38, 38, 0.1)',
+                                                                    tension: 0.4,
+                                                                    fill: true
+                                                                }
+                                                            ]
+                                                        }}
+                                                    />
+                                                </div>
+                                            )
+                                        })}
                                     </CardContent>
                                 </Card>
 
@@ -1088,18 +1119,13 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                     </div>
                                 </div>
 
-                                <div className={cn(
-                                    "grid gap-6 grid-cols-1",
-                                    Object.values(visibleCharts).filter(Boolean).length === 1 ? "md:grid-cols-1" :
-                                        Object.values(visibleCharts).filter(Boolean).length === 2 ? "md:grid-cols-2" :
-                                            "md:grid-cols-3"
-                                )}>
+                                <div className="grid gap-6 grid-cols-1">
                                     {visibleCharts.quarterly && (
                                         <Card>
                                             <CardHeader>
                                                 <CardTitle className="text-sm font-medium">Comparativo Trimestral</CardTitle>
                                             </CardHeader>
-                                            <CardContent className="h-[300px]">
+                                            <CardContent className="h-[200px]">
                                                 <Bar
                                                     options={chartOptions}
                                                     data={allComparisonData.quarterly}
@@ -1113,7 +1139,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                             <CardHeader>
                                                 <CardTitle className="text-sm font-medium">Comparativo Semestral</CardTitle>
                                             </CardHeader>
-                                            <CardContent className="h-[300px]">
+                                            <CardContent className="h-[200px]">
                                                 <Bar
                                                     options={chartOptions}
                                                     data={allComparisonData.semiannual}
@@ -1127,7 +1153,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                             <CardHeader>
                                                 <CardTitle className="text-sm font-medium">Comparativo Anual</CardTitle>
                                             </CardHeader>
-                                            <CardContent className="h-[300px]">
+                                            <CardContent className="h-[200px]">
                                                 <Bar
                                                     options={chartOptions}
                                                     data={allComparisonData.annual}
@@ -1272,7 +1298,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
 
                             <Card>
                                 <CardHeader>
-                                    <CardTitle>Detalhamento Mensal</CardTitle>
+                                    <CardTitle>Quadro de Distribuição de Resultados</CardTitle>
                                 </CardHeader>
                                 <CardContent>
                                     <Table>
@@ -1568,7 +1594,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                         {label}
                                     </p>
                                     <p className="text-xs text-muted-foreground truncate">
-                                        Fat: {fat.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', notation: 'compact' })}
+                                        Fat: {fat.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                                     </p>
                                 </div>
                                 {isActive && <ChevronRight className="w-4 h-4 text-blue-500" />}

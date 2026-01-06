@@ -667,6 +667,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
         )}
 
 
+
         {data?.receitas && (() => {
           const sI = (data as any)?.tributosServicosInterno || {}
           const sE = (data as any)?.tributosServicosExterno || {}
@@ -760,6 +761,178 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
             />
           )
         })()}
+
+        <Card className="bg-white border-slate-200 mt-6" style={{ breakInside: 'avoid' }}>
+          <CardHeader className="py-2">
+            <CardTitle className="text-slate-800">Quadro de Distribuição de Resultados</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {(() => {
+              const rawPeriod = String(data?.identificacao?.periodoApuracao || '')
+              const p0 = rawPeriod.split(' ')[0].split('/')
+              const periodoDisplay = p0.length === 3 ? `${p0[1]}/${p0[2]}` : rawPeriod
+              const rpa = Number(data?.receitas?.receitaPA || 0)
+              
+              let servicos = 0
+              let mercadorias = 0
+              let industria = 0 // Keeping it for completeness although we focus on Merc/Serv
+
+              // Priority 1: Use Analise Aliquota (Most Accurate - same as Annual Dashboard)
+              const detalhe = (data as any)?.calculos?.analise_aliquota?.detalhe || (data as any)?.calculos?.analiseAliquota?.detalhe || []
+              if (Array.isArray(detalhe) && detalhe.length > 0) {
+                 detalhe.forEach((d: any) => {
+                    const anexo = Number(d.anexo)
+                    // Some parsers might put value directly or in parcelas_ajuste
+                    const valor = d.parcelas_ajuste?.reduce((acc: number, p: any) => acc + (Number(p.valor) || 0), 0) || Number(d.receita_bruta) || 0
+                    
+                    if ([1].includes(anexo)) {
+                        mercadorias += valor
+                    } else if ([2].includes(anexo)) {
+                        industria += valor // Treat as separate or fold into Mercadorias if requested? 
+                                           // User asked for Mercadorias vs Servicos. Usually Industry is its own thing or grouped with Merc.
+                                           // For now, let's keep it separate in var but maybe display logic handles it?
+                                           // The AnnualDashboard displays it as 'Indústria'.
+                                           // But the table below expects Merc/Serv breakdown.
+                                           // Let's add Industry to Mercadorias for the purpose of this specific table if the table only has 2 columns?
+                                           // The table has specific Merc/Serv rows.
+                                           // If I look at AnnualDashboard table (L1278), it only shows Merc and Serv rows in the breakdown loop.
+                                           // And L1311: const totalRevenue = breakdown.mercadorias + breakdown.servicos + breakdown.industria
+                                           // But the rows L1319 only show Merc and Serv.
+                                           // So if there is Industry, it might be hidden in that table?
+                                           // Wait, looking at AnnualDashboard L1302:
+                                           // const baseMerc = breakdown.mercadorias * 0.08
+                                           // const baseServ = breakdown.servicos * 0.32
+                                           // It seems Industry is ignored in that specific "Quadro de Distribuição" in AnnualDashboard too?
+                                           // Or maybe "Mercadorias" there implies Comércio + Indústria?
+                                           // The prompt said "8% Mercadorias / 32% Serviços". 
+                                           // Anexo I is 4% nominal... wait. Presumed Profit is 8% for Commerce/Industry and 32% for Services.
+                                           // So yes, Industry (Anexo II) usually has 8% presunção IRPJ too.
+                                           // So I should add Industria to Mercadorias for the calculation base.
+                         mercadorias += valor
+                    } else if ([3, 4, 5].includes(anexo)) {
+                        servicos += valor
+                    }
+                 })
+              } else {
+                  // Priority 2: Fallback to Activities (Text analysis)
+                  const at = (data as any)?.atividades
+                  if (at && typeof at === 'object') {
+                    const items = Object.values(at).filter((x: any) => x && typeof x === 'object')
+                    if (items.length) {
+                      items.forEach((i: any) => {
+                        const nome = String(i?.descricao || '').toLowerCase()
+                        const val = Number(i?.Total || 0)
+                        if (nome.includes('servi')) servicos += val
+                        else mercadorias += val
+                      })
+                      const sum = servicos + mercadorias
+                      if (sum > 0 && rpa > 0) {
+                        servicos = rpa * (servicos / sum)
+                        mercadorias = rpa * (mercadorias / sum)
+                      } else {
+                        servicos = rpa
+                      }
+                    } else {
+                      // Priority 3: Tributos Ratios
+                      const tServ = (data?.tributosServicosInterno?.Total || 0) + (data?.tributosServicosExterno?.Total || 0)
+                      const tMerc = (data?.tributosMercadoriasInterno?.Total || 0) + (data?.tributosMercadoriasExterno?.Total || 0)
+                      if (tServ + tMerc > 0) {
+                        servicos = rpa * (tServ / (tServ + tMerc))
+                        mercadorias = rpa * (tMerc / (tServ + tMerc))
+                      } else {
+                        servicos = rpa
+                      }
+                    }
+                  } else {
+                     // Priority 3 again (redundant fallback)
+                     const tServ = (data?.tributosServicosInterno?.Total || 0) + (data?.tributosServicosExterno?.Total || 0)
+                     const tMerc = (data?.tributosMercadoriasInterno?.Total || 0) + (data?.tributosMercadoriasExterno?.Total || 0)
+                     if (tServ + tMerc > 0) {
+                       servicos = rpa * (tServ / (tServ + tMerc))
+                       mercadorias = rpa * (tMerc / (tServ + tMerc))
+                     } else {
+                       servicos = rpa
+                     }
+                  }
+              }
+
+              const irpjTotal = Number(data?.tributos?.IRPJ || 0)
+              const baseMerc = mercadorias * 0.08
+              const baseServ = servicos * 0.32
+              const totalBase = baseMerc + baseServ
+              const irpjMerc = totalBase > 0 ? (irpjTotal * (baseMerc / totalBase)) : 0
+              const irpjServ = totalBase > 0 ? (irpjTotal * (baseServ / totalBase)) : 0
+              const distMerc = baseMerc - irpjMerc
+              const distServ = baseServ - irpjServ
+              return (
+                <div className="rounded-md border overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted">
+                      <tr>
+                        <th className="px-3 py-2 text-left w-[160px]">Período</th>
+                        <th className="px-3 py-2 text-left">Receita Bruta</th>
+                        <th className="px-3 py-2 text-left">IRPJ</th>
+                        <th className="px-3 py-2 text-left">Alíquota</th>
+                        <th className="px-3 py-2 text-left">Distribuição</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr className="align-top">
+                        <td className="px-3 py-2 font-medium">{periodoDisplay}</td>
+                        <td className="px-3 py-2">
+                          <div className="flex flex-col gap-1">
+                            <div className="flex flex-col">
+                              <span className="text-[11px] font-semibold uppercase text-muted-foreground">Mercadorias</span>
+                              <span className="font-medium">{mercadorias.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                            </div>
+                            <div className="flex flex-col">
+                              <span className="text-[11px] font-semibold uppercase text-muted-foreground">Serviços</span>
+                              <span className="font-medium">{servicos.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-3 py-2">
+                          <div className="flex flex-col gap-1">
+                            <div className="flex flex-col">
+                              <span className="text-[11px] text-muted-foreground">Mercadorias</span>
+                              <span className="font-medium">{irpjMerc.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                            </div>
+                            <div className="flex flex-col">
+                              <span className="text-[11px] text-muted-foreground">Serviços</span>
+                              <span className="font-medium">{irpjServ.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-3 py-2">
+                          <div className="flex flex-col gap-1">
+                            <div className="text-sm font-medium">Mercadorias: <span className="font-bold">8%</span></div>
+                            <div className="text-sm font-medium">Serviços: <span className="font-bold">32%</span></div>
+                          </div>
+                        </td>
+                        <td className="px-3 py-2">
+                          <div className="flex flex-col gap-1">
+                            <div className="flex flex-col">
+                              <span className="text-[11px] text-muted-foreground">Mercadorias</span>
+                              <span className="font-medium text-emerald-600 dark:text-emerald-400">
+                                {distMerc.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                              </span>
+                            </div>
+                            <div className="flex flex-col">
+                              <span className="text-[11px] text-muted-foreground">Serviços</span>
+                              <span className="font-medium text-emerald-600 dark:text-emerald-400">
+                                {distServ.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              )
+            })()}
+          </CardContent>
+        </Card>
 
 
         <AnaliseAliquotaParcelas dadosPgdas={{ analise_aliquota: (data?.calculos as any)?.analiseAliquota || (data?.calculos as any)?.analise_aliquota, identificacao: (data as any)?.identificacao }} />

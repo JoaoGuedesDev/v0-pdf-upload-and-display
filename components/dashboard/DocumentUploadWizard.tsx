@@ -246,8 +246,12 @@ export function DocumentUploadWizard({ onComplete }: DocumentUploadWizardProps) 
                                 <div key={idx} className="flex items-center justify-between p-3 bg-card border border-border rounded-lg group hover:border-primary/50 transition-colors">
                                     <div className="flex items-center gap-3 overflow-hidden">
                                         <FileText className="w-4 h-4 text-primary flex-shrink-0" />
-                                        <span className="text-sm text-card-foreground truncate
-
+                                        <span className="text-sm text-card-foreground truncate" title={file.name}>{file.name}</span>
+                                    </div>
+                                    <button onClick={() => removeFile(idx)} className="text-xs text-muted-foreground hover:text-destructive">Remover</button>
+                                </div>
+                            ))}
+                        </div>
                 <div className="flex justify-end pt-4">
                     <Button 
                         onClick={validateFiles} 
@@ -258,6 +262,8 @@ export function DocumentUploadWizard({ onComplete }: DocumentUploadWizardProps) 
                         Validar Documentos
                     </Button>
                 </div>
+                    </div>
+                )}
             </CardContent>
         )}
 
