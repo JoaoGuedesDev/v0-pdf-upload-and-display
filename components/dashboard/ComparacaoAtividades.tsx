@@ -2,7 +2,8 @@ import { memo, useMemo } from "react"
 import { BarChartHorizontal } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { UI_CONFIG, ATIVIDADES_COLORS } from "@/lib/constants"
-import { formatCurrency } from "@/lib/utils"
+import { formatCurrency } from '@/lib/utils';
+import { useTheme } from "next-themes";
 
 interface ComparacaoAtividadesProps {
   atividades?: any
@@ -67,7 +68,7 @@ export const ComparacaoAtividades = memo(function ComparacaoAtividades({ ativida
           <CardTitle
             className={`text-base sm:text-[9px] flex items-center gap-2 text-card-foreground`}
           >
-            <BarChartHorizontal className={`h-5 w-5 text-blue-600`} />
+            <BarChartHorizontal className={`h-5 w-5 text-primary`} />
             Tributos por Atividade (exigível)
           </CardTitle>
           <CardDescription
@@ -91,7 +92,7 @@ export const ComparacaoAtividades = memo(function ComparacaoAtividades({ ativida
                   className={`flex items-center justify-between p-2 rounded-lg bg-muted/50 hover:shadow-md transition-all duration-200`}
                 >
                   <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 rounded-full flex-shrink-0 shadow-sm" style={{ backgroundColor: ATIVIDADES_COLORS?.mercadorias || "#3b82f6" }} />
+                    <div className="w-4 h-4 rounded-full flex-shrink-0 shadow-sm" style={{ backgroundColor: ATIVIDADES_COLORS?.mercadorias || "#7c3aed" }} />
                     <div>
                       <div className={`font-medium text-sm text-card-foreground`}>{row.nome}</div>
                       <div className={`text-xs text-muted-foreground`}>{pct.toFixed(5)}%</div>
@@ -102,24 +103,24 @@ export const ComparacaoAtividades = memo(function ComparacaoAtividades({ ativida
               )
             })}
             <div
-              className={`flex items-center justify-between p-2 rounded-lg border-2 bg-slate-100 border-slate-300 font-bold`}
+              className={`flex items-center justify-between p-2 rounded-lg border-2 bg-violet-50 dark:bg-violet-900/20 border-violet-200 dark:border-violet-800 font-bold`}
             >
               <div className="flex items-center gap-2">
                 <div
-                  className={`w-4 h-4 rounded-full bg-slate-600`}
+                  className={`w-4 h-4 rounded-full bg-violet-600 dark:bg-violet-500`}
                 />
                 <div>
                   <div
-                    className={`font-bold text-sm text-slate-800`}
+                    className={`font-bold text-sm text-violet-900 dark:text-violet-100`}
                   >
                     TOTAL DAS (Atividades)
                   </div>
-                  <div className={`text-xs text-slate-600`}>
+                  <div className={`text-xs text-violet-700 dark:text-violet-300`}>
                     100.00000%
                   </div>
                 </div>
               </div>
-                  <div className={`font-bold text-lg text-slate-900`}>{formatCurrency(total)}</div>
+                  <div className={`font-bold text-lg text-violet-950 dark:text-violet-50`}>{formatCurrency(total)}</div>
               </div>
             </div>
           </div>

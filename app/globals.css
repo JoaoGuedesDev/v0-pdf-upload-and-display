@@ -4,74 +4,74 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --background: #ffffff;
-  --foreground: #0f172a;
-  --card: #ffffff;
-  --card-foreground: #0f172a;
-  --popover: #ffffff;
-  --popover-foreground: #0f172a;
-  --primary: #2563eb;
-  --primary-foreground: #ffffff;
-  --secondary: #f1f5f9;
-  --secondary-foreground: #0f172a;
-  --muted: #f1f5f9;
-  --muted-foreground: #64748b;
-  --accent: #f59e0b;
-  --accent-foreground: #111827;
-  --destructive: #ef4444;
-  --destructive-foreground: #ffffff;
-  --border: #e5e7eb;
-  --input: #e5e7eb;
-  --ring: #2563eb;
-  --chart-1: #6366F1;
-  --chart-2: #22C55E;
-  --chart-3: #F59E0B;
-  --chart-4: #EF4444;
-  --chart-5: #06B6D4;
+  --background: #FAF5FF; /* Purple 50 */
+  --foreground: #3B0764; /* Purple 950 */
+  --card: #FFFFFF;
+  --card-foreground: #3B0764;
+  --popover: #FFFFFF;
+  --popover-foreground: #3B0764;
+  --primary: #7C3AED; /* Violet 600 */
+  --primary-foreground: #FFFFFF;
+  --secondary: #F3E8FF; /* Purple 100 */
+  --secondary-foreground: #581C87; /* Purple 900 */
+  --muted: #F3E8FF; /* Purple 100 */
+  --muted-foreground: #7E22CE; /* Purple 700 */
+  --accent: #E9D5FF; /* Purple 200 */
+  --accent-foreground: #4C1D95; /* Purple 900 */
+  --destructive: #EF4444;
+  --destructive-foreground: #FFFFFF;
+  --border: #E9D5FF; /* Purple 200 */
+  --input: #E9D5FF; /* Purple 200 */
+  --ring: #7C3AED; /* Violet 600 */
+  --chart-1: #8B5CF6; /* Violet 500 */
+  --chart-2: #D946EF; /* Fuchsia 500 */
+  --chart-3: #6366F1; /* Indigo 500 */
+  --chart-4: #A855F7; /* Purple 500 */
+  --chart-5: #EC4899; /* Pink 500 */
   --radius: 0.75rem;
-  --sidebar: #f8fafc;
-  --sidebar-foreground: #0f172a;
-  --sidebar-primary: #2563eb;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #e2e8f0;
-  --sidebar-accent-foreground: #0f172a;
-  --sidebar-border: #e5e7eb;
-  --sidebar-ring: #2563eb;
+  --sidebar: #FAF5FF;
+  --sidebar-foreground: #3B0764;
+  --sidebar-primary: #7C3AED;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #E9D5FF;
+  --sidebar-accent-foreground: #3B0764;
+  --sidebar-border: #E9D5FF;
+  --sidebar-ring: #7C3AED;
 }
 
 .dark {
-  --background: #020817;
-  --foreground: #f8fafc;
-  --card: #020817;
-  --card-foreground: #f8fafc;
-  --popover: #020817;
-  --popover-foreground: #f8fafc;
-  --primary: #3b82f6;
-  --primary-foreground: #ffffff;
-  --secondary: #1e293b;
-  --secondary-foreground: #f8fafc;
-  --muted: #1e293b;
-  --muted-foreground: #94a3b8;
-  --accent: #1e293b;
-  --accent-foreground: #f8fafc;
-  --destructive: #7f1d1d;
-  --destructive-foreground: #f8fafc;
-  --border: #1e293b;
-  --input: #1e293b;
-  --ring: #3b82f6;
-  --chart-1: #3b82f6;
-  --chart-2: #22c55e;
-  --chart-3: #f59e0b;
-  --chart-4: #ef4444;
-  --chart-5: #06b6d4;
-  --sidebar: #0f172a;
-  --sidebar-foreground: #f8fafc;
-  --sidebar-primary: #3b82f6;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #1e293b;
-  --sidebar-accent-foreground: #f8fafc;
-  --sidebar-border: #1e293b;
-  --sidebar-ring: #3b82f6;
+  --background: #0F0518; /* Very Dark Purple */
+  --foreground: #FAF5FF; /* Purple 50 */
+  --card: #2E1065; /* Purple 950 */
+  --card-foreground: #FAF5FF;
+  --popover: #2E1065;
+  --popover-foreground: #FAF5FF;
+  --primary: #A78BFA; /* Violet 400 */
+  --primary-foreground: #FFFFFF;
+  --secondary: #581C87; /* Purple 900 */
+  --secondary-foreground: #FAF5FF;
+  --muted: #581C87; /* Purple 900 */
+  --muted-foreground: #D8B4FE; /* Purple 300 */
+  --accent: #581C87; /* Purple 900 */
+  --accent-foreground: #FAF5FF;
+  --destructive: #7F1D1D;
+  --destructive-foreground: #FAF5FF;
+  --border: #581C87;
+  --input: #581C87;
+  --ring: #A78BFA;
+  --chart-1: #A78BFA; /* Violet 400 */
+  --chart-2: #E879F9; /* Fuchsia 400 */
+  --chart-3: #818CF8; /* Indigo 400 */
+  --chart-4: #C084FC; /* Purple 400 */
+  --chart-5: #F472B6; /* Pink 400 */
+  --sidebar: #0F0518;
+  --sidebar-foreground: #FAF5FF;
+  --sidebar-primary: #A78BFA;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #581C87;
+  --sidebar-accent-foreground: #FAF5FF;
+  --sidebar-border: #581C87;
+  --sidebar-ring: #A78BFA;
 }
 
 @theme inline {

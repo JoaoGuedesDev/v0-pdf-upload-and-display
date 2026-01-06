@@ -2,6 +2,7 @@
 import { memo, useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { formatCurrency } from "@/lib/utils"
+import { useTheme } from "next-themes"
 
 interface Props {
   dadosPgdas: any

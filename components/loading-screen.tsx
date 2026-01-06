@@ -36,10 +36,10 @@ export function LoadingScreen({ message = "Processando documentos..." }: Loading
       <div className="relative z-10 animate-in zoom-in-95 duration-500 fade-in-0">
         <div className="bg-card p-8 rounded-2xl shadow-2xl border border-border flex flex-col items-center gap-6 max-w-md w-full text-center relative overflow-hidden">
             {/* Shimmer effect */}
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-blue-500 to-transparent animate-shimmer" style={{ backgroundSize: '200% 100%' }}></div>
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-violet-500 to-transparent animate-shimmer" style={{ backgroundSize: '200% 100%' }}></div>
 
             <div className="relative">
-                <div className="absolute inset-0 animate-ping rounded-full bg-blue-400 opacity-20"></div>
+                <div className="absolute inset-0 animate-ping rounded-full bg-violet-400 opacity-20"></div>
                 <div className="relative bg-background rounded-full p-4 shadow-sm border border-border">
                     <HeaderLogo className="h-12 w-auto" />
                 </div>
@@ -49,7 +49,7 @@ export function LoadingScreen({ message = "Processando documentos..." }: Loading
                 <h3 className="text-xl font-bold text-foreground">
                     Integra Soluções Empresariais
                 </h3>
-                <p className="text-lg font-medium text-blue-600 dark:text-blue-400 animate-pulse">
+                <p className="text-lg font-medium text-violet-600 dark:text-violet-400 animate-pulse">
                     {message}
                 </p>
                 <p className="text-sm text-muted-foreground">
@@ -58,7 +58,7 @@ export function LoadingScreen({ message = "Processando documentos..." }: Loading
             </div>
 
             <div className="w-full bg-secondary h-2 rounded-full overflow-hidden relative">
-                <div className="absolute top-0 left-0 h-full bg-blue-600 w-1/3 animate-loading-bar rounded-full"></div>
+                <div className="absolute top-0 left-0 h-full bg-violet-600 w-1/3 animate-loading-bar rounded-full"></div>
             </div>
         </div>
       </div>

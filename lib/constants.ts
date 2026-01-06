@@ -5,20 +5,20 @@
 
 // Cores padrão para gráficos
 export const CHART_COLORS = [
-  '#3b82f6', // blue-500
-  '#10b981', // emerald-500
-  '#f59e0b', // amber-500
-  '#ef4444', // red-500
   '#8b5cf6', // violet-500
+  '#d946ef', // fuchsia-500
+  '#6366f1', // indigo-500
+  '#a855f7', // purple-500
   '#ec4899', // pink-500
-  '#06b6d4', // cyan-500
-  '#84cc16', // lime-500
+  '#7c3aed', // violet-600
+  '#c084fc', // purple-400
+  '#e879f9', // fuchsia-400
 ] as const;
 
 // Cores para atividades
 export const ATIVIDADES_COLORS = {
-  mercadorias: '#3b82f6',
-  servicos: '#10b981',
+  mercadorias: '#7c3aed', // violet-600
+  servicos: '#d946ef', // fuchsia-500
 } as const;
 
 // Configurações de UI
@@ -71,10 +71,10 @@ export const CHART_CONFIG = {
       },
     },
     tooltip: {
-      backgroundColor: 'rgba(0, 0, 0, 0.8)',
-      titleColor: '#fff',
-      bodyColor: '#fff',
-      borderColor: '#666',
+      backgroundColor: 'rgba(46, 16, 101, 0.95)', // purple-950
+      titleColor: '#faf5ff', // purple-50
+      bodyColor: '#faf5ff', // purple-50
+      borderColor: '#7c3aed', // violet-600
       borderWidth: 1,
     },
   },
@@ -87,7 +87,7 @@ export const CHART_CONFIG = {
     y: {
       beginAtZero: true,
       grid: {
-        color: 'rgba(0, 0, 0, 0.1)',
+        color: 'rgba(233, 213, 255, 0.5)', // purple-200
       },
     },
   },

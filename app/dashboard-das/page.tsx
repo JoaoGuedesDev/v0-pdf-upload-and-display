@@ -84,17 +84,21 @@ const mockData: DashboardData = {
 };
 
 const coresTributos = [
-  '#3B82F6', // Azul
-  '#10B981', // Verde
-  '#F59E0B', // Amarelo
-  '#EF4444', // Vermelho
-  '#8B5CF6', // Roxo
-  '#06B6D4', // Ciano
-  '#84CC16', // Verde limão
-  '#F97316', // Laranja
+  '#7c3aed', // Violet 600
+  '#9333ea', // Purple 600
+  '#c026d3', // Fuchsia 600
+  '#db2777', // Pink 600
+  '#4f46e5', // Indigo 600
+  '#8b5cf6', // Violet 500
+  '#a855f7', // Purple 500
+  '#d946ef', // Fuchsia 500
 ];
 
+import { useTheme } from "next-themes"
+
 export default function DashboardDAS() {
+  const { theme } = useTheme()
+  const isDark = theme === 'dark'
   const dashboardRef = useRef<HTMLDivElement>(null);
 
   const formatarMoeda = (valor: number) => {
@@ -117,7 +121,7 @@ export default function DashboardDAS() {
         data: mockData.tributos.map(t => t.valor),
         backgroundColor: coresTributos,
         borderWidth: 2,
-        borderColor: '#ffffff',
+        borderColor: isDark ? '#1e293b' : '#ffffff', // slate-800 : white
       },
     ],
   };
@@ -128,6 +132,7 @@ export default function DashboardDAS() {
       legend: {
         position: 'right' as const,
         labels: {
+          color: isDark ? '#e2e8f0' : '#64748b', // slate-200 : slate-500
           generateLabels: (chart: Chart): LegendItem[] => {
             const data = chart.data
             const labels = data.labels as string[] | undefined
@@ -143,6 +148,7 @@ export default function DashboardDAS() {
                   fillStyle: cores[i],
                   hidden: false,
                   index: i,
+                  fontColor: isDark ? '#e2e8f0' : '#64748b',
                 }
               }) || []
             )
@@ -150,6 +156,11 @@ export default function DashboardDAS() {
         },
       },
       tooltip: {
+        backgroundColor: isDark ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+        titleColor: isDark ? '#f8fafc' : '#0f172a',
+        bodyColor: isDark ? '#e2e8f0' : '#334155',
+        borderColor: isDark ? '#334155' : '#e2e8f0',
+        borderWidth: 1,
         callbacks: {
           label: (context: TooltipItem<'doughnut'>) => {
             const valor = context.parsed;
@@ -184,6 +195,11 @@ export default function DashboardDAS() {
         display: false,
       },
       tooltip: {
+        backgroundColor: isDark ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+        titleColor: isDark ? '#f8fafc' : '#0f172a',
+        bodyColor: isDark ? '#e2e8f0' : '#334155',
+        borderColor: isDark ? '#334155' : '#e2e8f0',
+        borderWidth: 1,
         callbacks: {
           label: (context: TooltipItem<'line'>) => {
             const y = context.parsed?.y
@@ -199,66 +215,78 @@ export default function DashboardDAS() {
     scales: {
       y: {
         beginAtZero: true,
+        grid: {
+          color: isDark ? '#334155' : '#e2e8f0',
+        },
         ticks: {
+          color: isDark ? '#94a3b8' : '#64748b',
           callback: (value: number | string) => formatarMoeda(Number(value)),
         },
       },
+      x: {
+        grid: {
+          color: isDark ? '#334155' : '#e2e8f0',
+        },
+        ticks: {
+          color: isDark ? '#94a3b8' : '#64748b',
+        }
+      }
     },
   };
 
   return (
-    <div className="min-h-screen bg-white p-4">
+    <div className="min-h-screen bg-background p-4">
       <div className="max-w-7xl mx-auto">
         
 
-        <div ref={dashboardRef} className="bg-white rounded-lg shadow-lg p-8">
+        <div ref={dashboardRef} className="bg-card rounded-lg shadow-lg p-8">
           {/* Cabeçalho */}
-          <div className="border-b border-gray-200 pb-6 mb-6">
+          <div className="border-b border-border pb-6 mb-6">
             <div className="flex justify-between items-center">
-              <div className="text-gray-500 font-medium">
+              <div className="text-muted-foreground font-medium">
                 <Image src="/integra-logo.svg" alt="Integra" width={160} height={48} className="h-10 sm:h-12 w-auto object-contain" />
               </div>
               <div className="text-center">
-                <h1 className="text-2xl font-bold text-gray-900 mb-2">
+                <h1 className="text-2xl font-bold text-foreground mb-2">
                   Dashboard da DAS – Resumo Tributário
                 </h1>
-                <p className="text-gray-600">
+                <p className="text-muted-foreground">
                   Visualização simplificada dos impostos e do faturamento com base na DAS do Simples Nacional.
                 </p>
               </div>
-              <div className="text-gray-500 font-medium"></div>
+              <div className="text-muted-foreground font-medium"></div>
             </div>
           </div>
 
           {/* Informações do Contribuinte */}
-          <div className="bg-blue-50 rounded-lg p-6 mb-6">
+          <div className="bg-violet-50 dark:bg-violet-900/20 rounded-lg p-6 mb-6">
             <div className="grid grid-cols-2 gap-6">
               <div>
                 <div className="mb-3">
-                  <span className="text-sm font-medium text-gray-600">Razão social da empresa:</span>
-                  <div className="text-lg font-semibold text-gray-900">{mockData.empresa}</div>
+                  <span className="text-sm font-medium text-muted-foreground">Razão social da empresa:</span>
+                  <div className="text-lg font-semibold text-foreground">{mockData.empresa}</div>
                 </div>
                 <div className="mb-3">
-                  <span className="text-sm font-medium text-gray-600">CNPJ:</span>
-                  <div className="text-lg font-semibold text-gray-900">{mockData.cnpj}</div>
+                  <span className="text-sm font-medium text-muted-foreground">CNPJ:</span>
+                  <div className="text-lg font-semibold text-foreground">{mockData.cnpj}</div>
                 </div>
                 <div>
-                  <span className="text-sm font-medium text-gray-600">Período de apuração:</span>
-                  <div className="text-lg font-semibold text-gray-900">{mockData.periodo}</div>
+                  <span className="text-sm font-medium text-muted-foreground">Período de apuração:</span>
+                  <div className="text-lg font-semibold text-foreground">{mockData.periodo}</div>
                 </div>
               </div>
               <div>
                 <div className="mb-3">
-                  <span className="text-sm font-medium text-gray-600">Regime:</span>
-                  <div className="text-lg font-semibold text-gray-900">Simples Nacional</div>
+                  <span className="text-sm font-medium text-muted-foreground">Regime:</span>
+                  <div className="text-lg font-semibold text-foreground">Simples Nacional</div>
                 </div>
                 <div className="mb-3">
-                  <span className="text-sm font-medium text-gray-600">Anexo / Faixa:</span>
-                  <div className="text-lg font-semibold text-gray-900">{mockData.anexoFaixa}</div>
+                  <span className="text-sm font-medium text-muted-foreground">Anexo / Faixa:</span>
+                  <div className="text-lg font-semibold text-foreground">{mockData.anexoFaixa}</div>
                 </div>
                 <div>
-                  <span className="text-sm font-medium text-gray-600">Município/UF:</span>
-                  <div className="text-lg font-semibold text-gray-900">{mockData.municipioUF}</div>
+                  <span className="text-sm font-medium text-muted-foreground">Município/UF:</span>
+                  <div className="text-lg font-semibold text-foreground">{mockData.municipioUF}</div>
                 </div>
               </div>
             </div>
@@ -266,25 +294,25 @@ export default function DashboardDAS() {
 
           {/* Cards de KPIs */}
           <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
-            <div className="bg-white border border-gray-200 rounded-lg p-4 text-center">
-              <div className="text-sm font-medium text-gray-600 mb-1">Faturamento bruto do período</div>
-              <div className="text-2xl font-bold text-blue-600">{formatarMoeda(mockData.faturamentoBruto)}</div>
+            <div className="bg-card border border-border rounded-lg p-4 text-center">
+              <div className="text-sm font-medium text-muted-foreground mb-1">Faturamento bruto do período</div>
+              <div className="text-2xl font-bold text-violet-600 dark:text-violet-400">{formatarMoeda(mockData.faturamentoBruto)}</div>
             </div>
-            <div className="bg-white border border-gray-200 rounded-lg p-4 text-center">
-              <div className="text-sm font-medium text-gray-600 mb-1">Total de tributos</div>
-              <div className="text-2xl font-bold text-red-600">{formatarMoeda(mockData.totalTributos)}</div>
+            <div className="bg-card border border-border rounded-lg p-4 text-center">
+              <div className="text-sm font-medium text-muted-foreground mb-1">Total de tributos</div>
+              <div className="text-2xl font-bold text-red-600 dark:text-red-400">{formatarMoeda(mockData.totalTributos)}</div>
             </div>
-            <div className="bg-white border border-gray-200 rounded-lg p-4 text-center">
-              <div className="text-sm font-medium text-gray-600 mb-1">Alíquota nominal</div>
-              <div className="text-2xl font-bold text-green-600">{formatarPercentual(mockData.aliquotaNominal)}</div>
+            <div className="bg-card border border-border rounded-lg p-4 text-center">
+              <div className="text-sm font-medium text-muted-foreground mb-1">Alíquota nominal</div>
+              <div className="text-2xl font-bold text-green-600 dark:text-green-400">{formatarPercentual(mockData.aliquotaNominal)}</div>
             </div>
-            <div className="bg-white border border-gray-200 rounded-lg p-4 text-center">
-              <div className="text-sm font-medium text-gray-600 mb-1">Alíquota efetiva</div>
-              <div className="text-2xl font-bold text-purple-600">{formatarPercentual(mockData.aliquotaEfetiva)}</div>
+            <div className="bg-card border border-border rounded-lg p-4 text-center">
+              <div className="text-sm font-medium text-muted-foreground mb-1">Alíquota efetiva</div>
+              <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">{formatarPercentual(mockData.aliquotaEfetiva)}</div>
             </div>
-            <div className="bg-white border border-gray-200 rounded-lg p-4 text-center">
-              <div className="text-sm font-medium text-gray-600 mb-1">Margem líquida estimada</div>
-              <div className="text-2xl font-bold text-orange-600">
+            <div className="bg-card border border-border rounded-lg p-4 text-center">
+              <div className="text-sm font-medium text-muted-foreground mb-1">Margem líquida estimada</div>
+              <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">
                 {mockData.margemLiquida ? formatarPercentual(mockData.margemLiquida) : '–'}
               </div>
             </div>
@@ -292,8 +320,8 @@ export default function DashboardDAS() {
 
           {/* Gráficos */}
           <div className="grid grid-cols-1 gap-6 mb-6">
-            <div className="bg-white border border-gray-200 rounded-lg p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Distribuição dos Tributos na DAS</h3>
+            <div className="bg-card border border-border rounded-lg p-6">
+              <h3 className="text-lg font-semibold text-foreground mb-4">Distribuição dos Tributos na DAS</h3>
               <div className="h-80">
                 <Doughnut data={dadosDoughnut} options={opcoesDoughnut} />
               </div>
@@ -301,38 +329,38 @@ export default function DashboardDAS() {
           </div>
 
           {/* Gráfico de Linha */}
-          <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Evolução do Faturamento</h3>
+          <div className="bg-card border border-border rounded-lg p-6 mb-6">
+            <h3 className="text-lg font-semibold text-foreground mb-4">Evolução do Faturamento</h3>
             <div className="h-64">
               <Line data={dadosLine} options={opcoesLine} />
             </div>
           </div>
 
           {/* Tabela de Tributos */}
-          <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Resumo dos Tributos</h3>
+          <div className="bg-card border border-border rounded-lg p-6 mb-6">
+            <h3 className="text-lg font-semibold text-foreground mb-4">Resumo dos Tributos</h3>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-gray-200">
-                    <th className="text-left py-3 px-4 font-semibold text-gray-900">Tributo</th>
-                    <th className="text-right py-3 px-4 font-semibold text-gray-900">Base de cálculo (R$)</th>
-                    <th className="text-right py-3 px-4 font-semibold text-gray-900">Alíquota aplicada (%)</th>
-                    <th className="text-right py-3 px-4 font-semibold text-gray-900">Valor do tributo (R$)</th>
-                    <th className="text-right py-3 px-4 font-semibold text-gray-900">Percentual sobre o total de tributos (%)</th>
+                  <tr className="border-b border-border">
+                    <th className="text-left py-3 px-4 font-semibold text-foreground">Tributo</th>
+                    <th className="text-right py-3 px-4 font-semibold text-foreground">Base de cálculo (R$)</th>
+                    <th className="text-right py-3 px-4 font-semibold text-foreground">Alíquota aplicada (%)</th>
+                    <th className="text-right py-3 px-4 font-semibold text-foreground">Valor do tributo (R$)</th>
+                    <th className="text-right py-3 px-4 font-semibold text-foreground">Percentual sobre o total de tributos (%)</th>
                   </tr>
                 </thead>
                 <tbody>
                   {mockData.tributos.map((tributo, index) => (
-                    <tr key={index} className="border-b border-gray-100">
-                      <td className="py-3 px-4 font-medium">{tributo.nome}</td>
-                      <td className="py-3 px-4 text-right">{formatarMoeda(tributo.baseCalculo)}</td>
-                      <td className="py-3 px-4 text-right">{formatarPercentual(tributo.aliquota)}</td>
-                      <td className="py-3 px-4 text-right">{formatarMoeda(tributo.valor)}</td>
-                      <td className="py-3 px-4 text-right">{formatarPercentual(tributo.percentual)}</td>
+                    <tr key={index} className="border-b border-border">
+                      <td className="py-3 px-4 font-medium text-foreground">{tributo.nome}</td>
+                      <td className="py-3 px-4 text-right text-muted-foreground">{formatarMoeda(tributo.baseCalculo)}</td>
+                      <td className="py-3 px-4 text-right text-muted-foreground">{formatarPercentual(tributo.aliquota)}</td>
+                      <td className="py-3 px-4 text-right text-muted-foreground">{formatarMoeda(tributo.valor)}</td>
+                      <td className="py-3 px-4 text-right text-muted-foreground">{formatarPercentual(tributo.percentual)}</td>
                     </tr>
                   ))}
-                  <tr className="bg-gray-50 font-semibold">
+                  <tr className="bg-muted/50 font-semibold text-foreground">
                     <td className="py-3 px-4">TOTAL</td>
                     <td className="py-3 px-4 text-right">{formatarMoeda(mockData.faturamentoBruto)}</td>
                     <td className="py-3 px-4 text-right">–</td>
@@ -345,7 +373,7 @@ export default function DashboardDAS() {
           </div>
 
           {/* Rodapé */}
-          <div className="text-sm text-gray-600 border-t border-gray-200 pt-4">
+          <div className="text-sm text-muted-foreground border-t border-border pt-4">
             <p>Emitido em {new Date().toLocaleDateString('pt-BR')} com base nas informações constantes na DAS do Simples Nacional.</p>
           </div>
         </div>

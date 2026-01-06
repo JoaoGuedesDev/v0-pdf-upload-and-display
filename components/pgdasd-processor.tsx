@@ -14,7 +14,8 @@ import { Doughnut } from 'react-chartjs-2'
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, Title } from 'chart.js'
 import ChartDataLabels from 'chartjs-plugin-datalabels'
 import { CHART_CONFIG } from '@/lib/constants'
-import { MessageCircle, Mail } from 'lucide-react'
+import { MessageCircle, Mail, Download, Moon, Sun } from 'lucide-react'
+import { useTheme } from "next-themes"
 
 ChartJS.register(ArcElement, Tooltip, Legend, Title, ChartDataLabels)
 export interface DASData {
@@ -124,6 +125,7 @@ interface PGDASDProcessorProps {
 }
 
 export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shareId, hideDownloadButton, isOwner, isPdfGen }: PGDASDProcessorProps) {
+  const { theme, setTheme } = useTheme()
   const [owner, setOwner] = useState<boolean>(!!isOwner)
   const chartRef = useRef<any>(null)
   useEffect(() => {
@@ -395,7 +397,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-4">
+      <div className="min-h-screen bg-background p-4">
         <div className="max-w-4xl mx-auto">
           <Alert variant="destructive">
             <AlertDescription>{error}</AlertDescription>
@@ -413,13 +415,13 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
 
   if (!data && !initialData) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-4">
+      <div className="min-h-screen bg-background p-4">
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-slate-800 mb-2">
+            <h1 className="text-3xl font-bold text-foreground mb-2">
               Analisador de PGDAS-D
             </h1>
-            <p className="text-slate-600">
+            <p className="text-muted-foreground">
               Faça upload do seu arquivo PGDAS-D para análise detalhada
             </p>
           </div>
@@ -435,24 +437,24 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
   if (!data || !data.identificacao) {
     if (initialData) {
       return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-4">
+        <div className="min-h-screen bg-background p-4">
           <div className="max-w-4xl mx-auto flex items-center justify-center h-64">
             <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-              <p className="text-slate-600">Carregando dados...</p>
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-violet-600 mx-auto mb-4"></div>
+              <p className="text-muted-foreground">Carregando dados...</p>
             </div>
           </div>
         </div>
       )
     }
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-4">
+      <div className="min-h-screen bg-background p-4">
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-slate-800 mb-2">
+            <h1 className="text-3xl font-bold text-foreground mb-2">
               Analisador de PGDAS-D
             </h1>
-            <p className="text-slate-600">
+            <p className="text-muted-foreground">
               Faça upload do seu arquivo PGDAS-D para análise detalhada
             </p>
           </div>
@@ -466,9 +468,9 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
   }
 
   return (
-    <div className="min-h-screen bg-white w-full overflow-x-hidden flex justify-center items-start">
+    <div className="min-h-screen bg-background w-full overflow-x-hidden flex justify-center items-start">
       <div
-        className="bg-white min-h-screen p-4 origin-top"
+        className="bg-background min-h-screen p-4 origin-top"
         style={{
           width: '1600px',
           ['zoom' as any]: scale,
@@ -479,14 +481,24 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
           <div className="space-y-1">
           </div>
           {!isPdfGen && (
-            <div className="print:hidden">
+            <div className="print:hidden flex items-center gap-2">
               <Button
-                variant="outline"
-                size="sm"
-                className="rounded-full bg-white/70 text-slate-700 hover:bg-white border-slate-200"
-                onClick={() => window.location.assign('/')}
+                 variant="ghost" 
+                 className="bg-violet-100 text-violet-700 hover:bg-violet-200 dark:bg-violet-900/30 dark:text-violet-300 gap-2"
+                 onClick={handleDownloadPDF}
               >
-                Processar Novo PDF
+                <Download className="h-4 w-4" />
+                Exportar Relatório PDF
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                className="h-9 w-9 rounded-full"
+              >
+                <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+                <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+                <span className="sr-only">Alternar tema</span>
               </Button>
             </div>
           )}
@@ -494,27 +506,27 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
 
 
 
-        <Card className="bg-gradient-to-br from-slate-900 to-slate-800 text-white border-0 shadow-xl py-2">
+        <Card className="bg-gradient-to-br from-slate-900 to-slate-800 dark:from-slate-950 dark:to-slate-900 text-white border-0 shadow-xl py-2">
           <CardContent className="grid sm:grid-cols-2 md:grid-cols-3 gap-2">
             <div>
-              <p className="text-slate-400 text-xs sm:text-sm">CNPJ</p>
+              <p className="text-muted-foreground text-xs sm:text-sm">CNPJ</p>
               <p className="text-base sm:text-lg font-semibold break-words">{data?.identificacao?.cnpj}</p>
             </div>
             <div className="sm:col-span-2 md:col-span-1">
-              <p className="text-slate-400 text-xs sm:text-sm">Razão Social</p>
+              <p className="text-muted-foreground text-xs sm:text-sm">Razão Social</p>
               <p className="text-base sm:text-lg font-semibold break-words">{data?.identificacao?.razaoSocial}</p>
             </div>
             <div className="sm:col-span-2 md:col-span-1">
-              <p className="text-slate-400 text-xs sm:text-sm">Período</p>
+              <p className="text-muted-foreground text-xs sm:text-sm">Período</p>
               <p className="text-base sm:text-lg font-semibold break-words">{data?.identificacao?.periodoApuracao}</p>
             </div>
           </CardContent>
         </Card>
 
         {data?.receitas && (
-          <Card className="bg-white border-slate-200">
+          <Card className="bg-card border-border">
             <CardHeader className="py-2">
-              <CardTitle className="text-slate-800">Discriminativo de Receitas</CardTitle>
+              <CardTitle className="text-card-foreground">Discriminativo de Receitas</CardTitle>
               <CardDescription>Detalhamento completo das receitas conforme PGDASD</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3 py-2">
@@ -552,7 +564,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="text-slate-700">
+                        <tr className="text-muted-foreground border-b border-border">
                           <th className="text-left py-2 px-3">Local de Receitas (R$)</th>
                           <th className="text-right py-2 px-3">Mercado Interno</th>
                           {showExternal && (
@@ -561,9 +573,9 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                           <th className="text-right py-2 px-3">Total</th>
                         </tr>
                       </thead>
-                      <tbody className="text-slate-900">
+                      <tbody className="text-card-foreground">
                         {rows.map((row, i) => (
-                          <tr key={`rec-${i}`} className="border-slate-200">
+                          <tr key={`rec-${i}`} className="border-b border-border last:border-0">
                             <td className="py-2 px-3">{row.label}</td>
                             <td className="text-right py-2 px-3">{formatCurrency(row.mi)}</td>
                             {showExternal && (
@@ -762,9 +774,9 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
           )
         })()}
 
-        <Card className="bg-white border-slate-200 mt-6" style={{ breakInside: 'avoid' }}>
+        <Card className="bg-card border-border mt-6" style={{ breakInside: 'avoid' }}>
           <CardHeader className="py-2">
-            <CardTitle className="text-slate-800">Quadro de Distribuição de Resultados</CardTitle>
+            <CardTitle className="text-card-foreground">Quadro de Distribuição de Resultados</CardTitle>
           </CardHeader>
           <CardContent>
             {(() => {
@@ -953,9 +965,9 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
           const hasData = hasHistData(historicoMI) || hasHistData(historicoME) || hasSeriesData(serieA) || hasSeriesData(serieMI) || hasSeriesData(serieME)
           if (!hasData) return null
           return (
-            <Card className="bg-white border-slate-200 py-1 gap-1" style={{ breakInside: 'avoid' }}>
+            <Card className="bg-card border-border py-1 gap-1" style={{ breakInside: 'avoid' }}>
               <CardHeader className="pt-1 pb-0">
-                <CardTitle className="text-slate-800">Receita Mensal (R$)</CardTitle>
+                <CardTitle className="text-card-foreground">Receita Mensal (R$)</CardTitle>
                 <CardDescription>Mercado Interno e Externo</CardDescription>
               </CardHeader>
               <CardContent className="pt-0 pb-0">
@@ -1071,9 +1083,9 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
           )
         })()}
         {data?.tributos && (
-          <Card className="bg-white border-slate-200" style={{ breakInside: 'avoid' }}>
+          <Card className="bg-card border-border" style={{ breakInside: 'avoid' }}>
             <CardHeader className="py-2">
-              <CardTitle className="text-slate-800">Detalhamento dos Tributos</CardTitle>
+              <CardTitle className="text-card-foreground">Detalhamento dos Tributos</CardTitle>
               <CardDescription>Composição do DAS por categoria e tributo</CardDescription>
             </CardHeader>
             <CardContent className="overflow-x-auto py-2">
@@ -1130,24 +1142,24 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                 const visible = catCols.filter(c => Number(c.total || 0) > 0)
                 const totalGet = (lbl: string) => Number(getVal(t, lbl) || 0)
                 const totalSum = rows.reduce((acc, [lbl]) => acc + Number(getVal(t, lbl) || 0), 0)
-                const cols = [...visible, { label: 'Total', get: totalGet, total: totalSum, cls: 'text-slate-900 font-semibold' }]
+                const cols = [...visible, { label: 'Total', get: totalGet, total: totalSum, cls: 'text-foreground font-semibold' }]
                 return (
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="text-slate-700">
+                      <tr className="text-muted-foreground">
                         <th className="text-left py-1 px-2">Tributo</th>
                         {cols.map((h, i) => (
                           <th key={i} className="text-right py-1 px-2">{h.label}</th>
                         ))}
                       </tr>
                     </thead>
-                    <tbody className="text-slate-900">
+                    <tbody className="text-foreground">
                       {rows.map(([label], idx) => {
                         const rowTotal = Number(totalGet(label) || 0)
                         const globalVal = Number(getVal(t, label) || 0)
                         if (rowTotal <= 0 && globalVal <= 0) return null
                         return (
-                          <tr key={idx} className="border-slate-200">
+                          <tr key={idx} className="border-border">
                             <td className="py-1 px-2">{label}</td>
                             {cols.map((c, ci) => {
                               const isTotal = c.label === 'Total'
@@ -1158,7 +1170,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                           </tr>
                         )
                       })}
-                      <tr className="border-slate-200 font-semibold">
+                      <tr className="border-border font-semibold">
                         <td className="py-1 px-2">Total</td>
                         {cols.map((c, ci) => {
                           const tv = Number(c.total || 0)
@@ -1256,7 +1268,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
               const cy = (chartArea.top + chartArea.bottom) / 2
               ctx.save()
               ctx.textAlign = 'center'
-              ctx.fillStyle = '#111827'
+              ctx.fillStyle = theme === 'dark' ? '#FAF5FF' : '#111827'
               ctx.font = '600 14px Inter, system-ui, -apple-system, Segoe UI'
               ctx.fillText('Total de Tributos', cx, cy - 10)
               ctx.font = '700 14px Inter, system-ui, -apple-system, Segoe UI'
@@ -1310,7 +1322,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
               resolveSide('right')
               ctx.save()
               for (const n of nodes) {
-                ctx.strokeStyle = String(n.color || '#475569')
+                ctx.strokeStyle = String(n.color || (theme === 'dark' ? '#94a3b8' : '#475569'))
                 ctx.lineWidth = 1.25
                 ctx.beginPath()
                 ctx.moveTo(n.ax, n.ay)
@@ -1318,7 +1330,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                 ctx.lineTo(n.lx, n.ly)
                 ctx.stroke()
                 ctx.textAlign = n.right ? 'left' : 'right'
-                ctx.fillStyle = String(n.color || '#111827')
+                ctx.fillStyle = String(n.color || (theme === 'dark' ? '#FAF5FF' : '#111827'))
                 ctx.font = '600 14px Inter, system-ui, -apple-system, Segoe UI'
                 const txt = `${n.label}: ${formatCurrency(Number(n.value || 0))} (${n.pct.toFixed(1)}%)`
                 ctx.fillText(txt, n.lx, n.ly - 2)
@@ -1327,9 +1339,9 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
             }
           }
           return (
-            <Card className="bg-white border-slate-200" style={{ breakInside: 'avoid' }}>
+            <Card className="bg-card border-border" style={{ breakInside: 'avoid' }}>
               <CardHeader className="py-2">
-                <CardTitle className="text-slate-800">Distribuição de Tributos (DAS)</CardTitle>
+                <CardTitle className="text-card-foreground">Distribuição de Tributos (DAS)</CardTitle>
               </CardHeader>
               <CardContent className="py-2">
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
@@ -1340,10 +1352,10 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                         <div key={i} className="flex items-center justify-between rounded-lg px-2 py-1">
                           <div className="flex items-center gap-2">
                             <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: it.color }} />
-                            <div className="text-slate-600 text-xs font-medium">{it.label}</div>
+                            <div className="text-muted-foreground text-xs font-medium">{it.label}</div>
                           </div>
                           <div className="flex items-center gap-2">
-                            <div className="text-slate-500 text-[10px]">{pct.toFixed(2)}%</div>
+                            <div className="text-muted-foreground text-[10px]">{pct.toFixed(2)}%</div>
                             <span className="rounded-full text-white text-[11px] px-2 py-0.5" style={{ backgroundColor: it.color }}>
                               {formatCurrency(it.value)}
                             </span>
@@ -1446,16 +1458,16 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
 
         {/* Insights */}
         {data?.insights && (
-          <Card className="bg-white border-slate-200">
+          <Card className="bg-card border-border">
             <CardHeader className="py-2">
-              <CardTitle className="text-slate-800">
+              <CardTitle className="text-card-foreground">
                 Insights e Recomendações
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 p-3">
               {data?.insights?.comparativoSetorial && (
-                <div className="p-4 bg-blue-50 rounded-lg">
-                  <p className="text-sm text-blue-800">
+                <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                  <p className="text-sm text-blue-800 dark:text-blue-200">
                     {data.insights.comparativoSetorial}
                   </p>
                 </div>
@@ -1463,12 +1475,12 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
 
               {data?.insights?.pontosAtencao?.length > 0 && (
                 <div>
-                  <h4 className="font-semibold text-orange-600 mb-2">
+                  <h4 className="font-semibold text-orange-600 dark:text-orange-400 mb-2">
                     Pontos de Atenção
                   </h4>
                   <ul className="list-disc list-inside space-y-1">
                     {data.insights.pontosAtencao.map((ponto, index) => (
-                      <li key={index} className="text-sm text-orange-700">
+                      <li key={index} className="text-sm text-orange-700 dark:text-orange-300">
                         {ponto}
                       </li>
                     ))}
@@ -1478,12 +1490,12 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
 
               {data?.insights?.oportunidades?.length > 0 && (
                 <div>
-                  <h4 className="font-semibold text-emerald-600 mb-2">
+                  <h4 className="font-semibold text-emerald-600 dark:text-emerald-400 mb-2">
                     Oportunidades
                   </h4>
                   <ul className="list-disc list-inside space-y-1">
                     {data.insights.oportunidades.map((oportunidade, index) => (
-                      <li key={index} className="text-sm text-emerald-700">
+                      <li key={index} className="text-sm text-emerald-700 dark:text-emerald-300">
                         {oportunidade}
                       </li>
                     ))}
@@ -1509,16 +1521,16 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
           </Card>
         )}
 
-        <Card className="bg-white border-slate-200 rounded-2xl" style={{ breakInside: 'avoid' }}>
+        <Card className="bg-card border-border rounded-2xl" style={{ breakInside: 'avoid' }}>
           <CardHeader className="py-2">
-            <CardTitle className="text-slate-800 tracking-tight">Contato e Ações</CardTitle>
+            <CardTitle className="text-card-foreground tracking-tight">Contato e Ações</CardTitle>
             <CardDescription className="leading-relaxed">Caso queira uma análise mais completa e personalizada</CardDescription>
           </CardHeader>
           <CardContent className="py-2">
             <div className="grid md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <div className="rounded-xl p-3 bg-slate-50">
-                  <ul className="space-y-2 text-slate-700">
+                <div className="rounded-xl p-3 bg-slate-50 dark:bg-slate-900/50">
+                  <ul className="space-y-2 text-slate-700 dark:text-slate-300">
                     <li className="flex items-start gap-2"><span className="mt-1 inline-block w-1.5 h-1.5 rounded-full bg-blue-600" />Cenários comparativos entre regimes tributários</li>
                     <li className="flex items-start gap-2"><span className="mt-1 inline-block w-1.5 h-1.5 rounded-full bg-indigo-600" />Simulações de economia fiscal</li>
                     <li className="flex items-start gap-2"><span className="mt-1 inline-block w-1.5 h-1.5 rounded-full bg-emerald-600" />Recomendações exclusivas para o seu ramo</li>
@@ -1526,11 +1538,11 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                 </div>
               </div>
               <div>
-                <div className={`rounded-xl p-4 bg-slate-100/70 text-slate-800 border border-slate-200`}>
-                  <p className="font-semibold text-slate-900 mb-2">Fale com a Integra</p>
+                <div className={`rounded-xl p-4 bg-slate-100/70 dark:bg-slate-800/70 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700`}>
+                  <p className="font-semibold text-slate-900 dark:text-slate-100 mb-2">Fale com a Integra</p>
                   <div className="space-y-2">
-                    <a className="flex items-center gap-2 hover:text-emerald-700" href="https://wa.me/559481264638" target="_blank" rel="noreferrer"><MessageCircle className="h-4 w-4 text-emerald-600" />WhatsApp: 94 8126-4638</a>
-                    <a className="flex items-center gap-2 hover:text-blue-700" href="mailto:atendimento@integratecnologia.inf.br"><Mail className="h-4 w-4 text-blue-600" />E-mail: atendimento@integratecnologia.inf.br</a>
+                    <a className="flex items-center gap-2 hover:text-emerald-700 dark:hover:text-emerald-500" href="https://wa.me/559481264638" target="_blank" rel="noreferrer"><MessageCircle className="h-4 w-4 text-emerald-600" />WhatsApp: 94 8126-4638</a>
+                    <a className="flex items-center gap-2 hover:text-blue-700 dark:hover:text-blue-500" href="mailto:atendimento@integratecnologia.inf.br"><Mail className="h-4 w-4 text-blue-600" />E-mail: atendimento@integratecnologia.inf.br</a>
                   </div>
                 </div>
               </div>

@@ -4,6 +4,7 @@
  */
 
 import { useMemo, memo } from 'react';
+import { useTheme } from "next-themes";
 import { Bar } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -48,6 +49,8 @@ export const GraficoReceitaMensal = memo(function GraficoReceitaMensal({
   description = 'Evolução de Receitas',
   height = 400 
 }: GraficoReceitaMensalProps) {
+  const { theme } = useTheme()
+  const isDark = theme === 'dark'
   const chartData = (() => {
     if (!data || !data.labels || !data.values) {
       return { labels: [], datasets: [] };
@@ -144,8 +147,8 @@ export const GraficoReceitaMensal = memo(function GraficoReceitaMensal({
       {
         label: 'Mercado Externo',
         data: externaSorted,
-        backgroundColor: 'rgba(139, 92, 246, 0.45)',
-        borderColor: '#8b5cf6',
+        backgroundColor: 'rgba(217, 70, 239, 0.45)', // Fuchsia 500
+        borderColor: '#d946ef',
         borderWidth: 1,
         borderRadius: 4,
         borderSkipped: false,
@@ -157,8 +160,8 @@ export const GraficoReceitaMensal = memo(function GraficoReceitaMensal({
       {
         label: 'Mercado Interno',
         data: internaSorted,
-        backgroundColor: 'rgba(59, 130, 246, 0.85)',
-        borderColor: '#3b82f6',
+        backgroundColor: 'rgba(124, 58, 237, 0.85)', // Violet 600
+        borderColor: '#7c3aed',
         borderWidth: 0,
         borderRadius: 99,
         borderSkipped: false,
@@ -199,7 +202,7 @@ export const GraficoReceitaMensal = memo(function GraficoReceitaMensal({
         },
         labels: {
           ...CHART_CONFIG.plugins.legend.labels,
-          color: '#000000',
+          color: isDark ? '#e2e8f0' : '#000000',
           generateLabels: (chart) => {
             const getHidden = (i: number) => {
               const ds: any = chart.data?.datasets?.[i]
@@ -214,8 +217,10 @@ export const GraficoReceitaMensal = memo(function GraficoReceitaMensal({
       },
       tooltip: {
         padding: 10,
-        backgroundColor: 'rgba(255,255,255,0.95)',
-        borderColor: '#e2e8f0',
+        backgroundColor: isDark ? '#1e293b' : 'rgba(255,255,255,0.95)',
+        borderColor: isDark ? '#334155' : '#e2e8f0',
+        titleColor: isDark ? '#f8fafc' : '#1e293b',
+        bodyColor: isDark ? '#f8fafc' : '#475569',
         borderWidth: 1,
         callbacks: {
           label: (context: any) => {
@@ -243,7 +248,7 @@ export const GraficoReceitaMensal = memo(function GraficoReceitaMensal({
         align: 'end',
         rotation: -30,
         color: (ctx: Context) => {
-          return '#000000'
+          return isDark ? '#cbd5e1' : '#000000'
         },
         font: { size: 11, weight: 600 },
         formatter: (value: unknown, ctx: Context) => {
@@ -298,16 +303,19 @@ export const GraficoReceitaMensal = memo(function GraficoReceitaMensal({
         ...CHART_CONFIG.scales.x,
         stacked: true,
         ticks: { 
-          color: '#020617', 
+          color: isDark ? '#94a3b8' : '#020617', 
           font: { weight: 'bold' },
           padding: 16
+        },
+        grid: {
+          color: isDark ? '#334155' : '#e2e8f0',
         }
       },
       y: {
         ...CHART_CONFIG.scales.y,
         stacked: true,
         ticks: { 
-          color: '#020617', 
+          color: isDark ? '#94a3b8' : '#020617', 
           font: { weight: 'bold' },
           callback: function(value: any) {
              return 'R$ ' + new Intl.NumberFormat('pt-BR', {
@@ -315,6 +323,9 @@ export const GraficoReceitaMensal = memo(function GraficoReceitaMensal({
                maximumFractionDigits: 0,
              }).format(Number(value));
            }
+        },
+        grid: {
+          color: isDark ? '#334155' : '#e2e8f0',
         }
       }
     },
@@ -322,7 +333,7 @@ export const GraficoReceitaMensal = memo(function GraficoReceitaMensal({
 
   if (!data || chartData.labels.length === 0) {
     return (
-      <div className={`flex items-center justify-center h-[${height}px] text-slate-500`}>
+      <div className={`flex items-center justify-center h-[${height}px] text-muted-foreground`}>
         <div className="text-center">
           <div className="text-lg mb-2">📊</div>
           <div className="text-sm">Nenhum dado de receita disponível</div>

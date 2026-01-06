@@ -145,11 +145,11 @@ export function FileCorrectionWizard({
                   onChange={handleAddFiles}
                 />
                 <label
-                  htmlFor="add-more-files"
-                  className="text-xs flex items-center gap-1 cursor-pointer bg-blue-50 text-blue-700 px-3 py-1.5 rounded hover:bg-blue-100 transition-colors"
-                >
-                  <Upload className="w-3 h-3" /> Adicionar Arquivos
-                </label>
+                htmlFor="add-more-files"
+                className="text-xs flex items-center gap-1 cursor-pointer bg-violet-50 text-violet-700 px-3 py-1.5 rounded hover:bg-violet-100 transition-colors"
+              >
+                <Upload className="w-3 h-3" /> Adicionar Arquivos
+              </label>
               </div>
             </div>
 
@@ -204,7 +204,7 @@ export function FileCorrectionWizard({
                       />
                       <label
                         htmlFor={`replace-${index}`}
-                        className="text-xs cursor-pointer text-blue-600 hover:text-blue-800 hover:underline px-2 py-1"
+                        className="text-xs cursor-pointer text-violet-600 hover:text-violet-800 hover:underline px-2 py-1"
                       >
                         Substituir
                       </label>
@@ -231,7 +231,7 @@ export function FileCorrectionWizard({
               <Button
                 variant="secondary"
                 onClick={() => onForceProcess(localFiles)}
-                className="bg-yellow-100 text-yellow-700 hover:bg-yellow-200 border-yellow-200"
+                className="bg-yellow-100 text-yellow-700 hover:bg-yellow-200 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-800 dark:hover:bg-yellow-900/50"
               >
                 Processar Mesmo Assim
               </Button>

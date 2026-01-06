@@ -10,7 +10,7 @@ export function AdminAuthWrapper({ id, secret }: { id: string, secret: string })
 
   return (
     <div className="flex items-center justify-center min-h-screen">
-      <p className="text-slate-500">Autenticando...</p>
+      <p className="text-muted-foreground">Autenticando...</p>
     </div>
   )
 }

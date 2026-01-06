@@ -117,7 +117,7 @@ export const ConfiguracaoProcessamento = memo(function ConfiguracaoProcessamento
         <div
           className={`border-2 border-dashed rounded-lg p-6 sm:p-10 flex flex-col items-center justify-center transition-colors cursor-pointer ${
             dragActive
-              ? `bg-blue-50/50 border-blue-400 dark:bg-blue-950/20`
+              ? `bg-violet-50/50 border-violet-400 dark:bg-violet-950/20`
               : `bg-muted/30 border-muted-foreground/25 hover:bg-muted/50`
           }`}
           onDragEnter={handleDrag}
@@ -128,7 +128,7 @@ export const ConfiguracaoProcessamento = memo(function ConfiguracaoProcessamento
           <Upload
             className={`h-8 w-8 sm:h-10 sm:w-10 mb-2 ${
               dragActive 
-                ? "text-blue-600 dark:text-blue-400" 
+                ? "text-violet-600 dark:text-violet-400" 
                 : "text-muted-foreground"
             }`}
           />
@@ -186,7 +186,7 @@ export const ConfiguracaoProcessamento = memo(function ConfiguracaoProcessamento
                   onClick={handleProcess}
                   disabled={loading || (isAnnual && files.length < 2)}
                   size="sm"
-                  className={`bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white w-full sm:w-auto`}
+                  className={`bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700 text-white w-full sm:w-auto`}
                 >
                   {loading ? (
                     <>

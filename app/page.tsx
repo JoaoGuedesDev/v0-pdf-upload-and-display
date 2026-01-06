@@ -286,19 +286,19 @@ export default function Home() {
               <div className="grid md:grid-cols-2 gap-6">
                 <Card
                   className={cn(
-                    "p-8 cursor-pointer transition-all hover:shadow-lg hover:border-blue-300 group relative overflow-hidden",
-                    selectedMode === 'monthly' && "ring-2 ring-blue-600 border-transparent"
+                    "p-8 cursor-pointer transition-all hover:shadow-lg hover:border-violet-300 dark:hover:border-violet-700 group relative overflow-hidden bg-card",
+                    selectedMode === 'monthly' && "ring-2 ring-violet-600 border-transparent"
                   )}
                   onClick={() => handleSelection('monthly')}
                 >
-                  <div className="absolute top-0 left-0 w-full h-1 bg-blue-600/0 group-hover:bg-blue-600 transition-colors" />
+                  <div className="absolute top-0 left-0 w-full h-1 bg-violet-600/0 group-hover:bg-violet-600 transition-colors" />
                   <div className="flex flex-col items-center text-center space-y-4">
-                    <div className="w-16 h-16 rounded-full bg-blue-50 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                      <Calendar className="w-8 h-8 text-blue-600" />
+                    <div className="w-16 h-16 rounded-full bg-violet-50 dark:bg-violet-900/20 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                      <Calendar className="w-8 h-8 text-violet-600 dark:text-violet-400" />
                     </div>
                     <div className="space-y-2">
-                      <h3 className="text-xl font-bold text-slate-900">Processo Mensal</h3>
-                      <p className="text-slate-500">
+                      <h3 className="text-xl font-bold text-foreground">Processo Mensal</h3>
+                      <p className="text-muted-foreground">
                         Análise individual de uma competência específica.
                       </p>
                     </div>
@@ -307,19 +307,19 @@ export default function Home() {
 
                 <Card
                   className={cn(
-                    "p-8 cursor-pointer transition-all hover:shadow-lg hover:border-purple-300 group relative overflow-hidden",
+                    "p-8 cursor-pointer transition-all hover:shadow-lg hover:border-purple-300 dark:hover:border-purple-700 group relative overflow-hidden bg-card",
                     selectedMode === 'annual' && "ring-2 ring-purple-600 border-transparent"
                   )}
                   onClick={() => handleSelection('annual')}
                 >
                   <div className="absolute top-0 left-0 w-full h-1 bg-purple-600/0 group-hover:bg-purple-600 transition-colors" />
                   <div className="flex flex-col items-center text-center space-y-4">
-                    <div className="w-16 h-16 rounded-full bg-purple-50 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                      <FileText className="w-8 h-8 text-purple-600" />
+                    <div className="w-16 h-16 rounded-full bg-purple-50 dark:bg-purple-900/20 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                      <FileText className="w-8 h-8 text-purple-600 dark:text-purple-400" />
                     </div>
                     <div className="space-y-2">
-                      <h3 className="text-xl font-bold text-slate-900">Relatório Anual</h3>
-                      <p className="text-slate-500">
+                      <h3 className="text-xl font-bold text-foreground">Relatório Anual</h3>
+                      <p className="text-muted-foreground">
                         Consolidação estratégica de 12 meses (Janeiro a Dezembro).
                       </p>
                     </div>
@@ -346,7 +346,7 @@ export default function Home() {
                           <div className="flex items-center gap-3">
                             <div className={cn(
                               "w-10 h-10 rounded-full flex items-center justify-center shrink-0",
-                              item.type === 'annual' ? "bg-purple-100 text-purple-600" : "bg-blue-100 text-blue-600"
+                              item.type === 'annual' ? "bg-purple-100 text-purple-600" : "bg-violet-100 text-violet-600"
                             )}>
                               {item.type === 'annual' ? <FileText className="w-5 h-5" /> : <Calendar className="w-5 h-5" />}
                             </div>
@@ -372,7 +372,7 @@ export default function Home() {
               <Button
                 variant="ghost"
                 onClick={() => setStep('selection')}
-                className="text-slate-500 hover:text-slate-900 -ml-2"
+                className="text-muted-foreground hover:text-foreground -ml-2"
               >
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Voltar para seleção
@@ -390,31 +390,31 @@ export default function Home() {
             {loading && <LoadingScreen />}
 
             {!loading && (
-              <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-                  <h3 className="font-bold text-slate-900">Resultados do Processamento</h3>
+              <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
+                <div className="p-6 border-b border-border flex justify-between items-center">
+                  <h3 className="font-bold text-foreground">Resultados do Processamento</h3>
                   <Button variant="outline" onClick={() => setResults([])}>Novo Processamento</Button>
                 </div>
-                <div className="divide-y divide-slate-100">
+                <div className="divide-y divide-border">
                   {results.map((res, idx) => (
-                    <div key={idx} className="p-4 hover:bg-slate-50 flex items-center justify-between">
+                    <div key={idx} className="p-4 hover:bg-muted/50 flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         {res.status === 'success' ? (
-                          <CheckCircle className="w-5 h-5 text-green-600" />
+                          <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-500" />
                         ) : res.status === 'error' ? (
-                          <XCircle className="w-5 h-5 text-red-600" />
+                          <XCircle className="w-5 h-5 text-red-600 dark:text-red-500" />
                         ) : (
-                          <div className="w-5 h-5 border-2 border-slate-300 border-t-blue-600 rounded-full animate-spin" />
+                          <div className="w-5 h-5 border-2 border-muted border-t-violet-600 rounded-full animate-spin" />
                         )}
                         <div>
-                          <p className="font-medium text-slate-900">{res.filename}</p>
-                          {res.error && <p className="text-sm text-red-600">{res.error}</p>}
+                          <p className="font-medium text-foreground">{res.filename}</p>
+                          {res.error && <p className="text-sm text-red-600 dark:text-red-400">{res.error}</p>}
                         </div>
                       </div>
                       {res.url && (
                         <a
                           href={res.url}
-                          className="text-blue-600 hover:text-blue-800 font-medium text-sm flex items-center gap-1"
+                          className="text-violet-600 dark:text-violet-400 hover:text-violet-800 dark:hover:text-violet-300 font-medium text-sm flex items-center gap-1"
                         >
                           Visualizar Dashboard <ExternalLink className="w-4 h-4" />
                         </a>
