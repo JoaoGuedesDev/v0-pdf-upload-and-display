@@ -66,6 +66,7 @@ function DashboardContent() {
         : files[0]?.data.identificacao.cnpj)
 
   const isPdfGen = searchParams.get('pdf_gen') === 'true'
+  const isEmbedded = searchParams.get('embedded') === 'true'
 
   return (
     <AnnualDashboard
@@ -74,6 +75,7 @@ function DashboardContent() {
       initialTargetCnpj={initialCnpj}
       initialViewIndex={initialFileIndex !== -1 ? initialFileIndex : undefined}
       isPdfGen={isPdfGen}
+      isEmbedded={isEmbedded}
       onFilesUpdated={handleFilesUpdated}
       onInvalidFilesUpdated={handleInvalidFilesUpdated}
     />

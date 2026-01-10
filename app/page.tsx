@@ -273,7 +273,9 @@ export default function Home() {
         })
 
         // Open in preview mode instead of redirecting
-        setPreviewUrl(target)
+        const previewTarget = new URL(target, window.location.origin)
+        previewTarget.searchParams.set('embedded', 'true')
+        setPreviewUrl(previewTarget.toString())
       } else {
         setResults([{ filename: `Processamento`, status: 'error', error: data?.error || "URL não retornada" }])
       }
@@ -298,6 +300,7 @@ export default function Home() {
               <div className="h-6 w-px bg-border" />
               <h1 className="font-semibold text-foreground">Visualização do Dashboard</h1>
             </div>
+
             <div className="flex items-center gap-2">
               <ModeToggle />
               <Button onClick={() => {

@@ -471,20 +471,21 @@ export const AnaliseAliquotaParcelas = memo(function AnaliseAliquotaParcelas({ d
                             }
 
                             return rows.map((r, i) => {
-                              // User Override: For 02/2021, use 'aliquota_efetiva_atual' (r.rawAA) if available, otherwise r.aA
+                              // Logic:
+                              // Col 1 (Current Period): Usually r.aO (Original), unless it's 02/2021 where we want r.aA (Actual).
+                              // Col 2 (Next Period): Always r.aA (Actual).
+                              // r.aA already prioritizes 'aliquota_efetiva_atual_ajustada_percent' > 'aliquota_efetiva_atual_percent' > 'aliquota_efetiva_atual'.
+                              
                               const isFeb2021 = docPeriodoLabel === '02/2021'
                               let valCol1 = isFeb2021 ? r.aA : r.aO
-                              
-                              if (isFeb2021 && Number.isFinite(r.rawAA)) {
-                                valCol1 = r.rawAA
-                              }
+                              let valCol2 = r.aA
                               
                               return (
                                 <tr key={`other-${i}`} className="border-t border-border">
                                   <td className="px-2 py-1 whitespace-nowrap">{formatCurrency(r.v)}</td>
                                   <td className="px-2 py-1">{r.act}</td>
                                   <td className="px-2 py-1 whitespace-nowrap">{Number.isFinite(valCol1) ? fmtPct4(valCol1) : "-"}</td>
-                                  <td className="px-2 py-1 whitespace-nowrap">{Number.isFinite(r.aA) ? fmtPct4(r.aA) : "-"}</td>
+                                  <td className="px-2 py-1 whitespace-nowrap">{Number.isFinite(valCol2) ? fmtPct4(valCol2) : "-"}</td>
                                 </tr>
                               )
                             })

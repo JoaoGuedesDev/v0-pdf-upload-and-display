@@ -61,9 +61,10 @@ interface AnnualDashboardProps {
     isOwner?: boolean
     invalidFiles?: string[]
     onInvalidFilesUpdated?: (files: string[]) => void
+    isEmbedded?: boolean
 }
 
-export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex, initialTargetCnpj, isPdfGen, onFilesUpdated, receitas_anteriores, isOwner = true, invalidFiles, onInvalidFilesUpdated }: AnnualDashboardProps) {
+export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex, initialTargetCnpj, isPdfGen, onFilesUpdated, receitas_anteriores, isOwner = true, invalidFiles, onInvalidFilesUpdated, isEmbedded: propIsEmbedded }: AnnualDashboardProps) {
     const [localFiles, setLocalFiles] = useState<MonthlyFile[]>(files)
     const [selectedFileIndex, setSelectedFileIndex] = useState<number | null>(initialViewIndex ?? null)
     
@@ -512,10 +513,10 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
         return () => window.removeEventListener('message', handler)
     }, [sortedFiles, activeCnpj, visibleCharts, dashboardCode])
 
-    const [isEmbedded, setIsEmbedded] = useState(false)
+    const [isEmbedded, setIsEmbedded] = useState(propIsEmbedded || false)
     useEffect(() => {
-        setIsEmbedded(window.self !== window.top)
-    }, [])
+        setIsEmbedded(propIsEmbedded || window.self !== window.top)
+    }, [propIsEmbedded])
 
     const isDark = theme === 'dark'
     const chartTheme = useMemo(() => ({
@@ -1845,6 +1846,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                 hideDownloadButton={false}
                                 isOwner={isOwner}
                                 isPdfGen={isPdfGen}
+                                isEmbedded={isEmbedded}
                                 shareId={dashboardCode ? (selectedFileIndex !== null ? `${dashboardCode}?view_file_index=${selectedFileIndex}` : dashboardCode) : undefined}
                             />
                         </>

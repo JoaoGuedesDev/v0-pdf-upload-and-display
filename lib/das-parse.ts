@@ -418,12 +418,19 @@ export function processDasData(textRaw: string) {
                       const aliqTeoricaOrig = (fxOrig?.aliquota_efetiva || 0) * 100
                       const aliqTeoricaAtual = (fxAtual?.aliquota_efetiva || 0) * 100
                   
-                      // Check for existing calculated values in input JSON
-                      const existing_a_orig_adj = toNumber(at.aliquota_efetiva_original_ajustada_percent)
-                      const existing_a_atual_adj = toNumber(at.aliquota_efetiva_atual_ajustada_percent)
-                      const existing_a_orig_percent = toNumber(at.aliquota_efetiva_original_percent)
-                      const existing_a_atual_percent = toNumber(at.aliquota_efetiva_atual_percent)
-                      const existing_a_efetiva_atual = toNumber(at.aliquota_efetiva_atual) // User requested this specific field
+                      // Helper to respect n8n values (including 0) over local calculation
+                      const getVal = (v: any) => (v !== undefined && v !== null && String(v).trim() !== '') ? Number(v) : undefined
+                      
+                      const n8n_orig_adj = getVal(at.aliquota_efetiva_original_ajustada_percent)
+                      const n8n_atual_adj = getVal(at.aliquota_efetiva_atual_ajustada_percent)
+                      const n8n_orig_pct = getVal(at.aliquota_efetiva_original_percent)
+                      const n8n_atual_pct = getVal(at.aliquota_efetiva_atual_percent)
+                      const n8n_efetiva_atual = getVal(at.aliquota_efetiva_atual)
+                      
+                      const n8n_orig_sem_iss = getVal(at.aliquota_efetiva_original_sem_iss_percent)
+                      const n8n_atual_sem_iss = getVal(at.aliquota_efetiva_atual_sem_iss_percent)
+                      const n8n_orig_icms = getVal(at.aliquota_efetiva_original_icms_anexo1_percent)
+                      const n8n_atual_icms = getVal(at.aliquota_efetiva_atual_icms_anexo1_percent)
                   
                       // Detecção de ST/Retenção pelo nome
                       const nNorm = nome.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
@@ -466,13 +473,15 @@ export function processDasData(textRaw: string) {
                           atividade_nome: nome,
                           descricao: nome,
                           valor: valor,
-                          aliquota_efetiva_original_percent: existing_a_orig_percent || aliqTeoricaOrig,
-                          aliquota_efetiva_original_ajustada_percent: existing_a_orig_adj || aliqReal,
-                          aliquota_efetiva_atual_percent: existing_a_atual_percent || aliqTeoricaAtual,
-                          aliquota_efetiva_atual_ajustada_percent: existing_a_atual_adj || aliqRealAtual,
-                          aliquota_efetiva_original_sem_iss_percent: aliqTeoricaOrig, 
-                          aliquota_efetiva_atual_sem_iss_percent: aliqTeoricaAtual,
-                          aliquota_efetiva_atual: existing_a_efetiva_atual || undefined
+                          aliquota_efetiva_original_percent: n8n_orig_pct ?? aliqTeoricaOrig,
+                          aliquota_efetiva_original_ajustada_percent: n8n_orig_adj ?? (n8n_orig_pct ?? (n8n_efetiva_atual ?? aliqReal)),
+                          aliquota_efetiva_atual_percent: n8n_atual_pct ?? aliqTeoricaAtual,
+                          aliquota_efetiva_atual_ajustada_percent: n8n_atual_adj ?? (n8n_atual_pct ?? (n8n_efetiva_atual ?? aliqRealAtual)),
+                          aliquota_efetiva_original_sem_iss_percent: n8n_orig_sem_iss ?? aliqTeoricaOrig, 
+                          aliquota_efetiva_atual_sem_iss_percent: n8n_atual_sem_iss ?? aliqTeoricaAtual,
+                          aliquota_efetiva_original_icms_anexo1_percent: n8n_orig_icms ?? 0,
+                          aliquota_efetiva_atual_icms_anexo1_percent: n8n_atual_icms ?? 0,
+                          aliquota_efetiva_atual: n8n_efetiva_atual
                       }
                   })
 
