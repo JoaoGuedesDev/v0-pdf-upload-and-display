@@ -760,12 +760,12 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
             <div>
               <div className="flex flex-col gap-1 mb-1 min-h-[42px] justify-end">
                 {servicosBrutoPA > 0 && (
-                  <span className="inline-flex items-center rounded-full bg-white/10 text-white px-2 py-0.5 text-[10px] font-semibold w-fit">
+                  <span className="inline-flex items-center rounded-full bg-white/20 text-white px-2 py-0.5 text-[10px] font-semibold w-fit">
                     Serviços: {formatCurrency(servicosBrutoPA)}
                   </span>
                 )}
                 {mercadoriasBrutoPA > 0 && (
-                  <span className="inline-flex items-center rounded-full bg-white/10 text-white px-2 py-0.5 text-[10px] font-semibold w-fit">
+                  <span className="inline-flex items-center rounded-full bg-white/20 text-white px-2 py-0.5 text-[10px] font-semibold w-fit">
                     Mercadorias: {formatCurrency(mercadoriasBrutoPA)}
                   </span>
                 )}
@@ -867,10 +867,10 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
         </Card>
       </div>
 
-      {chartData && (
+      {chartData && (servicosBrutoPA > 0 && mercadoriasBrutoPA > 0) && (
         <Card className="border shadow-sm rounded-xl bg-card border-border">
           <CardHeader className="py-2 px-4 border-b bg-muted/50 border-border">
-            <CardTitle className="text-sm font-medium text-foreground">Comparativo de Receitas (Serviços x Mercadorias)</CardTitle>
+            <CardTitle className="text-sm font-medium text-foreground">Composição do Faturamento Mensal</CardTitle>
           </CardHeader>
           <CardContent className="p-4 h-[140px]">
             <Bar data={chartData} options={chartOptions} />

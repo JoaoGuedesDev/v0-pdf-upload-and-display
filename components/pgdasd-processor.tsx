@@ -375,9 +375,9 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
   }
 
   return (
-    <div className="min-h-screen bg-background w-full overflow-x-hidden flex justify-center items-start">
+    <div className={`${isPdfGen ? '' : 'min-h-screen'} bg-background w-full overflow-x-hidden flex justify-center items-start`}>
       <div
-        className="bg-background min-h-screen p-4 origin-top"
+        className={`bg-background ${isPdfGen ? '' : 'min-h-screen'} p-4 origin-top`}
         style={{
           width: '1600px',
           ['zoom' as any]: scale,
@@ -612,31 +612,81 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
             if (typeof v === 'number') return v
             const s = String(v || '').trim()
             if (!s) return 0
-            // Se tiver vírgula e ponto, assume que ponto é milhar e vírgula é decimal (pt-BR)
-            // ou vice-versa, mas geralmente PDF brasileiro é pt-BR.
-            // Estratégia simples: remover tudo que não é dígito ou vírgula, depois trocar vírgula por ponto
-            // Mas cuidado com 1.000.000,00 -> se remover ponto fica 1000000,00 -> ok
-            // E se for 1,000.00 (EN)? O sistema parece ser PT-BR.
-            
-            // Tentativa de deteção simples:
             if (s.includes(',') && s.includes('.')) {
-               // Verifica qual aparece por último
                const lastDot = s.lastIndexOf('.')
                const lastComma = s.lastIndexOf(',')
                if (lastComma > lastDot) {
-                 // Formato 1.234,56
                  return Number(s.replace(/\./g, '').replace(',', '.'))
                } else {
-                 // Formato 1,234.56
                  return Number(s.replace(/,/g, ''))
                }
             }
             if (s.includes(',')) return Number(s.replace(',', '.'))
             return Number(s)
           }
+
+          // New robust calculation for Services vs Merchandise based on Anexos (matches Quadro de Distribuição logic)
+          let servicosBrutoPA = 0
+          let mercadoriasBrutoPA = 0
           
-          const servicosBrutoPA = acts.filter(a => /servi/i.test(String(a?.nome || a?.descricao || ''))).reduce((acc, a) => acc + parseNumRobust(a?.receita_bruta_informada), 0)
-          const mercadoriasBrutoPA = acts.filter(a => !/servi/i.test(String(a?.nome || a?.descricao || ''))).reduce((acc, a) => acc + parseNumRobust(a?.receita_bruta_informada), 0)
+          const detalhe = (data as any)?.calculos?.analise_aliquota?.detalhe || (data as any)?.calculos?.analiseAliquota?.detalhe || []
+          const rpa = Number(data?.receitas?.receitaPA || 0)
+
+          if (Array.isArray(detalhe) && detalhe.length > 0) {
+             detalhe.forEach((d: any) => {
+                const anexo = Number(d.anexo)
+                const valor = d.parcelas_ajuste?.reduce((acc: number, p: any) => acc + (Number(p.valor) || 0), 0) || Number(d.receita_bruta) || 0
+                
+                if ([1, 2].includes(anexo)) {
+                    mercadoriasBrutoPA += valor
+                } else if ([3, 4, 5].includes(anexo)) {
+                    servicosBrutoPA += valor
+                }
+             })
+          } else {
+              // Fallback to Activities (Text analysis)
+              const at = (data as any)?.atividades
+              if (at && typeof at === 'object') {
+                const items = Object.values(at).filter((x: any) => x && typeof x === 'object')
+                if (items.length) {
+                  items.forEach((i: any) => {
+                    const nome = String(i?.descricao || '').toLowerCase()
+                    const val = Number(i?.Total || 0)
+                    if (nome.includes('servi')) servicosBrutoPA += val
+                    else mercadoriasBrutoPA += val
+                  })
+                  // Adjust if sum doesn't match RPA
+                  const sum = servicosBrutoPA + mercadoriasBrutoPA
+                  if (sum > 0 && rpa > 0) {
+                    servicosBrutoPA = rpa * (servicosBrutoPA / sum)
+                    mercadoriasBrutoPA = rpa * (mercadoriasBrutoPA / sum)
+                  } else {
+                    servicosBrutoPA = rpa
+                  }
+                } else {
+                   // Fallback to Tributos Ratios
+                   const tServ = (data?.tributosServicosInterno?.Total || 0) + (data?.tributosServicosExterno?.Total || 0)
+                   const tMerc = (data?.tributosMercadoriasInterno?.Total || 0) + (data?.tributosMercadoriasExterno?.Total || 0)
+                   if (tServ + tMerc > 0) {
+                     servicosBrutoPA = rpa * (tServ / (tServ + tMerc))
+                     mercadoriasBrutoPA = rpa * (tMerc / (tServ + tMerc))
+                   } else {
+                     servicosBrutoPA = rpa
+                   }
+                }
+              } else {
+                 // Fallback again
+                 const tServ = (data?.tributosServicosInterno?.Total || 0) + (data?.tributosServicosExterno?.Total || 0)
+                 const tMerc = (data?.tributosMercadoriasInterno?.Total || 0) + (data?.tributosMercadoriasExterno?.Total || 0)
+                 if (tServ + tMerc > 0) {
+                   servicosBrutoPA = rpa * (tServ / (tServ + tMerc))
+                   mercadoriasBrutoPA = rpa * (tMerc / (tServ + tMerc))
+                 } else {
+                   servicosBrutoPA = rpa
+                 }
+              }
+          }
+          
           const historicoMI = (data as any)?.historico?.mercadoInterno as { mes: string; valor: any }[] | undefined
           const parseNumber = (v: any): number => {
             if (typeof v === "number") return v
@@ -800,48 +850,60 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                         <td className="px-3 py-2 font-medium">{periodoDisplay}</td>
                         <td className="px-3 py-2">
                           <div className="flex flex-col gap-1">
-                            <div className="flex flex-col">
-                              <span className="text-[11px] font-semibold uppercase text-[#007AFF] dark:text-[#00C2FF]">Mercadorias</span>
-                              <span className="font-medium">{mercadorias.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
-                            </div>
-                            <div className="flex flex-col">
-                              <span className="text-[11px] font-semibold uppercase text-muted-foreground">Serviços</span>
-                              <span className="font-medium">{servicos.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
-                            </div>
+                            {mercadorias > 0 && (
+                                <div className="flex flex-col">
+                                <span className="text-[11px] font-semibold uppercase text-[#007AFF] dark:text-[#00C2FF]">Mercadorias</span>
+                                <span className="font-medium">{mercadorias.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                                </div>
+                            )}
+                            {servicos > 0 && (
+                                <div className="flex flex-col">
+                                <span className="text-[11px] font-semibold uppercase text-muted-foreground">Serviços</span>
+                                <span className="font-medium">{servicos.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                                </div>
+                            )}
                           </div>
                         </td>
                         <td className="px-3 py-2">
                           <div className="flex flex-col gap-1">
-                            <div className="flex flex-col">
-                              <span className="text-[11px] text-muted-foreground">Mercadorias</span>
-                              <span className="font-medium">{irpjMerc.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
-                            </div>
-                            <div className="flex flex-col">
-                              <span className="text-[11px] text-muted-foreground">Serviços</span>
-                              <span className="font-medium">{irpjServ.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
-                            </div>
+                            {mercadorias > 0 && (
+                                <div className="flex flex-col">
+                                <span className="text-[11px] text-muted-foreground">Mercadorias</span>
+                                <span className="font-medium">{irpjMerc.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                                </div>
+                            )}
+                            {servicos > 0 && (
+                                <div className="flex flex-col">
+                                <span className="text-[11px] text-muted-foreground">Serviços</span>
+                                <span className="font-medium">{irpjServ.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                                </div>
+                            )}
                           </div>
                         </td>
                         <td className="px-3 py-2">
                           <div className="flex flex-col gap-1">
-                            <div className="text-sm font-medium">Mercadorias: <span className="font-bold">8%</span></div>
-                            <div className="text-sm font-medium">Serviços: <span className="font-bold">32%</span></div>
+                            {mercadorias > 0 && <div className="text-sm font-medium">Mercadorias: <span className="font-bold">8%</span></div>}
+                            {servicos > 0 && <div className="text-sm font-medium">Serviços: <span className="font-bold">32%</span></div>}
                           </div>
                         </td>
                         <td className="px-3 py-2">
                           <div className="flex flex-col gap-1">
-                            <div className="flex flex-col">
-                              <span className="text-[11px] text-muted-foreground">Mercadorias</span>
-                              <span className="font-medium text-emerald-600 dark:text-emerald-400">
-                                {distMerc.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                              </span>
-                            </div>
-                            <div className="flex flex-col">
-                              <span className="text-[11px] text-muted-foreground">Serviços</span>
-                              <span className="font-medium text-emerald-600 dark:text-emerald-400">
-                                {distServ.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                              </span>
-                            </div>
+                            {mercadorias > 0 && (
+                                <div className="flex flex-col">
+                                <span className="text-[11px] text-muted-foreground">Mercadorias</span>
+                                <span className="font-medium text-emerald-600 dark:text-emerald-400">
+                                    {distMerc.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                </span>
+                                </div>
+                            )}
+                            {servicos > 0 && (
+                                <div className="flex flex-col">
+                                <span className="text-[11px] text-muted-foreground">Serviços</span>
+                                <span className="font-medium text-emerald-600 dark:text-emerald-400">
+                                    {distServ.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                </span>
+                                </div>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -1166,7 +1228,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
             { key: 'COFINS', label: 'COFINS', color: CHART_COLORS[2] },
             { key: 'PIS_Pasep', label: 'PIS/PASEP', color: CHART_COLORS[3] },
             { key: 'INSS_CPP', label: 'INSS/CPP', color: CHART_COLORS[4] },
-            { key: 'ICMS', label: 'ICMS', color: CHART_COLORS[5] },
+            { key: 'ICMS', label: 'ICMS', color: '#9CA3AF' },
             { key: 'IPI', label: 'IPI', color: CHART_COLORS[0] }, // Reuse
             { key: 'ISS', label: 'ISS', color: CHART_COLORS[1] }, // Reuse
           ].map(it => ({

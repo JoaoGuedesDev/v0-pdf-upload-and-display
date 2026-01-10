@@ -141,12 +141,12 @@ export async function GET(req: NextRequest) {
     }
 
     if (isPaginated) {
-      // Modo Relatório: Página Gigante Fixa (1600x2400) para garantir 1 página por seção
+      // Modo Relatório: Página ajustada com escala para caber mais conteúdo verticalmente sem ficar gigante
       pdfOptions = {
         ...pdfOptions,
-        width: '1600px',
-        height: '2400px', // Altura fixa suficiente para caber o conteúdo sem quebrar
-        scale: 1,
+        width: '1280px', // 1600px * 0.8
+        height: '2600px', // Equivalente a 3250px de conteúdo original (2600 / 0.8)
+        scale: 0.8,
         margin: { top: 0, right: 0, bottom: 0, left: 0 },
       }
     } else {

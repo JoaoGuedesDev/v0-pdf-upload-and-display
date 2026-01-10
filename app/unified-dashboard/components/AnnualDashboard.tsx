@@ -961,102 +961,17 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
         })
     }, [sortedFiles])
 
-    const stackedBarChartData = useMemo(() => {
-        const labels = monthlyRevenueBreakdown.map(d => {
-            const parts = d.month.split('/')
-            // Remove day if present (01/06/2024 -> 06/2024). Ideally map to MonthName/Year
-            if (parts.length === 3) return `${parts[1]}/${parts[2]}`
-            return d.month
-        })
 
-        const totalMercadorias = monthlyRevenueBreakdown.reduce((acc, d) => acc + d.mercadorias, 0)
-        const totalIndustria = monthlyRevenueBreakdown.reduce((acc, d) => acc + d.industria, 0)
-        const totalServicos = monthlyRevenueBreakdown.reduce((acc, d) => acc + d.servicos, 0)
-
-        const datasets = []
-
-        const common = {
-            barPercentage: 0.6,
-            categoryPercentage: 0.8,
-            datalabels: {
-                ...datalabelsConfig,
-                align: 'center' as const,
-                anchor: 'center' as const
-            }
-        }
-
-        if (totalMercadorias > 0) {
-            datasets.push({
-                label: 'Mercadorias',
-                data: monthlyRevenueBreakdown.map(d => d.mercadorias === 0 ? null : d.mercadorias),
-                backgroundColor: '#007AFF', // Azul elétrico vibrante
-                hoverBackgroundColor: '#0056B3',
-                stack: 'Stack 0',
-                ...common
-            })
-        }
-
-        if (totalIndustria > 0) {
-            datasets.push({
-                label: 'Indústria',
-                data: monthlyRevenueBreakdown.map(d => d.industria === 0 ? null : d.industria),
-                backgroundColor: '#00C2FF', // Ciano vibrante
-                hoverBackgroundColor: '#009ACD',
-                stack: 'Stack 0',
-                ...common
-            })
-        }
-
-        if (totalServicos > 0) {
-            datasets.push({
-                label: 'Serviços',
-                data: monthlyRevenueBreakdown.map(d => d.servicos === 0 ? null : d.servicos),
-                backgroundColor: '#3D5AFE', // Índigo elétrico
-                hoverBackgroundColor: '#304FFE',
-                stack: 'Stack 0',
-                ...common
-            })
-        }
-
-        return {
-            labels,
-            datasets
-        }
-    }, [monthlyRevenueBreakdown])
 
     const revenueBreakdown = useMemo(() => {
-        let servicos = 0
-        let mercadorias = 0
-        let industrializacao = 0
-
-        sortedFiles.forEach(file => {
-            const dados = file.data as any
-            const atividades = dados.debug?.atividades || []
-
-            if (atividades.length > 0) {
-                atividades.forEach((at: any) => {
-                    const nome = String(at.nome || at.name || at.descricao || '').toLowerCase()
-                    const valor = Number(at.receita_bruta_informada || 0)
-                    const cleanNome = nome.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-
-                    if (/(servico|servicos|prestacao)/.test(cleanNome)) {
-                        servicos += valor
-                    } else if (/(industria|industrializacao)/.test(cleanNome)) {
-                        industrializacao += valor
-                    } else {
-                        mercadorias += valor
-                    }
-                })
-            } else {
-                const rpa = dados.receitas?.receitaPA || 0
-                if (dados.cenario === 'servicos') servicos += rpa
-                else if (dados.cenario === 'mercadorias') mercadorias += rpa
-                // If mixed and no activities, we can't reliably split, but we'll try our best
+        return monthlyRevenueBreakdown.reduce((acc, curr) => {
+            return {
+                servicos: acc.servicos + curr.servicos,
+                mercadorias: acc.mercadorias + curr.mercadorias,
+                industrializacao: acc.industrializacao + curr.industria
             }
-        })
-
-        return { servicos, mercadorias, industrializacao }
-    }, [sortedFiles])
+        }, { servicos: 0, mercadorias: 0, industrializacao: 0 })
+    }, [monthlyRevenueBreakdown])
 
     const detailedAnalysis = useMemo(() => {
         const sortedYears = [...years].sort((a, b) => b - a)
@@ -1188,6 +1103,78 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
         }
     }, [revenueBreakdown, totalRevenue])
 
+    const hasMultipleSources = useMemo(() => {
+        const sources = [
+            revenueBreakdown.mercadorias > 0,
+            revenueBreakdown.servicos > 0,
+            revenueBreakdown.industrializacao > 0
+        ]
+        return sources.filter(Boolean).length > 1
+    }, [revenueBreakdown])
+
+    const stackedBarChartData = useMemo(() => {
+        const labels = monthlyRevenueBreakdown.map(d => {
+            const parts = d.month.split('/')
+            // Remove day if present (01/06/2024 -> 06/2024). Ideally map to MonthName/Year
+            if (parts.length === 3) return `${parts[1]}/${parts[2]}`
+            return d.month
+        })
+
+        const totalMercadorias = monthlyRevenueBreakdown.reduce((acc, d) => acc + d.mercadorias, 0)
+        const totalIndustria = monthlyRevenueBreakdown.reduce((acc, d) => acc + d.industria, 0)
+        const totalServicos = monthlyRevenueBreakdown.reduce((acc, d) => acc + d.servicos, 0)
+
+        const datasets = []
+
+        const common = {
+            barPercentage: 0.6,
+            categoryPercentage: 0.8,
+            datalabels: {
+                ...datalabelsConfig,
+                align: 'center' as const,
+                anchor: 'center' as const
+            }
+        }
+
+        if (totalMercadorias > 0) {
+            datasets.push({
+                label: 'Mercadorias',
+                data: monthlyRevenueBreakdown.map(d => d.mercadorias === 0 ? null : d.mercadorias),
+                backgroundColor: '#007AFF', // Azul elétrico vibrante
+                hoverBackgroundColor: '#0056B3',
+                stack: 'Stack 0',
+                ...common
+            })
+        }
+
+        if (totalIndustria > 0) {
+            datasets.push({
+                label: 'Indústria',
+                data: monthlyRevenueBreakdown.map(d => d.industria === 0 ? null : d.industria),
+                backgroundColor: '#00C2FF', // Ciano vibrante
+                hoverBackgroundColor: '#009ACD',
+                stack: 'Stack 0',
+                ...common
+            })
+        }
+
+        if (totalServicos > 0) {
+            datasets.push({
+                label: 'Serviços',
+                data: monthlyRevenueBreakdown.map(d => d.servicos === 0 ? null : d.servicos),
+                backgroundColor: '#3D5AFE', // Índigo elétrico
+                hoverBackgroundColor: '#304FFE',
+                stack: 'Stack 0',
+                ...common
+            })
+        }
+
+        return {
+            labels,
+            datasets
+        }
+    }, [monthlyRevenueBreakdown])
+
     // Navigation Logic
     const hasNext = selectedFileIndex !== null && selectedFileIndex < sortedFiles.length - 1
     const hasPrev = selectedFileIndex !== null && selectedFileIndex > 0
@@ -1296,7 +1283,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
 
                     {(isConsolidated || isPdfGen) && (
                         <>
-                            <div className={`p-6 space-y-6 ${isPdfGen ? 'print-section' : ''}`} style={isPdfGen ? { height: '2400px', overflow: 'hidden', pageBreakAfter: 'always' } : undefined}>
+                            <div className={`p-6 space-y-6 ${isPdfGen ? 'print-section' : ''}`} style={isPdfGen ? { height: 'auto', pageBreakAfter: 'always' } : undefined}>
                                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                                 <div>
                                     <h1 className="text-2xl font-bold text-foreground">Visão Geral Anual</h1>
@@ -1503,59 +1490,61 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                     </div>
                                 </div>
 
-                                <Card>
-                                    <CardHeader>
-                                        <CardTitle>Composição do Faturamento Mensal</CardTitle>
-                                    </CardHeader>
-                                    <CardContent className="h-[300px]">
-                                        <Bar
-                                            options={{
-                                                ...chartOptions,
-                                                maintainAspectRatio: false,
-                                                plugins: {
-                                                    ...chartOptions.plugins,
-                                                    legend: {
-                                                        display: true,
-                                                        position: 'bottom',
-                                                        labels: { color: chartTheme.text }
-                                                    },
-                                                    datalabels: {
-                                                        ...datalabelsConfig,
-                                                        align: 'center' as const,
-                                                        anchor: 'center' as const
-                                                    },
-                                                    tooltip: {
-                                                        ...chartOptions.plugins?.tooltip,
-                                                        callbacks: {
-                                                            label: function (context: any) {
-                                                                let label = context.dataset.label || '';
-                                                                if (label) {
-                                                                    label += ': ';
+                                {hasMultipleSources && stackedBarChartData && (
+                                    <Card>
+                                        <CardHeader>
+                                            <CardTitle>Composição do Faturamento Mensal</CardTitle>
+                                        </CardHeader>
+                                        <CardContent className="h-[300px]">
+                                            <Bar
+                                                options={{
+                                                    ...chartOptions,
+                                                    maintainAspectRatio: false,
+                                                    plugins: {
+                                                        ...chartOptions.plugins,
+                                                        legend: {
+                                                            display: true,
+                                                            position: 'bottom',
+                                                            labels: { color: chartTheme.text }
+                                                        },
+                                                        datalabels: {
+                                                            ...datalabelsConfig,
+                                                            align: 'center' as const,
+                                                            anchor: 'center' as const
+                                                        },
+                                                        tooltip: {
+                                                            ...chartOptions.plugins?.tooltip,
+                                                            callbacks: {
+                                                                label: function (context: any) {
+                                                                    let label = context.dataset.label || '';
+                                                                    if (label) {
+                                                                        label += ': ';
+                                                                    }
+                                                                    if (context.parsed.y !== null) {
+                                                                        label += new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(context.parsed.y);
+                                                                    }
+                                                                    return label;
                                                                 }
-                                                                if (context.parsed.y !== null) {
-                                                                    label += new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(context.parsed.y);
-                                                                }
-                                                                return label;
                                                             }
                                                         }
-                                                    }
-                                                },
-                                                scales: {
-                                                    ...chartOptions.scales,
-                                                    x: {
-                                                        ...chartOptions.scales?.x,
-                                                        stacked: true,
                                                     },
-                                                    y: {
-                                                        ...chartOptions.scales?.y,
-                                                        stacked: true,
+                                                    scales: {
+                                                        ...chartOptions.scales,
+                                                        x: {
+                                                            ...chartOptions.scales?.x,
+                                                            stacked: true,
+                                                        },
+                                                        y: {
+                                                            ...chartOptions.scales?.y,
+                                                            stacked: true,
+                                                        }
                                                     }
-                                                }
-                                            }}
-                                            data={stackedBarChartData}
-                                        />
-                                    </CardContent>
-                                </Card>
+                                                }}
+                                                data={stackedBarChartData}
+                                            />
+                                        </CardContent>
+                                    </Card>
+                                )}
                             </div>
 
                             {/* Analysis Report */}
@@ -1682,48 +1671,60 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                                         <TableCell className="font-medium whitespace-nowrap py-2 text-sm">{periodoDisplay}</TableCell>
                                                         <TableCell className="min-w-[300px] py-2">
                                                             <div className="flex flex-col gap-1">
-                                                                <div className="flex flex-col">
-                                                                    <span className="text-[11px] font-semibold uppercase text-muted-foreground">Mercadorias</span>
-                                                                    <span className="font-medium text-sm">{breakdown.mercadorias.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
-                                                                </div>
-                                                                <div className="flex flex-col">
-                                                                    <span className="text-[11px] font-semibold uppercase text-muted-foreground">Serviços</span>
-                                                                    <span className="font-medium text-sm">{breakdown.servicos.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
-                                                                </div>
+                                                                {breakdown.mercadorias > 0 && (
+                                                                    <div className="flex flex-col">
+                                                                        <span className="text-[11px] font-semibold uppercase text-muted-foreground">Mercadorias</span>
+                                                                        <span className="font-medium text-sm">{breakdown.mercadorias.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                                                                    </div>
+                                                                )}
+                                                                {breakdown.servicos > 0 && (
+                                                                    <div className="flex flex-col">
+                                                                        <span className="text-[11px] font-semibold uppercase text-muted-foreground">Serviços</span>
+                                                                        <span className="font-medium text-sm">{breakdown.servicos.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         </TableCell>
                                                         <TableCell className="py-2">
                                                             <div className="flex flex-col gap-1">
-                                                                <div className="flex flex-col">
-                                                                    <span className="text-[11px] text-muted-foreground">Mercadorias</span>
-                                                                    <span className="font-medium text-sm">{irpjMerc.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
-                                                                </div>
-                                                                <div className="flex flex-col">
-                                                                    <span className="text-[11px] text-muted-foreground">Serviços</span>
-                                                                    <span className="font-medium text-sm">{irpjServ.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
-                                                                </div>
+                                                                {breakdown.mercadorias > 0 && (
+                                                                    <div className="flex flex-col">
+                                                                        <span className="text-[11px] text-muted-foreground">Mercadorias</span>
+                                                                        <span className="font-medium text-sm">{irpjMerc.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                                                                    </div>
+                                                                )}
+                                                                {breakdown.servicos > 0 && (
+                                                                    <div className="flex flex-col">
+                                                                        <span className="text-[11px] text-muted-foreground">Serviços</span>
+                                                                        <span className="font-medium text-sm">{irpjServ.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         </TableCell>
                                                         <TableCell className="py-2">
                                                             <div className="flex flex-col gap-1">
-                                                                <div className="text-sm font-medium">Mercadorias: <span className="font-bold">8%</span></div>
-                                                                <div className="text-sm font-medium">Serviços: <span className="font-bold">32%</span></div>
+                                                                {breakdown.mercadorias > 0 && <div className="text-sm font-medium">Mercadorias: <span className="font-bold">8%</span></div>}
+                                                                {breakdown.servicos > 0 && <div className="text-sm font-medium">Serviços: <span className="font-bold">32%</span></div>}
                                                             </div>
                                                         </TableCell>
                                                         <TableCell className="py-2">
                                                             <div className="flex flex-col gap-1">
-                                                                <div className="flex flex-col">
-                                                                    <span className="text-[11px] text-muted-foreground">Mercadorias</span>
-                                                                    <span className="font-medium text-sm text-emerald-600 dark:text-emerald-400">
-                                                                        {(baseMerc - irpjMerc).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                                                                    </span>
-                                                                </div>
-                                                                <div className="flex flex-col">
-                                                                    <span className="text-[11px] text-muted-foreground">Serviços</span>
-                                                                    <span className="font-medium text-sm text-emerald-600 dark:text-emerald-400">
-                                                                        {(baseServ - irpjServ).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                                                                    </span>
-                                                                </div>
+                                                                {breakdown.mercadorias > 0 && (
+                                                                    <div className="flex flex-col">
+                                                                        <span className="text-[11px] text-muted-foreground">Mercadorias</span>
+                                                                        <span className="font-medium text-sm text-emerald-600 dark:text-emerald-400">
+                                                                            {(baseMerc - irpjMerc).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                                                        </span>
+                                                                    </div>
+                                                                )}
+                                                                {breakdown.servicos > 0 && (
+                                                                    <div className="flex flex-col">
+                                                                        <span className="text-[11px] text-muted-foreground">Serviços</span>
+                                                                        <span className="font-medium text-sm text-emerald-600 dark:text-emerald-400">
+                                                                            {(baseServ - irpjServ).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                                                        </span>
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         </TableCell>
                                                     </TableRow>
@@ -1756,43 +1757,55 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                                         <TableCell className="py-2 text-sm">Total Anual</TableCell>
                                                         <TableCell className="py-2">
                                                             <div className="flex flex-col gap-1">
-                                                                <div className="flex flex-col">
-                                                                    <span className="text-[11px] font-bold uppercase text-muted-foreground">Mercadorias</span>
-                                                                    <span className="font-bold text-sm">{totals.recMerc.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
-                                                                </div>
-                                                                <div className="flex flex-col">
-                                                                    <span className="text-[11px] font-bold uppercase text-muted-foreground">Serviços</span>
-                                                                    <span className="font-bold text-sm">{totals.recServ.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
-                                                                </div>
+                                                                {totals.recMerc > 0 && (
+                                                                    <div className="flex flex-col">
+                                                                        <span className="text-[11px] font-bold uppercase text-muted-foreground">Mercadorias</span>
+                                                                        <span className="font-bold text-sm">{totals.recMerc.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                                                                    </div>
+                                                                )}
+                                                                {totals.recServ > 0 && (
+                                                                    <div className="flex flex-col">
+                                                                        <span className="text-[11px] font-bold uppercase text-muted-foreground">Serviços</span>
+                                                                        <span className="font-bold text-sm">{totals.recServ.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         </TableCell>
                                                         <TableCell className="py-2">
                                                             <div className="flex flex-col gap-1">
-                                                                <div className="flex flex-col">
-                                                                    <span className="text-[11px] font-bold text-muted-foreground">Mercadorias</span>
-                                                                    <span className="font-bold text-sm">{totals.irpjMerc.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
-                                                                </div>
-                                                                <div className="flex flex-col">
-                                                                    <span className="text-[11px] font-bold text-muted-foreground">Serviços</span>
-                                                                    <span className="font-bold text-sm">{totals.irpjServ.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
-                                                                </div>
+                                                                {totals.recMerc > 0 && (
+                                                                    <div className="flex flex-col">
+                                                                        <span className="text-[11px] font-bold text-muted-foreground">Mercadorias</span>
+                                                                        <span className="font-bold text-sm">{totals.irpjMerc.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                                                                    </div>
+                                                                )}
+                                                                {totals.recServ > 0 && (
+                                                                    <div className="flex flex-col">
+                                                                        <span className="text-[11px] font-bold text-muted-foreground">Serviços</span>
+                                                                        <span className="font-bold text-sm">{totals.irpjServ.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         </TableCell>
                                                         <TableCell className="py-2"></TableCell>
                                                         <TableCell className="py-2">
                                                             <div className="flex flex-col gap-1">
-                                                                <div className="flex flex-col">
-                                                                    <span className="text-[11px] font-bold text-muted-foreground">Mercadorias</span>
-                                                                    <span className="font-bold text-sm text-emerald-700 dark:text-emerald-300">
-                                                                        {totals.distMerc.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                                                                    </span>
-                                                                </div>
-                                                                <div className="flex flex-col">
-                                                                    <span className="text-[11px] font-bold text-muted-foreground">Serviços</span>
-                                                                    <span className="font-bold text-sm text-emerald-700 dark:text-emerald-300">
-                                                                        {totals.distServ.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                                                                    </span>
-                                                                </div>
+                                                                {totals.recMerc > 0 && (
+                                                                    <div className="flex flex-col">
+                                                                        <span className="text-[11px] font-bold text-muted-foreground">Mercadorias</span>
+                                                                        <span className="font-bold text-sm text-emerald-700 dark:text-emerald-300">
+                                                                            {totals.distMerc.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                                                        </span>
+                                                                    </div>
+                                                                )}
+                                                                {totals.recServ > 0 && (
+                                                                    <div className="flex flex-col">
+                                                                        <span className="text-[11px] font-bold text-muted-foreground">Serviços</span>
+                                                                        <span className="font-bold text-sm text-emerald-700 dark:text-emerald-300">
+                                                                            {totals.distServ.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                                                        </span>
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         </TableCell>
                                                     </TableRow>
@@ -1823,7 +1836,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                         <div className="print-container">
                             {sortedFiles.map((file, idx) => (
                                 <div key={idx} className="pdf-page-wrapper">
-                                    <div className="pdf-page" style={{ height: '2400px', overflow: 'hidden', pageBreakAfter: idx < sortedFiles.length - 1 ? 'always' : 'auto' }}>
+                                    <div className="pdf-page" style={{ height: 'auto', pageBreakAfter: idx < sortedFiles.length - 1 ? 'always' : 'auto' }}>
                                         <PGDASDProcessor
                                             initialData={file.data}
                                             hideDownloadButton={false}
