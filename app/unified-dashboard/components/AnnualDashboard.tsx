@@ -1042,38 +1042,38 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                  if (currVal === 0) return null
 
                  return {
-                     period: `${sem}º Semestre`,
-                     currentLabel: `${sem}º Sem ${year}`,
-                     prevLabel: `${sem}º Sem ${prevYear}`,
-                     current: formatCurrency(currVal),
-                     previous: formatCurrency(prevVal),
-                     ...calcVar(currVal, prevVal)
-                 }
-             }).filter(Boolean)
-        })
+                    period: `${sem}º Semestre`,
+                    currentLabel: `${year}`,
+                    prevLabel: `${prevYear}`,
+                    current: formatCurrency(currVal),
+                    previous: formatCurrency(prevVal),
+                    ...calcVar(currVal, prevVal)
+                }
+            }).filter(Boolean)
+       })
 
-        // Quarterly
-        const quarterly = sortedYears.flatMap(year => {
-             const prevYear = year - 1
-             if (!years.includes(prevYear)) return []
+       // Quarterly
+       const quarterly = sortedYears.flatMap(year => {
+            const prevYear = year - 1
+            if (!years.includes(prevYear)) return []
 
-             return [1, 2, 3, 4].map(q => {
-                 const currDataset = allComparisonData.quarterly.datasets.find((d: any) => d.label === String(year))
-                 const prevDataset = allComparisonData.quarterly.datasets.find((d: any) => d.label === String(prevYear))
-                 
-                 const currVal = currDataset?.data[q - 1] || 0
-                 const prevVal = prevDataset?.data[q - 1] || 0
+            return [1, 2, 3, 4].map(q => {
+                const currDataset = allComparisonData.quarterly.datasets.find((d: any) => d.label === String(year))
+                const prevDataset = allComparisonData.quarterly.datasets.find((d: any) => d.label === String(prevYear))
+                
+                const currVal = currDataset?.data[q - 1] || 0
+                const prevVal = prevDataset?.data[q - 1] || 0
 
-                 if (currVal === 0) return null
+                if (currVal === 0) return null
 
-                 return {
-                     period: `${q}º Trimestre`,
-                     currentLabel: `${q}º Trim ${year}`,
-                     prevLabel: `${q}º Trim ${prevYear}`,
-                     current: formatCurrency(currVal),
-                     previous: formatCurrency(prevVal),
-                     ...calcVar(currVal, prevVal)
-                 }
+                return {
+                    period: `${q}º Trimestre`,
+                    currentLabel: `${year}`,
+                    prevLabel: `${prevYear}`,
+                    current: formatCurrency(currVal),
+                    previous: formatCurrency(prevVal),
+                    ...calcVar(currVal, prevVal)
+                }
              }).filter(Boolean)
         })
 
@@ -1465,7 +1465,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
 
                                 <div className="space-y-6">
                                     {visibleCharts.quarterly && (
-                                        <Card>
+                                        <Card style={{ breakInside: 'avoid' }}>
                                             <CardHeader>
                                                 <CardTitle className="text-sm font-medium">Comparativo Trimestral</CardTitle>
                                             </CardHeader>
@@ -1478,9 +1478,9 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                         </Card>
                                     )}
 
-                                    <div className="grid gap-6 grid-cols-1 md:grid-cols-2">
+                                    <div className="grid gap-6 grid-cols-1 md:grid-cols-2 print:block print:space-y-6">
                                         {visibleCharts.semiannual && (
-                                            <Card className={visibleCharts.annual ? "" : "md:col-span-2"}>
+                                            <Card className={visibleCharts.annual ? "" : "md:col-span-2"} style={{ breakInside: 'avoid' }}>
                                                 <CardHeader>
                                                     <CardTitle className="text-sm font-medium">Comparativo Semestral</CardTitle>
                                                 </CardHeader>
@@ -1494,7 +1494,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                         )}
 
                                         {visibleCharts.annual && (
-                                            <Card className={visibleCharts.semiannual ? "" : "md:col-span-2"}>
+                                            <Card className={visibleCharts.semiannual ? "" : "md:col-span-2"} style={{ breakInside: 'avoid' }}>
                                                 <CardHeader>
                                                     <CardTitle className="text-sm font-medium">Comparativo Anual</CardTitle>
                                                 </CardHeader>
@@ -1510,7 +1510,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                 </div>
 
                                 {hasMultipleSources && stackedBarChartData && (
-                                    <Card>
+                                    <Card style={{ breakInside: 'avoid' }}>
                                         <CardHeader>
                                             <CardTitle>Composição do Faturamento Mensal</CardTitle>
                                         </CardHeader>
@@ -1567,58 +1567,56 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                             </div>
 
                             {/* Analysis Report */}
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle>Relatório de Análise Comparativa</CardTitle>
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="space-y-8">
-                                        {[
-                                            { title: 'Comparativo Anual', data: detailedAnalysis.annual },
-                                            { title: 'Comparativo Semestral', data: detailedAnalysis.semiannual },
-                                            { title: 'Comparativo Trimestral', data: detailedAnalysis.quarterly }
-                                        ].map((section, idx) => (
-                                            <div key={idx} className="space-y-4">
-                                                <h3 className="text-lg font-semibold flex items-center gap-2">
-                                                    {section.title}
-                                                </h3>
-                                                {section.data.length > 0 ? (
+                            <div className="space-y-6">
+                                <h2 className="text-xl font-semibold print:hidden">Relatório de Análise Comparativa</h2>
+                                <div className="space-y-8 print:space-y-6">
+                                    {[
+                                        { title: 'Comparativo Anual', data: detailedAnalysis.annual },
+                                        { title: 'Comparativo Semestral', data: detailedAnalysis.semiannual },
+                                        { title: 'Comparativo Trimestral', data: detailedAnalysis.quarterly }
+                                    ].map((section, idx) => (
+                                        section.data.length > 0 && (
+                                            <Card key={idx} style={{ breakInside: 'avoid' }}>
+                                                <CardHeader className="py-3">
+                                                    <CardTitle className="text-base font-semibold">{section.title}</CardTitle>
+                                                </CardHeader>
+                                                <CardContent className="pb-3">
                                                     <div className="rounded-md border">
                                                         <Table>
                                                             <TableHeader>
                                                                 <TableRow>
-                                                                    <TableHead className="w-[200px]">Período</TableHead>
-                                                                    <TableHead>Receita Atual</TableHead>
-                                                                    <TableHead>Receita Anterior</TableHead>
-                                                                    <TableHead>Variação (R$)</TableHead>
-                                                                    <TableHead>Variação (%)</TableHead>
-                                                                    <TableHead className="text-right">Tendência</TableHead>
+                                                                    <TableHead className="w-[200px] py-2 h-10">Período</TableHead>
+                                                                    <TableHead className="py-2 h-10">Receita Atual</TableHead>
+                                                                    <TableHead className="py-2 h-10">Receita Anterior</TableHead>
+                                                                    <TableHead className="py-2 h-10">Variação (R$)</TableHead>
+                                                                    <TableHead className="py-2 h-10">Variação (%)</TableHead>
+                                                                    <TableHead className="text-right py-2 h-10">Tendência</TableHead>
                                                                 </TableRow>
                                                             </TableHeader>
                                                             <TableBody>
                                                                 {section.data.map((row: any, rIdx: number) => (
                                                                     <TableRow key={rIdx}>
-                                                                        <TableCell className="font-medium">
+                                                                        <TableCell className="font-medium py-2">
                                                                             <div className="flex flex-col">
                                                                                 <span>{row.period}</span>
-                                                                                <span className="text-xs text-muted-foreground">{row.currentLabel} vs {row.prevLabel}</span>
+                                                                                <span className="text-xs text-muted-foreground">{row.prevLabel} x {row.currentLabel}</span>
                                                                             </div>
                                                                         </TableCell>
-                                                                        <TableCell>{row.current}</TableCell>
-                                                                        <TableCell className="text-muted-foreground">{row.previous}</TableCell>
+                                                                        <TableCell className="py-2">{row.current}</TableCell>
+                                                                        <TableCell className="text-muted-foreground py-2">{row.previous}</TableCell>
                                                                         <TableCell className={cn(
-                                                                            "font-medium",
+                                                                            "font-medium py-2",
                                                                             row.isPositive ? "text-emerald-600" : row.isNeutral ? "text-muted-foreground" : "text-red-600"
                                                                         )}>
                                                                             {row.isPositive ? '+' : ''}{row.abs}
                                                                         </TableCell>
                                                                         <TableCell className={cn(
-                                                                            "font-bold",
+                                                                            "font-bold py-2",
                                                                             row.isPositive ? "text-emerald-600" : row.isNeutral ? "text-muted-foreground" : "text-red-600"
                                                                         )}>
                                                                             {row.isPositive ? '+' : ''}{row.pct}
                                                                         </TableCell>
-                                                                        <TableCell className="text-right">
+                                                                        <TableCell className="text-right py-2">
                                                                             {row.isNeutral ? (
                                                                                 <Minus className="inline h-4 w-4 text-muted-foreground" />
                                                                             ) : row.isPositive ? (
@@ -1638,30 +1636,26 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                                             </TableBody>
                                                         </Table>
                                                     </div>
-                                                ) : (
-                                                    <div className="text-sm text-muted-foreground italic">
-                                                        Dados insuficientes para comparação neste período.
-                                                    </div>
-                                                )}
-                                            </div>
-                                        ))}
-                                    </div>
-                                </CardContent>
-                            </Card>
+                                                </CardContent>
+                                            </Card>
+                                        )
+                                    ))}
+                                </div>
+                            </div>
 
                             <Card>
-                                <CardHeader>
-                                    <CardTitle>Quadro de Distribuição de Resultados</CardTitle>
+                                <CardHeader className="py-3">
+                                    <CardTitle className="text-base font-semibold">Quadro de Distribuição de Resultados</CardTitle>
                                 </CardHeader>
-                                <CardContent>
+                                <CardContent className="pb-3">
                                     <Table>
                                         <TableHeader>
                                             <TableRow>
-                                                <TableHead>Período</TableHead>
-                                                <TableHead>Receita Bruta</TableHead>
-                                                <TableHead>IRPJ</TableHead>
-                                                <TableHead>Alíquota</TableHead>
-                                                <TableHead>Distribuição</TableHead>
+                                                <TableHead className="py-2 h-10">Período</TableHead>
+                                                <TableHead className="py-2 h-10">Receita Bruta</TableHead>
+                                                <TableHead className="py-2 h-10">IRPJ</TableHead>
+                                                <TableHead className="py-2 h-10">Alíquota</TableHead>
+                                                <TableHead className="py-2 h-10">Distribuição</TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
