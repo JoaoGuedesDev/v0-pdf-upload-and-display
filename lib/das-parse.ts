@@ -416,37 +416,49 @@ export function processDasData(textRaw: string) {
                       const aliqReal = valor > 0 ? (totalTrib / valor) * 100 : 0
                       
                       const aliqTeoricaOrig = (fxOrig?.aliquota_efetiva || 0) * 100
-                  const aliqTeoricaAtual = (fxAtual?.aliquota_efetiva || 0) * 100
+                      const aliqTeoricaAtual = (fxAtual?.aliquota_efetiva || 0) * 100
                   
-                  // Detecção de ST/Retenção pelo nome
-                  const nNorm = nome.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
-                  const isST_ICMS = /(substituicao|substituição).*(tributaria|tributária)/i.test(nNorm) || /(icms).*(st)/i.test(nNorm) || /(st).*(icms)/i.test(nNorm)
-                  const isRet_ISS = /(retencao|retenção).*(iss)/i.test(nNorm) || /(substituicao|substituição).*(tributaria|tributária).*(iss)/i.test(nNorm)
-
-                  let factor = aliqTeoricaOrig > 0.0001 ? aliqReal / aliqTeoricaOrig : (aliqReal > 0 ? 1 : 0)
-
-                  // Se o fator calculado for muito próximo de 1 (ou zero por falta de dados) mas houver indicativo de ST/Retenção,
-                  // forçamos o uso da tabela de repartição para estimar o fator correto.
-                  // Isso corrige casos onde o JSON traz os tributos cheios incorretamente ou zerados.
-                  const faixaNum = fxOrig?.faixa || 0
-                  const reparticao = tabelaReparticao[anexo]?.[faixaNum]
+                      // Check for existing calculated values in input JSON
+                      const existing_a_orig_adj = toNumber(at.aliquota_efetiva_original_ajustada_percent)
+                      const existing_a_atual_adj = toNumber(at.aliquota_efetiva_atual_ajustada_percent)
+                      const existing_a_orig_percent = toNumber(at.aliquota_efetiva_original_percent)
+                      const existing_a_atual_percent = toNumber(at.aliquota_efetiva_atual_percent)
+                      const existing_a_efetiva_atual = toNumber(at.aliquota_efetiva_atual) // User requested this specific field
                   
-                  if (reparticao) {
-                    let deduction = 0
-                    if (isST_ICMS && reparticao.icms) deduction += reparticao.icms
-                    if (isRet_ISS && reparticao.iss) deduction += reparticao.iss
-                    
-                    if (deduction > 0) {
-                      const estimatedFactor = 1 - deduction
-                      // Se o fator real for > 0.95 (quase cheio) ou 0 (sem dados) ou muito baixo (erro de parser), usamos o estimado
-                      // Adicionada tolerância para cima (ex: 1.05) caso haja arredondamentos
-                      if (factor > 0.90 || factor === 0) {
-                        factor = estimatedFactor
+                      // Detecção de ST/Retenção pelo nome
+                      const nNorm = nome.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+                      
+                      // Ignora se tiver "sem substituição" ou "sem retenção" explícito
+                      const isSemST = /sem\s+(substituicao|substituição)/i.test(nNorm)
+                      const isSemRet = /sem\s+(retencao|retenção)/i.test(nNorm)
+                      
+                      const isST_ICMS = !isSemST && (/(substituicao|substituição).*(tributaria|tributária)/i.test(nNorm) || /(icms).*(st)/i.test(nNorm) || /(st).*(icms)/i.test(nNorm))
+                      const isRet_ISS = !isSemRet && (/(retencao|retenção).*(iss)/i.test(nNorm) || /(substituicao|substituição).*(tributaria|tributária).*(iss)/i.test(nNorm))
+
+                      let factor = aliqTeoricaOrig > 0.0001 ? aliqReal / aliqTeoricaOrig : (aliqReal > 0 ? 1 : 0)
+
+                      // Se o fator calculado for muito próximo de 1 (ou zero por falta de dados) mas houver indicativo de ST/Retenção,
+                      // forçamos o uso da tabela de repartição para estimar o fator correto.
+                      // Isso corrige casos onde o JSON traz os tributos cheios incorretamente ou zerados.
+                      const faixaNum = fxOrig?.faixa || 0
+                      const reparticao = tabelaReparticao[anexo]?.[faixaNum]
+                      
+                      if (reparticao) {
+                        let deduction = 0
+                        if (isST_ICMS && reparticao.icms) deduction += reparticao.icms
+                        if (isRet_ISS && reparticao.iss) deduction += reparticao.iss
+                        
+                        if (deduction > 0) {
+                          const estimatedFactor = 1 - deduction
+                          // Se o fator real for > 0.95 (quase cheio) ou 0 (sem dados) ou muito baixo (erro de parser), usamos o estimado
+                          // Adicionada tolerância para cima (ex: 1.05) caso haja arredondamentos
+                          if (factor > 0.90 || factor === 0) {
+                            factor = estimatedFactor
+                          }
+                        }
                       }
-                    }
-                  }
 
-                  const aliqRealAtual = aliqTeoricaAtual * factor
+                      const aliqRealAtual = aliqTeoricaAtual * factor
 
                       return {
                           tipo_regra: 'geral',
@@ -454,12 +466,13 @@ export function processDasData(textRaw: string) {
                           atividade_nome: nome,
                           descricao: nome,
                           valor: valor,
-                          aliquota_efetiva_original_percent: aliqTeoricaOrig,
-                          aliquota_efetiva_original_ajustada_percent: aliqReal,
-                          aliquota_efetiva_atual_percent: aliqTeoricaAtual,
-                          aliquota_efetiva_atual_ajustada_percent: aliqRealAtual,
+                          aliquota_efetiva_original_percent: existing_a_orig_percent || aliqTeoricaOrig,
+                          aliquota_efetiva_original_ajustada_percent: existing_a_orig_adj || aliqReal,
+                          aliquota_efetiva_atual_percent: existing_a_atual_percent || aliqTeoricaAtual,
+                          aliquota_efetiva_atual_ajustada_percent: existing_a_atual_adj || aliqRealAtual,
                           aliquota_efetiva_original_sem_iss_percent: aliqTeoricaOrig, 
-                          aliquota_efetiva_atual_sem_iss_percent: aliqTeoricaAtual
+                          aliquota_efetiva_atual_sem_iss_percent: aliqTeoricaAtual,
+                          aliquota_efetiva_atual: existing_a_efetiva_atual || undefined
                       }
                   })
 

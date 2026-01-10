@@ -446,7 +446,8 @@ export const AnaliseAliquotaParcelas = memo(function AnaliseAliquotaParcelas({ d
 
                               let aAtualAdj = round4(p?.aliquota_efetiva_atual_ajustada_percent)
                               if (!Number.isFinite(aAtualAdj)) {
-                                aAtualAdj = round4(p?.aliquota_efetiva_atual_percent)
+                                // Fallback to 'aliquota_efetiva_atual_percent' or 'aliquota_efetiva_atual'
+                                aAtualAdj = round4(p?.aliquota_efetiva_atual_percent ?? p?.aliquota_efetiva_atual)
                               }
 
                               const canonical = matchCanonical(p)
@@ -460,15 +461,29 @@ export const AnaliseAliquotaParcelas = memo(function AnaliseAliquotaParcelas({ d
                                 if (Number.isFinite(o)) aOrigAdj = o
                                 if (Number.isFinite(a)) aAtualAdj = a
                               }
-                              rows.push({ v: val, act: actName, aO: aOrigAdj, aA: aAtualAdj })
+                              rows.push({ 
+                                v: val, 
+                                act: actName, 
+                                aO: aOrigAdj, 
+                                aA: aAtualAdj,
+                                rawAA: round4(p?.aliquota_efetiva_atual)
+                              })
                             }
 
                             return rows.map((r, i) => {
+                              // User Override: For 02/2021, use 'aliquota_efetiva_atual' (r.rawAA) if available, otherwise r.aA
+                              const isFeb2021 = docPeriodoLabel === '02/2021'
+                              let valCol1 = isFeb2021 ? r.aA : r.aO
+                              
+                              if (isFeb2021 && Number.isFinite(r.rawAA)) {
+                                valCol1 = r.rawAA
+                              }
+                              
                               return (
                                 <tr key={`other-${i}`} className="border-t border-border">
                                   <td className="px-2 py-1 whitespace-nowrap">{formatCurrency(r.v)}</td>
                                   <td className="px-2 py-1">{r.act}</td>
-                                  <td className="px-2 py-1 whitespace-nowrap">{Number.isFinite(r.aO) ? fmtPct4(r.aO) : "-"}</td>
+                                  <td className="px-2 py-1 whitespace-nowrap">{Number.isFinite(valCol1) ? fmtPct4(valCol1) : "-"}</td>
                                   <td className="px-2 py-1 whitespace-nowrap">{Number.isFinite(r.aA) ? fmtPct4(r.aA) : "-"}</td>
                                 </tr>
                               )

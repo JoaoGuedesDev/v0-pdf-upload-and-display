@@ -501,6 +501,22 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
         }
     }
 
+    // Listen for export messages from parent
+    useEffect(() => {
+        const handler = (event: MessageEvent) => {
+            if (event.data?.type === 'EXPORT_PDF') {
+                handleExportPdf()
+            }
+        }
+        window.addEventListener('message', handler)
+        return () => window.removeEventListener('message', handler)
+    }, [sortedFiles, activeCnpj, visibleCharts, dashboardCode])
+
+    const [isEmbedded, setIsEmbedded] = useState(false)
+    useEffect(() => {
+        setIsEmbedded(window.self !== window.top)
+    }, [])
+
     const isDark = theme === 'dark'
     const chartTheme = useMemo(() => ({
         grid: isDark ? '#007AFF' : '#e2e8f0', // Azul elétrico vibrante
@@ -1289,11 +1305,13 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                     <h1 className="text-2xl font-bold text-foreground">Visão Geral Anual</h1>
                                     <p className="text-muted-foreground">Consolidado de {sortedFiles.length} períodos apurados</p>
                                 </div>
-                                <DashboardActions
-                                    onUpload={handleFileUpload}
-                                    isUploading={isUploading}
-                                    onExportPdf={handleExportPdf}
-                                />
+                                {!isEmbedded && (
+                                    <DashboardActions
+                                        onUpload={handleFileUpload}
+                                        isUploading={isUploading}
+                                        onExportPdf={handleExportPdf}
+                                    />
+                                )}
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

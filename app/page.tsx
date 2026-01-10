@@ -2,12 +2,13 @@
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { ConfiguracaoProcessamento } from "@/components/dashboard/ConfiguracaoProcessamento"
-import { ExternalLink, CheckCircle, XCircle, Clock, Trash2, LayoutDashboard, ArrowLeft } from "lucide-react"
+import { ExternalLink, CheckCircle, XCircle, Clock, Trash2, LayoutDashboard, ArrowLeft, Download } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ModeToggle } from "@/components/mode-toggle"
 import { HeaderLogo } from '@/components/header-logo'
 import { LoadingScreen } from "@/components/loading-screen"
 import { FileCorrectionWizard } from "@/components/dashboard/FileCorrectionWizard"
+import { RejectedFilesPopup } from "@/components/rejected-files-popup"
 
 interface ProcessResult {
   filename: string
@@ -36,6 +37,10 @@ export default function Home() {
   const [correctionMode, setCorrectionMode] = useState(false)
   const [filesToCorrect, setFilesToCorrect] = useState<File[]>([])
   const [validationDetails, setValidationDetails] = useState<any>(null)
+
+  // Rejected Files Popup State
+  const [showRejectedPopup, setShowRejectedPopup] = useState(false)
+  const [rejectedList, setRejectedList] = useState<{ name: string; reason: string }[]>([])
 
   useEffect(() => {
     const saved = localStorage.getItem('pgdas_history')
@@ -68,27 +73,174 @@ export default function Home() {
     setCorrectionMode(false)
     const force = false // Can add UI for force later if needed, or rely on wizard
 
-    setResults([{ filename: `Processando ${files.length} arquivos...`, status: 'pending' }])
-    try {
-      const form = new FormData()
-      files.forEach(f => form.append("file", f))
-      if (force) form.append("force", "true")
+    // 1. Validate files locally (Name pattern & Duplicates)
+    const validFiles: File[] = []
+    const rejectedFiles: { name: string; reason: string }[] = []
+    const uniqueMap = new Map<string, string>() // coreId -> filename
 
-      const res = await fetch("/api/process-annual-pdf", { method: "POST", body: form })
+    for (const file of files) {
+      const name = file.name
+      const upperName = name.toUpperCase()
+
+      // 1. Check for "PGDASD-DECLARACAO"
+      if (!upperName.includes("PGDASD-DECLARACAO")) {
+        rejectedFiles.push({ name, reason: 'Nome inválido (não contém "PGDASD-DECLARACAO")' })
+        continue
+      }
+
+      // 2. Check for duplicates using regex
+      // Matches PGDASD-DECLARACAO- followed by digits (CNPJ + Date)
+      const match = upperName.match(/(PGDASD-DECLARACAO-\d+)/)
+      
+      if (match) {
+          const coreId = match[1]
+          if (uniqueMap.has(coreId)) {
+              rejectedFiles.push({ name, reason: `Duplicata de ${uniqueMap.get(coreId)}` })
+          } else {
+              uniqueMap.set(coreId, name)
+              validFiles.push(file)
+          }
+      } else {
+          rejectedFiles.push({ name, reason: 'Padrão de identificação não encontrado' })
+      }
+    }
+
+    // Show rejected files immediately
+    if (rejectedFiles.length > 0) {
+      setRejectedList(rejectedFiles)
+      setShowRejectedPopup(true)
+
+      setResults(prev => [
+          ...rejectedFiles.map(r => ({ 
+              filename: r.name, 
+              status: 'error' as const, 
+              error: r.reason 
+          })),
+          ...prev
+      ])
+    }
+
+    if (validFiles.length === 0) {
+      setLoading(false)
+      return // Stop if no valid files
+    }
+
+    // 2. Process valid files sequentially (Parse Stage)
+    const processedData: any[] = []
+    const failedFiles: string[] = []
+    const parseErrors: { name: string; reason: string }[] = []
+
+    setResults(prev => [{ filename: `Iniciando processamento sequencial de ${validFiles.length} arquivos...`, status: 'pending' }, ...prev])
+
+    for (let i = 0; i < validFiles.length; i++) {
+      const file = validFiles[i]
+      
+      // Update progress
+      setResults(prev => [
+          { filename: `Analisando arquivo ${i + 1}/${validFiles.length}: ${file.name}...`, status: 'pending' },
+          ...prev
+      ])
+
+      const form = new FormData()
+      form.append("file", file)
+      
+      try {
+          const res = await fetch("/api/parse-files", { method: "POST", body: form })
+          if (res.ok) {
+              const json = await res.json()
+              if (json.files && Array.isArray(json.files)) {
+                  processedData.push(...json.files)
+              }
+              if (json.invalidFiles && Array.isArray(json.invalidFiles)) {
+                  console.warn(`Files failed to parse: ${json.invalidFiles.join(', ')}`)
+                  json.invalidFiles.forEach((name: string) => {
+                    parseErrors.push({ name, reason: 'Falha na leitura do PDF (conteúdo ilegível ou formato inválido)' })
+                  })
+              }
+          } else {
+              console.error(`Failed to parse ${file.name}: ${res.status}`)
+              failedFiles.push(file.name)
+              parseErrors.push({ name: file.name, reason: `Erro no servidor ao ler arquivo (${res.status})` })
+          }
+      } catch (e) {
+          console.error(`Network error parsing ${file.name}`, e)
+          failedFiles.push(file.name)
+          parseErrors.push({ name: file.name, reason: `Erro de rede ao enviar arquivo` })
+      }
+    }
+
+    // Show parsing errors in popup
+    if (parseErrors.length > 0) {
+      setRejectedList(prev => [...prev, ...parseErrors])
+      setShowRejectedPopup(true)
+      
+      setResults(prev => [
+        ...parseErrors.map(e => ({
+          filename: e.name,
+          status: 'error' as const,
+          error: e.reason
+        })),
+        ...prev
+      ])
+    }
+
+    if (processedData.length === 0) {
+      setResults(prev => [{ filename: `Nenhum dado extraído dos arquivos.`, status: 'error' }, ...prev])
+      setLoading(false)
+      return
+    }
+
+    // 3. Generate Dashboard (Aggregation Stage)
+    setResults(prev => [{ filename: `Gerando dashboard consolidado...`, status: 'pending' }, ...prev])
+
+    try {
+      const payload = {
+        files: processedData,
+        force: force
+      }
+
+      const res = await fetch("/api/process-annual-pdf", { 
+        method: "POST", 
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload) 
+      })
 
       if (!res.ok) {
-        const errData = await res.json().catch(() => ({}))
+        let errData: any = {}
+        try {
+            errData = await res.json()
+        } catch (e) {
+            throw new Error(`Erro de comunicação com o servidor: ${res.status} ${res.statusText}`)
+        }
 
         // Check for 422 Validation Error
         if (res.status === 422 && errData.code === 'VALIDATION_ERROR') {
           setValidationDetails(errData)
-          setFilesToCorrect(files)
+          
+          // Show popup for rejected files from backend if any
+          if (errData.details?.files) {
+            const backendRejects = errData.details.files
+                .filter((f: any) => f.status === 'invalid')
+                .map((f: any) => ({ name: f.filename, reason: f.reason }))
+            
+            if (backendRejects.length > 0) {
+                setRejectedList(prev => {
+                  const newRejects = backendRejects.filter((br: any) => !prev.some(pr => pr.name === br.name))
+                  return [...prev, ...newRejects]
+                })
+                setShowRejectedPopup(true)
+            }
+          }
+
+          setFilesToCorrect(validFiles)
           setCorrectionMode(true)
           setLoading(false)
           return // Stop here to show wizard
         }
 
-        throw new Error(errData.error || "Falha ao processar arquivos")
+        throw new Error(errData.error || errData.message || `Erro ao processar arquivos: ${res.status}`)
       }
 
       const data = await res.json().catch(() => null)
@@ -137,22 +289,26 @@ export default function Home() {
         <div className="bg-card border-b border-border sticky top-0 z-50">
           <div className="container mx-auto px-4 h-16 flex items-center justify-between">
             <div className="flex items-center gap-4">
+              <Button variant="outline" onClick={() => setPreviewUrl(null)}>
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Voltar
+              </Button>
+              <div className="h-6 w-px bg-border" />
               <HeaderLogo className="h-10" />
               <div className="h-6 w-px bg-border" />
               <h1 className="font-semibold text-foreground">Visualização do Dashboard</h1>
             </div>
             <div className="flex items-center gap-2">
               <ModeToggle />
-              <Button variant="outline" onClick={() => setPreviewUrl(null)}>
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Voltar
-              </Button>
-              <Button asChild>
-                <a href={previewUrl} target="_blank" rel="noopener noreferrer">
-                  <ExternalLink className="w-4 h-4 mr-2" />
-                  Abrir em nova aba
-                </a>
-              </Button>
+              <Button onClick={() => {
+                 const iframe = document.querySelector('iframe')
+                 if (iframe && iframe.contentWindow) {
+                   iframe.contentWindow.postMessage({ type: 'EXPORT_PDF' }, '*')
+                 }
+               }}>
+                 <Download className="w-4 h-4 mr-2" />
+                 Exportar Relatório PDF
+               </Button>
             </div>
           </div>
         </div>
@@ -175,6 +331,12 @@ export default function Home() {
         </div>
       </header>
 
+      <RejectedFilesPopup 
+        isOpen={showRejectedPopup} 
+        onClose={() => setShowRejectedPopup(false)} 
+        rejectedFiles={rejectedList} 
+      />
+
       {correctionMode && (
         <FileCorrectionWizard
           files={filesToCorrect}
@@ -182,7 +344,7 @@ export default function Home() {
           onUpdateFiles={setFilesToCorrect}
           onRetry={() => onProcess(filesToCorrect, true)}
           onCancel={() => setCorrectionMode(false)}
-          onForceProcess={(files) => onProcess(files, true)} // Fixed force process call
+          onForceProcess={(files) => onProcess(files, true, true)} // Fixed force process call
         />
       )}
 

@@ -1553,11 +1553,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                 </div>
               </div>
             </div>
-            {!hideDownloadEffective && !isPdfGen && (
-              <div className="flex justify-end mt-4 print:hidden">
-                <Button onClick={handleDownloadPDF}>Baixar PDF</Button>
-              </div>
-            )}
+
           </CardContent>
         </Card>
         </div>

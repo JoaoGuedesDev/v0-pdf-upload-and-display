@@ -93,118 +93,156 @@ import { mergeAnnualData } from "@/lib/annual-merge"
 export async function POST(request: NextRequest) {
   try {
     const contentType = request.headers.get("content-type") || ""
-    if (!contentType.includes("multipart/form-data")) {
-      return NextResponse.json({ error: "Content-type must be multipart/form-data" }, { status: 400 })
-    }
 
-    const formData = await request.formData()
-    const files = formData.getAll("file") as File[]
+    let processedResults: any[] = []
+    let invalidFiles: string[] = []
+    let force = false
 
-    if (!files || files.length === 0) {
-      return NextResponse.json({ error: "Nenhum arquivo enviado" }, { status: 400 })
-    }
-
-    const processedResults = []
-    const invalidFiles: string[] = []
-
-    // Process files sequentially to send to n8n one by one
-    for (const file of files) {
+    if (contentType.includes("application/json")) {
       try {
-        let parsed: any = null
-
-        // Tentar enviar para n8n se configurado
-        if (N8N_WEBHOOK_URL) {
-          try {
-            const forwardForm = new FormData()
-            // Criar Blob a partir do arquivo para enviar
-            const arrayBuffer = await file.arrayBuffer()
-            const blob = new Blob([arrayBuffer], { type: file.type || 'application/pdf' })
-            forwardForm.append("file", blob, file.name)
-            forwardForm.append("binary", blob, file.name)
-            forwardForm.append("filename", file.name)
-
-            const headers: Record<string, string> = { ...buildAuthHeader() }
-            headers['X-Source'] = 'vercel-annual'
-            headers['User-Agent'] = 'pgdasd-dashboard/1.0'
-
-            // Timeout controller
-            const controller = new AbortController()
-            const to = setTimeout(() => controller.abort(new Error(`timeout ${N8N_TIMEOUT_MS}ms`)), N8N_TIMEOUT_MS)
-
-            const res = await fetch(N8N_WEBHOOK_URL, {
-              method: "POST",
-              body: forwardForm,
-              headers,
-              signal: controller.signal,
-              cache: 'no-store'
-            })
-            clearTimeout(to)
-
-            if (res.ok) {
-              const bodyText = await res.text()
-              const ct = res.headers.get("content-type") || ""
-
-              if (ct.includes("application/json")) {
-                try {
-                  const json = JSON.parse(bodyText)
-                  // Se o n8n retornar o objeto normalizado (tem 'dados')
-                  if (json && typeof json === 'object' && ('dados' in json)) {
-                    parsed = json
-                  } else {
-                    // Se retornar JSON mas não normalizado, processar como se fosse o texto do PDF envelopado ou similar
-                    parsed = processDasData(JSON.stringify(json))
-                  }
-                } catch { }
-              }
-
-              if (!parsed) {
-                // Tentar processar como texto (n8n retornou texto do PDF)
-                parsed = processDasData(bodyText)
-              }
-            } else {
-              console.warn(`[annual] N8N retornou erro ${res.status} para ${file.name}`)
-            }
-          } catch (e) {
-            console.error(`[annual] Falha ao enviar para n8n (${file.name}):`, e)
-          }
+        const body = await request.json()
+        if (body.files && Array.isArray(body.files)) {
+          processedResults = body.files
+          force = body.force === true
+        } else {
+          return NextResponse.json({ error: "Invalid JSON format. Expected { files: [], force: boolean }" }, { status: 400 })
         }
-
-        // Fallback: processamento local se n8n falhou ou não retornou dados
-        if (!parsed || !parsed.dados) {
-          const arrayBuffer = await file.arrayBuffer()
-          const buffer = Buffer.from(arrayBuffer)
-          const require = createRequire(import.meta.url)
-          const pdfParse = require("pdf-parse/lib/pdf-parse.js")
-          const result = await pdfParse(buffer)
-          const text = (result?.text || "") as string
-
-          if (text.trim().length > 0) {
-            parsed = processDasData(text)
-          }
-        }
-
-        if (!parsed || !parsed.dados) {
-          console.warn(`Arquivo ${file.name} não contém dados estruturados válidos.`)
-          invalidFiles.push(file.name)
-          continue
-        }
-
-        // Store in format compatible with AnnualDashboard (MonthlyFile[])
-        processedResults.push({
-          filename: file.name,
-          data: parsed.dados // Unwrap 'dados' to match MonthlyFile type
-        })
-
-        // Save file to organized storage
-        const cnpj = parsed.dados.identificacao?.cnpj || 'unknown'
-        const period = parsed.dados.identificacao?.periodoApuracao || parsed.dados.identificacao?.periodo?.fim || 'unknown'
-        await saveUploadedFile(file, 'annual', cnpj, period)
       } catch (e) {
-        console.error(`Erro ao processar arquivo ${file.name}:`, e)
+         return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
       }
+    } else if (contentType.includes("multipart/form-data")) {
+      const formData = await request.formData()
+      force = formData.get("force") === "true"
+      const files = formData.getAll("file") as File[]
+
+      if (!files || files.length === 0) {
+        return NextResponse.json({ error: "Nenhum arquivo enviado" }, { status: 400 })
+      }
+
+      // Process files sequentially to send to n8n one by one
+      for (const file of files) {
+        try {
+          let parsed: any = null
+
+          // Tentar enviar para n8n se configurado
+          if (N8N_WEBHOOK_URL) {
+            try {
+              const forwardForm = new FormData()
+              // Criar Blob a partir do arquivo para enviar
+              const arrayBuffer = await file.arrayBuffer()
+              const blob = new Blob([arrayBuffer], { type: file.type || 'application/pdf' })
+              forwardForm.append("file", blob, file.name)
+              forwardForm.append("binary", blob, file.name)
+              forwardForm.append("filename", file.name)
+
+              const headers: Record<string, string> = { ...buildAuthHeader() }
+              headers['X-Source'] = 'vercel-annual'
+              headers['User-Agent'] = 'pgdasd-dashboard/1.0'
+
+              // Timeout controller
+              const controller = new AbortController()
+              const to = setTimeout(() => controller.abort(new Error(`timeout ${N8N_TIMEOUT_MS}ms`)), N8N_TIMEOUT_MS)
+
+              const res = await fetch(N8N_WEBHOOK_URL, {
+                method: "POST",
+                body: forwardForm,
+                headers,
+                signal: controller.signal,
+                cache: 'no-store'
+              })
+              clearTimeout(to)
+
+              if (res.ok) {
+                const bodyText = await res.text()
+                const ct = res.headers.get("content-type") || ""
+
+                if (ct.includes("application/json")) {
+                  try {
+                    const json = JSON.parse(bodyText)
+                    // Se o n8n retornar o objeto normalizado (tem 'dados')
+                    if (json && typeof json === 'object' && ('dados' in json)) {
+                      parsed = json
+                    } else {
+                      // Se retornar JSON mas não normalizado, processar como se fosse o texto do PDF envelopado ou similar
+                      parsed = processDasData(JSON.stringify(json))
+                    }
+                  } catch { }
+                }
+
+                if (!parsed) {
+                  // Tentar processar como texto (n8n retornou texto do PDF)
+                  parsed = processDasData(bodyText)
+                }
+              } else {
+                console.warn(`[annual] N8N retornou erro ${res.status} para ${file.name}`)
+              }
+            } catch (e) {
+              console.error(`[annual] Falha ao enviar para n8n (${file.name}):`, e)
+            }
+          }
+
+          // Fallback: processamento local se n8n falhou ou não retornou dados
+          if (!parsed || !parsed.dados) {
+            const arrayBuffer = await file.arrayBuffer()
+            const buffer = Buffer.from(arrayBuffer)
+            const require = createRequire(import.meta.url)
+            const pdfParse = require("pdf-parse/lib/pdf-parse.js")
+            const result = await pdfParse(buffer)
+            const text = (result?.text || "") as string
+
+            if (text.trim().length > 0) {
+              parsed = processDasData(text)
+            }
+          }
+
+          if (!parsed || !parsed.dados) {
+            console.warn(`Arquivo ${file.name} não contém dados estruturados válidos.`)
+            invalidFiles.push(file.name)
+            continue
+          }
+
+          // Store in format compatible with AnnualDashboard (MonthlyFile[])
+          processedResults.push({
+            filename: file.name,
+            data: parsed.dados // Unwrap 'dados' to match MonthlyFile type
+          })
+
+          // Save file to organized storage
+          const cnpj = parsed.dados.identificacao?.cnpj || 'unknown'
+          const period = parsed.dados.identificacao?.periodoApuracao || parsed.dados.identificacao?.periodo?.fim || 'unknown'
+          await saveUploadedFile(file, 'annual', cnpj, period)
+        } catch (e) {
+          console.error(`Erro ao processar arquivo ${file.name}:`, e)
+        }
+      }
+    } else {
+      return NextResponse.json({ error: "Content-type must be multipart/form-data or application/json" }, { status: 400 })
     }
 
     if (processedResults.length === 0) {
+      if (invalidFiles.length > 0) {
+        return NextResponse.json({
+          error: "Falha ao extrair dados dos arquivos",
+          code: "VALIDATION_ERROR",
+          summary: ["Não foi possível ler o conteúdo de nenhum dos arquivos enviados."],
+          details: {
+            expectedCount: 12,
+            processedCount: 0,
+            targetCnpj: 'UNKNOWN',
+            targetCompanyName: 'Desconhecida',
+            files: invalidFiles.map(name => ({
+              filename: name,
+              status: 'invalid',
+              reason: 'Falha na leitura do PDF (conteúdo ilegível ou formato inválido)',
+              period: 'Desconhecido',
+              cnpj: 'Desconhecido',
+              company: 'Desconhecida'
+            })),
+            sequenceErrors: [],
+            invalidFiles
+          }
+        }, { status: 422 })
+      }
       return NextResponse.json({ error: "Nenhum dado pôde ser extraído dos arquivos" }, { status: 400 })
     }
 
@@ -322,8 +360,7 @@ export async function POST(request: NextRequest) {
     }
 
     // If any error exists, return detailed 422 UNLESS force=true
-    const force = formData.get("force") === "true"
-
+    
     if (errors.length > 0 && !force) {
       return NextResponse.json({
         error: "Erros de validação encontrados",
