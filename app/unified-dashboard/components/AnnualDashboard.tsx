@@ -827,10 +827,10 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
     const chartOptions = {
         layout: {
             padding: {
-                top: 50,
-                right: 30,
-                left: 30, // Increased from 20 to 30 to avoid overlap with Jan values
-                bottom: 20
+                top: 10,
+                right: 15,
+                left: 5,
+                bottom: 5
             }
         },
         responsive: true,
@@ -838,7 +838,13 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
         plugins: {
             legend: {
                 position: 'bottom' as const,
-                labels: { color: chartTheme.text }
+                labels: { 
+                    color: chartTheme.text,
+                    padding: 10,
+                    boxWidth: 10,
+                    usePointStyle: true,
+                    pointStyle: 'circle'
+                }
             },
             title: { display: false },
             tooltip: {
@@ -874,7 +880,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                 ticks: { 
                     color: chartTheme.text, 
                     callback: (v: any) => new Intl.NumberFormat('pt-BR', { notation: 'compact' }).format(v),
-                    padding: 25, // Increased padding to separate Y-axis labels from chart area
+                    padding: 10,
                 }
             },
             x: {
@@ -959,9 +965,13 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                         // But actually, we have 'tributosMercadoriasInterno' etc.
                         const tServ = (dados.tributosServicosInterno?.Total || 0) + (dados.tributosServicosExterno?.Total || 0)
                         const tMerc = (dados.tributosMercadoriasInterno?.Total || 0) + (dados.tributosMercadoriasExterno?.Total || 0)
-                        if (tServ + tMerc > 0) {
-                            servicos = rpa * (tServ / (tServ + tMerc))
-                            mercadorias = rpa * (tMerc / (tServ + tMerc))
+                        const tInd = (dados.tributosIndustriaInterno?.Total || 0) + (dados.tributosIndustriaExterno?.Total || 0)
+                        const totalT = tServ + tMerc + tInd
+                        
+                        if (totalT > 0) {
+                            servicos = rpa * (tServ / totalT)
+                            mercadorias = rpa * (tMerc / totalT)
+                            industria = rpa * (tInd / totalT)
                         } else {
                             servicos = rpa // Default
                         }
@@ -979,6 +989,69 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
     }, [sortedFiles])
 
 
+
+    const monthlyTaxesBreakdown = useMemo(() => {
+        return sortedFiles.map((file, index) => {
+            const dados = file.data as any
+            
+            // Use explicit tax breakdown from parser
+            // Note: tributosIndustriaInterno/Externo were added to das-parse.ts
+            const tMerc = (dados.tributosMercadoriasInterno?.Total || 0) + (dados.tributosMercadoriasExterno?.Total || 0)
+            const tInd = (dados.tributosIndustriaInterno?.Total || 0) + (dados.tributosIndustriaExterno?.Total || 0)
+            const tServ = (dados.tributosServicosInterno?.Total || 0) + (dados.tributosServicosExterno?.Total || 0)
+            
+            if (tMerc + tInd + tServ > 0.01) {
+                 return {
+                    servicos: tServ,
+                    mercadorias: tMerc,
+                    industria: tInd
+                 }
+            }
+
+            // Fallback using total tax and revenue ratio if detailed breakdown is missing
+            // This ensures we show something even if the parser categorization failed but total tax exists
+            let servicos = 0
+            let mercadorias = 0
+            let industria = 0
+            
+            const parseNumber = (v: any): number => {
+                if (typeof v === 'number') return v
+                const n = Number(String(v || '').replace(/\./g, '').replace(',', '.'))
+                return isFinite(n) ? n : 0
+            }
+
+            const totalTax = parseNumber(dados.valorTotalDAS || dados.tributos?.Total || 0)
+            const breakdown = monthlyRevenueBreakdown[index]
+            const totalRev = breakdown.mercadorias + breakdown.servicos + breakdown.industria
+            
+            if (totalTax > 0) {
+                if (totalRev > 0) {
+                    mercadorias = totalTax * (breakdown.mercadorias / totalRev)
+                    servicos = totalTax * (breakdown.servicos / totalRev)
+                    industria = totalTax * (breakdown.industria / totalRev)
+                } else {
+                    // Default fallback if no revenue info
+                    servicos = totalTax
+                }
+            }
+
+            return {
+                servicos,
+                mercadorias,
+                industria
+            }
+        })
+    }, [sortedFiles, monthlyRevenueBreakdown])
+
+    const taxesBreakdown = useMemo(() => {
+        return monthlyTaxesBreakdown.reduce((acc, curr) => {
+            return {
+                servicos: acc.servicos + curr.servicos,
+                mercadorias: acc.mercadorias + curr.mercadorias,
+                industrializacao: acc.industrializacao + curr.industria
+            }
+        }, { servicos: 0, mercadorias: 0, industrializacao: 0 })
+    }, [monthlyTaxesBreakdown])
 
     const revenueBreakdown = useMemo(() => {
         return monthlyRevenueBreakdown.reduce((acc, curr) => {
@@ -1027,37 +1100,12 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
             }
         }).filter(Boolean)
 
-        // Semiannual
-        const semiannual = sortedYears.flatMap(year => {
-             const prevYear = year - 1
-             if (!years.includes(prevYear)) return []
+        // Quarterly
+       const quarterly = [1, 2, 3, 4].map(q => {
+            const comparisons = sortedYears.map(year => {
+                const prevYear = year - 1
+                if (!years.includes(prevYear)) return null
 
-             return [1, 2].map(sem => {
-                 const currDataset = allComparisonData.semiannual.datasets.find((d: any) => d.label === String(year))
-                 const prevDataset = allComparisonData.semiannual.datasets.find((d: any) => d.label === String(prevYear))
-                 
-                 const currVal = currDataset?.data[sem - 1] || 0
-                 const prevVal = prevDataset?.data[sem - 1] || 0
-                 
-                 if (currVal === 0) return null
-
-                 return {
-                    period: `${sem}º Semestre`,
-                    currentLabel: `${year}`,
-                    prevLabel: `${prevYear}`,
-                    current: formatCurrency(currVal),
-                    previous: formatCurrency(prevVal),
-                    ...calcVar(currVal, prevVal)
-                }
-            }).filter(Boolean)
-       })
-
-       // Quarterly
-       const quarterly = sortedYears.flatMap(year => {
-            const prevYear = year - 1
-            if (!years.includes(prevYear)) return []
-
-            return [1, 2, 3, 4].map(q => {
                 const currDataset = allComparisonData.quarterly.datasets.find((d: any) => d.label === String(year))
                 const prevDataset = allComparisonData.quarterly.datasets.find((d: any) => d.label === String(prevYear))
                 
@@ -1067,15 +1115,52 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                 if (currVal === 0) return null
 
                 return {
-                    period: `${q}º Trimestre`,
                     currentLabel: `${year}`,
                     prevLabel: `${prevYear}`,
                     current: formatCurrency(currVal),
                     previous: formatCurrency(prevVal),
                     ...calcVar(currVal, prevVal)
                 }
-             }).filter(Boolean)
-        })
+            }).filter(Boolean)
+
+            if (comparisons.length === 0) return null
+
+            return {
+                periodName: `${q}º Trimestre`,
+                comparisons
+            }
+       }).filter(Boolean)
+
+       // Semiannual
+       const semiannual = [1, 2].map(sem => {
+            const comparisons = sortedYears.map(year => {
+                const prevYear = year - 1
+                if (!years.includes(prevYear)) return null
+
+                const currDataset = allComparisonData.semiannual.datasets.find((d: any) => d.label === String(year))
+                const prevDataset = allComparisonData.semiannual.datasets.find((d: any) => d.label === String(prevYear))
+                
+                const currVal = currDataset?.data[sem - 1] || 0
+                const prevVal = prevDataset?.data[sem - 1] || 0
+
+                if (currVal === 0) return null
+
+                return {
+                    currentLabel: `${year}`,
+                    prevLabel: `${prevYear}`,
+                    current: formatCurrency(currVal),
+                    previous: formatCurrency(prevVal),
+                    ...calcVar(currVal, prevVal)
+                }
+            }).filter(Boolean)
+
+            if (comparisons.length === 0) return null
+
+            return {
+                periodName: `${sem}º Semestre`,
+                comparisons
+            }
+       }).filter(Boolean)
 
         return { annual, semiannual, quarterly }
     }, [years, allComparisonData])
@@ -1338,25 +1423,46 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                                 </span>
                                             )}
                                         </div>
-                                        <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-                                            {totalRevenue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                        <div className="flex flex-row items-baseline gap-2">
+                                            <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
+                                                {totalRevenue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                            </div>
+                                            <p className="text-xs text-muted-foreground">
+                                                Média: {averageRevenue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}/mês
+                                            </p>
                                         </div>
-                                        <p className="text-xs text-muted-foreground mt-1">
-                                            Média: {averageRevenue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}/mês
-                                        </p>
                                     </CardContent>
                                 </Card>
                                 <Card>
                                     <CardHeader className="pb-2">
                                         <CardTitle className="text-sm font-medium text-muted-foreground">Total de Impostos</CardTitle>
+                                        <div className="flex flex-col gap-1 mt-1">
+                                            {taxesBreakdown.servicos > 0 && (
+                                                <span className="inline-flex items-center rounded-full bg-[#007AFF]/20 text-[#007AFF] dark:bg-[#007AFF]/40 dark:text-[#FFFFFF] px-2 py-0.5 text-[10px] font-semibold w-fit">
+                                                    Serviços: {taxesBreakdown.servicos.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                                </span>
+                                            )}
+                                            {taxesBreakdown.mercadorias > 0 && (
+                                                <span className="inline-flex items-center rounded-full bg-[#00C2FF]/20 text-[#00C2FF] dark:bg-[#00C2FF]/40 dark:text-[#FFFFFF] px-2 py-0.5 text-[10px] font-semibold w-fit">
+                                                    Mercadorias: {taxesBreakdown.mercadorias.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                                </span>
+                                            )}
+                                            {taxesBreakdown.industrializacao > 0 && (
+                                                <span className="inline-flex items-center rounded-full bg-[#00C2FF]/20 text-[#00C2FF] dark:bg-[#00C2FF]/40 dark:text-[#FFFFFF] px-2 py-0.5 text-[10px] font-semibold w-fit">
+                                                    Indústria: {taxesBreakdown.industrializacao.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                                </span>
+                                            )}
+                                        </div>
                                     </CardHeader>
                                     <CardContent>
-                                        <div className="text-2xl font-bold text-red-600 dark:text-red-400">
-                                            {totalTaxes.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                        <div className="flex flex-row items-baseline gap-2">
+                                            <div className="text-lg font-bold text-red-600 dark:text-red-400">
+                                                {totalTaxes.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                            </div>
+                                            <p className="text-xs text-muted-foreground">
+                                                Média: {averageTaxes.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}/mês
+                                            </p>
                                         </div>
-                                        <p className="text-xs text-muted-foreground mt-1">
-                                            Média: {averageTaxes.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}/mês
-                                        </p>
                                     </CardContent>
                                 </Card>
                                 <Card>
@@ -1364,7 +1470,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                         <CardTitle className="text-sm font-medium text-muted-foreground">Alíquota Efetiva Média</CardTitle>
                                     </CardHeader>
                                     <CardContent>
-                                        <div className="text-2xl font-bold text-[#93A5AF]">
+                                        <div className="text-lg font-bold text-[#93A5AF]">
                                             {averageTaxRate.toFixed(2)}%
                                         </div>
                                     </CardContent>
@@ -1376,12 +1482,12 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                     <CardHeader className="flex flex-row items-center justify-between pb-2">
                                         <CardTitle>Evolução Financeira</CardTitle>
                                     </CardHeader>
-                                    <CardContent className="space-y-12">
+                                    <CardContent className="p-4 space-y-6">
                                         {years.map(year => {
                                             const yearData = monthlyDataByYear.get(year)
 
                                             return (
-                                                <div key={year} className="h-[300px]">
+                                                <div key={year} className="h-[200px]">
                                                     <h3 className="text-sm font-semibold mb-2 text-center text-muted-foreground">Receita e Impostos - {year}</h3>
                                                     <Line
                                                         options={chartOptions}
@@ -1466,10 +1572,10 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                 <div className="space-y-6">
                                     {visibleCharts.quarterly && (
                                         <Card style={{ breakInside: 'avoid' }}>
-                                            <CardHeader>
+                                            <CardHeader className="py-2 px-4">
                                                 <CardTitle className="text-sm font-medium">Comparativo Trimestral</CardTitle>
                                             </CardHeader>
-                                            <CardContent className="h-[300px]">
+                                            <CardContent className="px-2 pb-2 h-[180px]">
                                                 <Bar
                                                     options={chartOptions}
                                                     data={allComparisonData.quarterly}
@@ -1481,10 +1587,10 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                     <div className="grid gap-6 grid-cols-1 md:grid-cols-2 print:block print:space-y-6">
                                         {visibleCharts.semiannual && (
                                             <Card className={visibleCharts.annual ? "" : "md:col-span-2"} style={{ breakInside: 'avoid' }}>
-                                                <CardHeader>
+                                                <CardHeader className="py-2 px-4">
                                                     <CardTitle className="text-sm font-medium">Comparativo Semestral</CardTitle>
                                                 </CardHeader>
-                                                <CardContent className="h-[300px]">
+                                                <CardContent className="px-2 pb-2 h-[180px]">
                                                     <Bar
                                                         options={chartOptions}
                                                         data={allComparisonData.semiannual}
@@ -1495,10 +1601,10 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
 
                                         {visibleCharts.annual && (
                                             <Card className={visibleCharts.semiannual ? "" : "md:col-span-2"} style={{ breakInside: 'avoid' }}>
-                                                <CardHeader>
+                                                <CardHeader className="py-2 px-4">
                                                     <CardTitle className="text-sm font-medium">Comparativo Anual</CardTitle>
                                                 </CardHeader>
-                                                <CardContent className="h-[300px]">
+                                                <CardContent className="px-2 pb-2 h-[180px]">
                                                     <Bar
                                                         options={chartOptions}
                                                         data={allComparisonData.annual}
@@ -1511,10 +1617,10 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
 
                                 {hasMultipleSources && stackedBarChartData && (
                                     <Card style={{ breakInside: 'avoid' }}>
-                                        <CardHeader>
-                                            <CardTitle>Composição do Faturamento Mensal</CardTitle>
+                                        <CardHeader className="py-2 px-4">
+                                            <CardTitle className="text-base font-semibold">Composição do Faturamento Mensal</CardTitle>
                                         </CardHeader>
-                                        <CardContent className="h-[300px]">
+                                        <CardContent className="px-2 pb-2 h-[200px]">
                                             <Bar
                                                 options={{
                                                     ...chartOptions,
@@ -1577,46 +1683,134 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                     ].map((section, idx) => (
                                         section.data.length > 0 && (
                                             <Card key={idx} style={{ breakInside: 'avoid' }}>
-                                                <CardHeader className="py-3">
+                                                <CardHeader className="py-2">
                                                     <CardTitle className="text-base font-semibold">{section.title}</CardTitle>
                                                 </CardHeader>
-                                                <CardContent className="pb-3">
+                                                <CardContent className="pb-2">
                                                     <div className="rounded-md border">
                                                         <Table>
                                                             <TableHeader>
                                                                 <TableRow>
-                                                                    <TableHead className="w-[200px] py-2 h-10">Período</TableHead>
-                                                                    <TableHead className="py-2 h-10">Receita Atual</TableHead>
-                                                                    <TableHead className="py-2 h-10">Receita Anterior</TableHead>
-                                                                    <TableHead className="py-2 h-10">Variação (R$)</TableHead>
-                                                                    <TableHead className="py-2 h-10">Variação (%)</TableHead>
-                                                                    <TableHead className="text-right py-2 h-10">Tendência</TableHead>
+                                                                    <TableHead className="w-[200px] py-1 h-8">Período</TableHead>
+                                                                    <TableHead className="py-1 h-8">Receita Atual</TableHead>
+                                                                    <TableHead className="py-1 h-8">Receita Anterior</TableHead>
+                                                                    <TableHead className="py-1 h-8">Variação (R$)</TableHead>
+                                                                    <TableHead className="py-1 h-8">Variação (%)</TableHead>
+                                                                    <TableHead className="text-right py-1 h-8">Tendência</TableHead>
                                                                 </TableRow>
                                                             </TableHeader>
                                                             <TableBody>
-                                                                {section.data.map((row: any, rIdx: number) => (
+                                                                {section.data.map((row: any, rIdx: number) => {
+                                                                    if (row.comparisons) {
+                                                                        return (
+                                                                            <TableRow key={rIdx}>
+                                                                                <TableCell className="font-medium py-1 align-top">
+                                                                                    <div className="flex flex-col gap-2">
+                                                                                        <span>{row.periodName}</span>
+                                                                                        <div className="flex flex-col gap-1">
+                                                                                            {row.comparisons.map((comp: any, cIdx: number) => (
+                                                                                                <span key={cIdx} className="text-xs text-muted-foreground h-5 flex items-center">{comp.prevLabel} x {comp.currentLabel}</span>
+                                                                                            ))}
+                                                                                        </div>
+                                                                                    </div>
+                                                                                </TableCell>
+                                                                                <TableCell className="py-1 align-top">
+                                                                                     <div className="flex flex-col gap-2">
+                                                                                        <span className="opacity-0">{row.periodName}</span>
+                                                        <div className="flex flex-col gap-1">
+                                                            {row.comparisons.map((comp: any, cIdx: number) => (
+                                                                <div key={cIdx} className="h-5 flex items-center text-[11px]">{comp.current}</div>
+                                                            ))}
+                                                        </div>
+                                                     </div>
+                                                </TableCell>
+                                                                                <TableCell className="text-muted-foreground py-1 align-top">
+                                                                                     <div className="flex flex-col gap-2">
+                                                                                        <span className="opacity-0">{row.periodName}</span>
+                                                        <div className="flex flex-col gap-1">
+                                                            {row.comparisons.map((comp: any, cIdx: number) => (
+                                                                <div key={cIdx} className="h-5 flex items-center text-[11px]">{comp.previous}</div>
+                                                            ))}
+                                                        </div>
+                                                     </div>
+                                                </TableCell>
+                                                                                <TableCell className="font-medium py-1 align-top">
+                                                                                     <div className="flex flex-col gap-2">
+                                                                                        <span className="opacity-0">{row.periodName}</span>
+                                                        <div className="flex flex-col gap-1">
+                                                            {row.comparisons.map((comp: any, cIdx: number) => (
+                                                                <div key={cIdx} className={cn("h-5 flex items-center text-[11px]", comp.isPositive ? "text-emerald-600" : comp.isNeutral ? "text-muted-foreground" : "text-red-600")}>
+                                                                    {comp.isPositive ? '+' : ''}{comp.abs}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                     </div>
+                                                </TableCell>
+                                                                                <TableCell className="py-1 align-top">
+                                                                                     <div className="flex flex-col gap-2">
+                                                                                        <span className="opacity-0">{row.periodName}</span>
+                                                        <div className="flex flex-col gap-1">
+                                                            {row.comparisons.map((comp: any, cIdx: number) => (
+                                                                <div key={cIdx} className={cn("h-5 flex items-center text-[11px]", comp.isPositive ? "text-emerald-600" : comp.isNeutral ? "text-muted-foreground" : "text-red-600")}>
+                                                                    {comp.isPositive ? '+' : ''}{comp.pct}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                     </div>
+                                                </TableCell>
+                                                                                <TableCell className="text-right py-1 align-top">
+                                                                                     <div className="flex flex-col gap-2">
+                                                                                        <span className="opacity-0">{row.periodName}</span>
+                                                                                        <div className="flex flex-col gap-1 items-end">
+                                                                                            {row.comparisons.map((comp: any, cIdx: number) => (
+                                                                                                <div key={cIdx} className="h-5 flex items-center justify-end">
+                                                                                                    {comp.isNeutral ? (
+                                                                                                        <div className="flex items-center justify-end gap-1 text-muted-foreground">
+                                                                                                            <Minus className="h-4 w-4" />
+                                                                                                            <span className="text-xs">Estável</span>
+                                                                                                        </div>
+                                                                                                    ) : comp.isPositive ? (
+                                                                                                        <div className="flex items-center justify-end gap-1 text-emerald-600">
+                                                                                                            <ArrowUpRight className="h-4 w-4" />
+                                                                                                            <span className="text-xs">Crescimento</span>
+                                                                                                        </div>
+                                                                                                    ) : (
+                                                                                                        <div className="flex items-center justify-end gap-1 text-red-600">
+                                                                                                            <ArrowDownRight className="h-4 w-4" />
+                                                                                                            <span className="text-xs">Queda</span>
+                                                                                                        </div>
+                                                                                                    )}
+                                                                                                </div>
+                                                                                            ))}
+                                                                                        </div>
+                                                                                     </div>
+                                                                                </TableCell>
+                                                                            </TableRow>
+                                                                        )
+                                                                    }
+                                                                    return (
                                                                     <TableRow key={rIdx}>
-                                                                        <TableCell className="font-medium py-2">
+                                                                        <TableCell className="font-medium py-1">
                                                                             <div className="flex flex-col">
                                                                                 <span>{row.period}</span>
                                                                                 <span className="text-xs text-muted-foreground">{row.prevLabel} x {row.currentLabel}</span>
                                                                             </div>
                                                                         </TableCell>
-                                                                        <TableCell className="py-2">{row.current}</TableCell>
-                                                                        <TableCell className="text-muted-foreground py-2">{row.previous}</TableCell>
+                                                                        <TableCell className="py-1 text-[11px]">{row.current}</TableCell>
+                                                                        <TableCell className="text-muted-foreground py-1 text-[11px]">{row.previous}</TableCell>
                                                                         <TableCell className={cn(
-                                                                            "font-medium py-2",
+                                                                            "font-medium py-1 text-[11px]",
                                                                             row.isPositive ? "text-emerald-600" : row.isNeutral ? "text-muted-foreground" : "text-red-600"
                                                                         )}>
                                                                             {row.isPositive ? '+' : ''}{row.abs}
                                                                         </TableCell>
                                                                         <TableCell className={cn(
-                                                                            "font-bold py-2",
+                                                                            "font-bold py-1 text-[11px]",
                                                                             row.isPositive ? "text-emerald-600" : row.isNeutral ? "text-muted-foreground" : "text-red-600"
                                                                         )}>
                                                                             {row.isPositive ? '+' : ''}{row.pct}
                                                                         </TableCell>
-                                                                        <TableCell className="text-right py-2">
+                                                                        <TableCell className="text-right py-1">
                                                                             {row.isNeutral ? (
                                                                                 <Minus className="inline h-4 w-4 text-muted-foreground" />
                                                                             ) : row.isPositive ? (
@@ -1632,7 +1826,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                                                             )}
                                                                         </TableCell>
                                                                     </TableRow>
-                                                                ))}
+                                                                )})}
                                                             </TableBody>
                                                         </Table>
                                                     </div>
@@ -1644,18 +1838,18 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                             </div>
 
                             <Card>
-                                <CardHeader className="py-3">
+                                <CardHeader className="py-2">
                                     <CardTitle className="text-base font-semibold">Quadro de Distribuição de Resultados</CardTitle>
                                 </CardHeader>
-                                <CardContent className="pb-3">
+                                <CardContent className="pb-2">
                                     <Table>
                                         <TableHeader>
                                             <TableRow>
-                                                <TableHead className="py-2 h-10">Período</TableHead>
-                                                <TableHead className="py-2 h-10">Receita Bruta</TableHead>
-                                                <TableHead className="py-2 h-10">IRPJ</TableHead>
-                                                <TableHead className="py-2 h-10">Alíquota</TableHead>
-                                                <TableHead className="py-2 h-10">Distribuição</TableHead>
+                                                <TableHead className="py-1 h-8">Período</TableHead>
+                                                <TableHead className="py-1 h-8">Receita Bruta</TableHead>
+                                                <TableHead className="py-1 h-8">IRPJ</TableHead>
+                                                <TableHead className="py-1 h-8">Alíquota</TableHead>
+                                                <TableHead className="py-1 h-8">Distribuição</TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
@@ -1681,51 +1875,51 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
 
                                                 return (
                                                     <TableRow key={index} className="hover:bg-muted/50 align-top">
-                                                        <TableCell className="font-medium whitespace-nowrap py-2 text-sm">{periodoDisplay}</TableCell>
-                                                        <TableCell className="min-w-[300px] py-2">
+                                                        <TableCell className="font-medium whitespace-nowrap py-1 text-sm uppercase">{periodoDisplay}</TableCell>
+                                                        <TableCell className="min-w-[300px] py-1">
                                                             <div className="flex flex-col gap-1">
                                                                 {breakdown.mercadorias > 0 && (
                                                                     <div className="flex flex-col">
                                                                         <span className="text-[11px] font-semibold uppercase text-muted-foreground">Mercadorias</span>
-                                                                        <span className="font-medium text-sm">{breakdown.mercadorias.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                                                                        <span className="font-medium text-xs">{breakdown.mercadorias.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
                                                                     </div>
                                                                 )}
                                                                 {breakdown.servicos > 0 && (
                                                                     <div className="flex flex-col">
                                                                         <span className="text-[11px] font-semibold uppercase text-muted-foreground">Serviços</span>
-                                                                        <span className="font-medium text-sm">{breakdown.servicos.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                                                                        <span className="font-medium text-xs">{breakdown.servicos.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
                                                                     </div>
                                                                 )}
                                                             </div>
                                                         </TableCell>
-                                                        <TableCell className="py-2">
+                                                        <TableCell className="py-1">
                                                             <div className="flex flex-col gap-1">
                                                                 {breakdown.mercadorias > 0 && (
                                                                     <div className="flex flex-col">
                                                                         <span className="text-[11px] text-muted-foreground">Mercadorias</span>
-                                                                        <span className="font-medium text-sm">{irpjMerc.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                                                                        <span className="font-medium text-xs">{irpjMerc.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
                                                                     </div>
                                                                 )}
                                                                 {breakdown.servicos > 0 && (
                                                                     <div className="flex flex-col">
                                                                         <span className="text-[11px] text-muted-foreground">Serviços</span>
-                                                                        <span className="font-medium text-sm">{irpjServ.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                                                                        <span className="font-medium text-xs">{irpjServ.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
                                                                     </div>
                                                                 )}
                                                             </div>
                                                         </TableCell>
-                                                        <TableCell className="py-2">
+                                                        <TableCell className="py-1">
                                                             <div className="flex flex-col gap-1">
-                                                                {breakdown.mercadorias > 0 && <div className="text-sm font-medium">Mercadorias: <span className="font-bold">8%</span></div>}
-                                                                {breakdown.servicos > 0 && <div className="text-sm font-medium">Serviços: <span className="font-bold">32%</span></div>}
+                                                                {breakdown.mercadorias > 0 && <div className="text-xs font-medium">Mercadorias: <span className="font-bold">8%</span></div>}
+                                                                {breakdown.servicos > 0 && <div className="text-xs font-medium">Serviços: <span className="font-bold">32%</span></div>}
                                                             </div>
                                                         </TableCell>
-                                                        <TableCell className="py-2">
+                                                        <TableCell className="py-1">
                                                             <div className="flex flex-col gap-1">
                                                                 {breakdown.mercadorias > 0 && (
                                                                     <div className="flex flex-col">
                                                                         <span className="text-[11px] text-muted-foreground">Mercadorias</span>
-                                                                        <span className="font-medium text-sm text-emerald-600 dark:text-emerald-400">
+                                                                        <span className="font-medium text-xs text-emerald-600 dark:text-emerald-400">
                                                                             {(baseMerc - irpjMerc).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                                                                         </span>
                                                                     </div>
@@ -1733,7 +1927,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                                                 {breakdown.servicos > 0 && (
                                                                     <div className="flex flex-col">
                                                                         <span className="text-[11px] text-muted-foreground">Serviços</span>
-                                                                        <span className="font-medium text-sm text-emerald-600 dark:text-emerald-400">
+                                                                        <span className="font-medium text-xs text-emerald-600 dark:text-emerald-400">
                                                                             {(baseServ - irpjServ).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                                                                         </span>
                                                                     </div>
@@ -1767,46 +1961,46 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
 
                                                 return (
                                                     <TableRow className="bg-muted/50 font-bold border-t-2 border-border">
-                                                        <TableCell className="py-2 text-sm">Total Anual</TableCell>
-                                                        <TableCell className="py-2">
+                                                        <TableCell className="py-1 text-sm">Total Anual</TableCell>
+                                                        <TableCell className="py-1">
                                                             <div className="flex flex-col gap-1">
                                                                 {totals.recMerc > 0 && (
                                                                     <div className="flex flex-col">
                                                                         <span className="text-[11px] font-bold uppercase text-muted-foreground">Mercadorias</span>
-                                                                        <span className="font-bold text-sm">{totals.recMerc.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                                                                        <span className="font-bold text-xs">{totals.recMerc.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
                                                                     </div>
                                                                 )}
                                                                 {totals.recServ > 0 && (
                                                                     <div className="flex flex-col">
                                                                         <span className="text-[11px] font-bold uppercase text-muted-foreground">Serviços</span>
-                                                                        <span className="font-bold text-sm">{totals.recServ.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                                                                        <span className="font-bold text-xs">{totals.recServ.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
                                                                     </div>
                                                                 )}
                                                             </div>
                                                         </TableCell>
-                                                        <TableCell className="py-2">
+                                                        <TableCell className="py-1">
                                                             <div className="flex flex-col gap-1">
                                                                 {totals.recMerc > 0 && (
                                                                     <div className="flex flex-col">
                                                                         <span className="text-[11px] font-bold text-muted-foreground">Mercadorias</span>
-                                                                        <span className="font-bold text-sm">{totals.irpjMerc.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                                                                        <span className="font-bold text-xs">{totals.irpjMerc.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
                                                                     </div>
                                                                 )}
                                                                 {totals.recServ > 0 && (
                                                                     <div className="flex flex-col">
                                                                         <span className="text-[11px] font-bold text-muted-foreground">Serviços</span>
-                                                                        <span className="font-bold text-sm">{totals.irpjServ.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                                                                        <span className="font-bold text-xs">{totals.irpjServ.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
                                                                     </div>
                                                                 )}
                                                             </div>
                                                         </TableCell>
-                                                        <TableCell className="py-2"></TableCell>
-                                                        <TableCell className="py-2">
+                                                        <TableCell className="py-1"></TableCell>
+                                                        <TableCell className="py-1">
                                                             <div className="flex flex-col gap-1">
                                                                 {totals.recMerc > 0 && (
                                                                     <div className="flex flex-col">
                                                                         <span className="text-[11px] font-bold text-muted-foreground">Mercadorias</span>
-                                                                        <span className="font-bold text-sm text-emerald-700 dark:text-emerald-300">
+                                                                        <span className="font-bold text-xs text-emerald-700 dark:text-emerald-300">
                                                                             {totals.distMerc.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                                                                         </span>
                                                                     </div>
@@ -1814,7 +2008,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                                                 {totals.recServ > 0 && (
                                                                     <div className="flex flex-col">
                                                                         <span className="text-[11px] font-bold text-muted-foreground">Serviços</span>
-                                                                        <span className="font-bold text-sm text-emerald-700 dark:text-emerald-300">
+                                                                        <span className="font-bold text-xs text-emerald-700 dark:text-emerald-300">
                                                                             {totals.distServ.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                                                                         </span>
                                                                     </div>

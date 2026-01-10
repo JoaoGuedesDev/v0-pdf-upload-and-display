@@ -872,9 +872,9 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
           <CardHeader className="py-2 px-4 border-b bg-muted/50 border-border">
             <CardTitle className="text-sm font-medium text-foreground">Composição do Faturamento Mensal</CardTitle>
           </CardHeader>
-          <CardContent className="p-4 h-[140px]">
-            <Bar data={chartData} options={chartOptions} />
-          </CardContent>
+          <CardContent className="p-2 h-[120px]">
+        <Bar data={chartData} options={chartOptions} />
+      </CardContent>
         </Card>
       )}
     </div>

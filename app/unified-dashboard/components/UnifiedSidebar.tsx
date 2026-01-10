@@ -174,7 +174,7 @@ export function UnifiedSidebar({
                                     <div className="flex-1 min-w-0 space-y-1">
                                         <div className="flex items-center gap-1.5">
                                             <Calendar className="w-3 h-3 text-muted-foreground" />
-                                            <p className={cn("font-medium text-sm truncate", isSelected ? "text-primary" : "text-foreground")}>
+                                            <p className={cn("font-medium text-sm truncate uppercase", isSelected ? "text-primary" : "text-foreground")}>
                                                 {formatPeriod(periodo)}
                                             </p>
                                         </div>

@@ -63,7 +63,7 @@ export const ComparacaoAtividades = memo(function ComparacaoAtividades({ ativida
     <Card
       className={`bg-[#3A3A3A] border border-[#00C2FF] shadow-lg hover:shadow-xl transition-all duration-200 print:inline-block print:w-1/3 print:align-top print:break-inside-avoid ${className}`}
     >
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
+      <CardHeader className="flex flex-row items-center justify-between pb-1">
         <div>
           <CardTitle
             className={`text-base sm:text-[9px] flex items-center gap-2 text-white`}
@@ -81,8 +81,8 @@ export const ComparacaoAtividades = memo(function ComparacaoAtividades({ ativida
           Total: {formatCurrency(total)}
         </div>
       </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <CardContent className="p-2">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
           <div className="space-y-0.5 print:block">
             {rows.map((row, i) => {
               const pct = total > 0 ? (Number(row.valor || 0) / total) * 100 : 0

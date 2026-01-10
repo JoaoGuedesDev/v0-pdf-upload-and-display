@@ -57,6 +57,8 @@ export interface DashboardData {
   tributos: Tributos;
   tributosMercadoriasInterno?: Tributos;
   tributosMercadoriasExterno?: Tributos;
+  tributosIndustriaInterno?: Tributos;
+  tributosIndustriaExterno?: Tributos;
   tributosServicosInterno?: Tributos;
   tributosServicosExterno?: Tributos;
   cenario?: string;

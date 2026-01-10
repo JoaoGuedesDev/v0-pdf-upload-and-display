@@ -669,9 +669,12 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                    // Fallback to Tributos Ratios
                    const tServ = (data?.tributosServicosInterno?.Total || 0) + (data?.tributosServicosExterno?.Total || 0)
                    const tMerc = (data?.tributosMercadoriasInterno?.Total || 0) + (data?.tributosMercadoriasExterno?.Total || 0)
-                   if (tServ + tMerc > 0) {
-                     servicosBrutoPA = rpa * (tServ / (tServ + tMerc))
-                     mercadoriasBrutoPA = rpa * (tMerc / (tServ + tMerc))
+                   const tInd = (data?.tributosIndustriaInterno?.Total || 0) + (data?.tributosIndustriaExterno?.Total || 0)
+                   const totalT = tServ + tMerc + tInd
+                   
+                   if (totalT > 0) {
+                     servicosBrutoPA = rpa * (tServ / totalT)
+                     mercadoriasBrutoPA = rpa * ((tMerc + tInd) / totalT)
                    } else {
                      servicosBrutoPA = rpa
                    }
@@ -680,9 +683,12 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                  // Fallback again
                  const tServ = (data?.tributosServicosInterno?.Total || 0) + (data?.tributosServicosExterno?.Total || 0)
                  const tMerc = (data?.tributosMercadoriasInterno?.Total || 0) + (data?.tributosMercadoriasExterno?.Total || 0)
-                 if (tServ + tMerc > 0) {
-                   servicosBrutoPA = rpa * (tServ / (tServ + tMerc))
-                   mercadoriasBrutoPA = rpa * (tMerc / (tServ + tMerc))
+                 const tInd = (data?.tributosIndustriaInterno?.Total || 0) + (data?.tributosIndustriaExterno?.Total || 0)
+                 const totalT = tServ + tMerc + tInd
+
+                 if (totalT > 0) {
+                   servicosBrutoPA = rpa * (tServ / totalT)
+                   mercadoriasBrutoPA = rpa * ((tMerc + tInd) / totalT)
                  } else {
                    servicosBrutoPA = rpa
                  }
@@ -807,9 +813,12 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                       // Priority 3: Tributos Ratios
                       const tServ = (data?.tributosServicosInterno?.Total || 0) + (data?.tributosServicosExterno?.Total || 0)
                       const tMerc = (data?.tributosMercadoriasInterno?.Total || 0) + (data?.tributosMercadoriasExterno?.Total || 0)
-                      if (tServ + tMerc > 0) {
-                        servicos = rpa * (tServ / (tServ + tMerc))
-                        mercadorias = rpa * (tMerc / (tServ + tMerc))
+                      const tInd = (data?.tributosIndustriaInterno?.Total || 0) + (data?.tributosIndustriaExterno?.Total || 0)
+                      const totalT = tServ + tMerc + tInd
+
+                      if (totalT > 0) {
+                        servicos = rpa * (tServ / totalT)
+                        mercadorias = rpa * ((tMerc + tInd) / totalT)
                       } else {
                         servicos = rpa
                       }
@@ -818,9 +827,12 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                      // Priority 3 again (redundant fallback)
                      const tServ = (data?.tributosServicosInterno?.Total || 0) + (data?.tributosServicosExterno?.Total || 0)
                      const tMerc = (data?.tributosMercadoriasInterno?.Total || 0) + (data?.tributosMercadoriasExterno?.Total || 0)
-                     if (tServ + tMerc > 0) {
-                       servicos = rpa * (tServ / (tServ + tMerc))
-                       mercadorias = rpa * (tMerc / (tServ + tMerc))
+                     const tInd = (data?.tributosIndustriaInterno?.Total || 0) + (data?.tributosIndustriaExterno?.Total || 0)
+                     const totalT = tServ + tMerc + tInd
+                     
+                     if (totalT > 0) {
+                       servicos = rpa * (tServ / totalT)
+                       mercadorias = rpa * ((tMerc + tInd) / totalT)
                      } else {
                        servicos = rpa
                      }

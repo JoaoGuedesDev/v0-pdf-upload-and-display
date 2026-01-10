@@ -166,6 +166,7 @@ export function processDasData(textRaw: string) {
         return /(para\s+o\s+exterior|mercado\s+externo|para\s+exterior|exportacao)/.test(k)
       }
       const isServ = (nome: string) => /(servico|servicos|prestacao)/.test(toKey(nome))
+      const isInd = (nome: string) => /(industria|industrializacao)/.test(toKey(nome))
       const baseMap = () => ({ IRPJ: 0, CSLL: 0, COFINS: 0, PIS_PASEP: 0, INSS_CPP: 0, ICMS: 0, IPI: 0, ISS: 0 })
       const addTrib = (map: any, t: any) => {
         map.IRPJ += toNumber(t?.irpj)
@@ -179,17 +180,27 @@ export function processDasData(textRaw: string) {
       }
       const mInt = baseMap()
       const mExt = baseMap()
+      const iInt = baseMap()
+      const iExt = baseMap()
       const sInt = baseMap()
       const sExt = baseMap()
       for (const at of atividades) {
         const nomeAt = String(at?.nome || at?.name || at?.descricao || '')
         const ext = isExt(nomeAt)
         const serv = isServ(nomeAt)
+        const ind = isInd(nomeAt)
         const trib = at?.tributos || {}
-        if (serv && ext) addTrib(sExt, trib)
-        else if (serv && !ext) addTrib(sInt, trib)
-        else if (!serv && ext) addTrib(mExt, trib)
-        else addTrib(mInt, trib)
+        if (serv) {
+            if (ext) addTrib(sExt, trib)
+            else addTrib(sInt, trib)
+        } else if (ind) {
+            if (ext) addTrib(iExt, trib)
+            else addTrib(iInt, trib)
+        } else {
+            // Mercadorias (Comércio)
+            if (ext) addTrib(mExt, trib)
+            else addTrib(mInt, trib)
+        }
       }
 
       const valorDAS = tribDecl.Total
@@ -248,6 +259,8 @@ export function processDasData(textRaw: string) {
           tributos: tribDecl,
           tributosMercadoriasInterno: mInt,
           tributosMercadoriasExterno: mExt,
+          tributosIndustriaInterno: iInt,
+          tributosIndustriaExterno: iExt,
           tributosServicosInterno: sInt,
           tributosServicosExterno: sExt,
           cenario,
