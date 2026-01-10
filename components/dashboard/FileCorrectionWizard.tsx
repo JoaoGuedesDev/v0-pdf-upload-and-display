@@ -153,7 +153,18 @@ export function FileCorrectionWizard({
               </div>
             </div>
 
-            {localFiles.map((file, index) => {
+            {localFiles
+              .map((file, index) => ({ file, originalIndex: index }))
+              .sort((a, b) => {
+                const getStatusScore = (f: File) => {
+                  const info = getFileStatus(f)
+                  if (info.status === 'invalid') return 0
+                  if (info.status === 'unknown') return 1
+                  return 2
+                }
+                return getStatusScore(a.file) - getStatusScore(b.file)
+              })
+              .map(({ file, originalIndex }) => {
               const info = getFileStatus(file)
               const isValid = info.status === 'valid'
               const isInvalid = info.status === 'invalid'
@@ -162,7 +173,7 @@ export function FileCorrectionWizard({
 
               return (
                 <div
-                  key={`${file.name}-${index}`}
+                  key={`${file.name}-${originalIndex}`}
                   className={cn(
                     "flex items-center justify-between p-3 rounded-lg border transition-all",
                     isValid ? "bg-green-50 border-green-200 dark:bg-green-900/10 dark:border-green-900/30" :
@@ -195,16 +206,18 @@ export function FileCorrectionWizard({
                     <div className="relative">
                       <input
                         type="file"
-                        id={`replace-${index}`}
+                        id={`replace-${originalIndex}`}
                         className="hidden"
                         accept=".pdf"
                         onChange={(e) => {
-                          if (e.target.files?.[0]) handleReplaceFile(index, e.target.files[0])
+                          if (e.target.files?.[0]) {
+                            handleReplaceFile(originalIndex, e.target.files[0])
+                          }
                         }}
                       />
                       <label
-                        htmlFor={`replace-${index}`}
-                        className="text-xs cursor-pointer text-[#007AFF] hover:text-[#00C2FF] dark:hover:text-[#00C2FF] hover:underline px-2 py-1"
+                        htmlFor={`replace-${originalIndex}`}
+                        className="text-xs font-medium text-[#007AFF] hover:underline cursor-pointer"
                       >
                         Substituir
                       </label>
@@ -213,7 +226,7 @@ export function FileCorrectionWizard({
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8 text-muted-foreground hover:text-red-600"
-                      onClick={() => handleRemoveFile(index)}
+                      onClick={() => handleRemoveFile(originalIndex)}
                     >
                       <Trash2 className="w-4 h-4" />
                     </Button>

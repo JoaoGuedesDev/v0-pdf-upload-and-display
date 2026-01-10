@@ -854,7 +854,27 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
         </Card>
 
 
-        <AnaliseAliquotaParcelas dadosPgdas={{ analise_aliquota: (data?.calculos as any)?.analiseAliquota || (data?.calculos as any)?.analise_aliquota, identificacao: (data as any)?.identificacao }} />
+        {(() => {
+          const analiseDataRaw = (data?.calculos as any)?.analiseAliquota || (data?.calculos as any)?.analise_aliquota || {};
+          const detalhe = Array.isArray(analiseDataRaw?.detalhe) ? [...analiseDataRaw.detalhe] : [];
+          const parcelasGlobal = Array.isArray(analiseDataRaw?.parcelas_ajuste) ? analiseDataRaw.parcelas_ajuste : [];
+
+          if (detalhe.length > 0 && parcelasGlobal.length > 0) {
+            detalhe.forEach((d: any) => {
+              if (!d.parcelas_ajuste || d.parcelas_ajuste.length === 0) {
+                const anexoNum = Number(d.anexo || d.anexo_numero);
+                const matching = parcelasGlobal.filter((p: any) => Number(p.numero) === anexoNum);
+                if (matching.length > 0) {
+                  d.parcelas_ajuste = matching;
+                }
+              }
+            });
+          }
+          const analiseData = { ...analiseDataRaw, detalhe };
+          return (
+            <AnaliseAliquotaParcelas dadosPgdas={{ analise_aliquota: analiseData, identificacao: (data as any)?.identificacao }} />
+          )
+        })()}
         {(() => {
           const serieA = data?.graficos?.receitaMensal
           const serieMI = data?.graficos?.receitaLine
@@ -997,7 +1017,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
             </CardHeader>
             <CardContent className="overflow-x-auto py-2">
               {(() => {
-                const t = (data?.tributos || {}) as Record<string, number>
+                const t = (data?.tributos || {}) as unknown as Record<string, number>
                 const tmI = ((data as any)?.tributosMercadoriasInterno || {}) as Record<string, number>
                 const tmE = ((data as any)?.tributosMercadoriasExterno || {}) as Record<string, number>
                 const tsI = ((data as any)?.tributosServicosInterno || {}) as Record<string, number>
@@ -1386,7 +1406,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                     Pontos de Atenção
                   </h4>
                   <ul className="list-disc list-inside space-y-1">
-                    {data.insights.pontosAtencao.map((ponto, index) => (
+                    {data.insights.pontosAtencao.map((ponto: string, index: number) => (
                       <li key={index} className="text-sm text-orange-700 dark:text-orange-300">
                         {ponto}
                       </li>
@@ -1416,7 +1436,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                     Recomendações
                   </h4>
                   <ul className="list-disc list-inside space-y-1">
-                    {data.insights.recomendacoes.map((recomendacao, index) => (
+                    {data.insights.recomendacoes.map((recomendacao: string, index: number) => (
                       <li key={index} className="text-sm text-[#007AFF] dark:text-[#00C2FF]">
                         {recomendacao}
                       </li>

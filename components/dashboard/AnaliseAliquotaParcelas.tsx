@@ -169,8 +169,8 @@ export const AnaliseAliquotaParcelas = memo(function AnaliseAliquotaParcelas({ d
                 const text = [p?.nome, p?.atividade_nome, p?.descricao].filter(Boolean).map(String).join(' ')
                 const n2 = norm(text)
                 const rs2 = (() => {
-                  if (n2.includes('sem retencao') || n2.includes('sem reten')) return 'sem retenção'
-                  if (n2.includes('com retencao') || n2.includes('com reten') || n2.includes('substituicao tributaria de iss')) return 'com retenção'
+                  if (n2.includes('sem retencao') || n2.includes('sem reten') || n2.includes('sem substituicao')) return 'sem retenção'
+                  if (n2.includes('com retencao') || n2.includes('com reten') || n2.includes('substituicao tributaria de iss') || n2.includes('com substituicao')) return 'com retenção'
                   return ''
                 })()
                 const withIss2 = trunc.includes('Prestação de Serviços') && rs2
