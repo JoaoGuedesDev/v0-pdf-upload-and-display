@@ -254,8 +254,8 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
     const text = [p?.nome, p?.atividade_nome, p?.descricao].filter(Boolean).map(String).join(' ')
     const n = norm(text)
     if (!n) return ''
-    if (n.includes('sem retencao') || n.includes('sem reten')) return 'sem retenção'
-    if (n.includes('com retencao') || n.includes('com reten') || n.includes('substituicao tributaria de iss')) return 'com retenção'
+    if (n.includes('sem retencao') || n.includes('sem reten') || n.includes('sem substituicao')) return 'sem retenção'
+    if (n.includes('com retencao') || n.includes('com reten') || n.includes('substituicao tributaria de iss') || n.includes('com substituicao') || n.includes('substituicao tributaria')) return 'com retenção'
     return ''
   }
 

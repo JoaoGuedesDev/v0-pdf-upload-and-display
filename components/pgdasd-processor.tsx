@@ -859,11 +859,28 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
           const detalhe = Array.isArray(analiseDataRaw?.detalhe) ? [...analiseDataRaw.detalhe] : [];
           const parcelasGlobal = Array.isArray(analiseDataRaw?.parcelas_ajuste) ? analiseDataRaw.parcelas_ajuste : [];
 
+          const normalizeAnexo = (v: any): number => {
+            if (typeof v === 'number') return v;
+            const s = String(v || '').trim().toUpperCase();
+            if (!s) return 0;
+            // Tenta número direto
+            const n = Number(s);
+            if (!isNaN(n)) return n;
+            // Remove "ANEXO" e tenta número
+            const clean = s.replace('ANEXO', '').trim();
+            const n2 = Number(clean);
+            if (!isNaN(n2)) return n2;
+            // Romanos
+            const romanos: Record<string, number> = { 'I': 1, 'II': 2, 'III': 3, 'IV': 4, 'V': 5 };
+            if (romanos[clean]) return romanos[clean];
+            return 0;
+          };
+
           if (detalhe.length > 0 && parcelasGlobal.length > 0) {
             detalhe.forEach((d: any) => {
               if (!d.parcelas_ajuste || d.parcelas_ajuste.length === 0) {
-                const anexoNum = Number(d.anexo || d.anexo_numero);
-                const matching = parcelasGlobal.filter((p: any) => Number(p.numero) === anexoNum);
+                const anexoNum = normalizeAnexo(d.anexo || d.anexo_numero);
+                const matching = parcelasGlobal.filter((p: any) => normalizeAnexo(p.numero) === anexoNum);
                 if (matching.length > 0) {
                   d.parcelas_ajuste = matching;
                 }
@@ -1421,7 +1438,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                     Oportunidades
                   </h4>
                   <ul className="list-disc list-inside space-y-1">
-                    {data.insights.oportunidades.map((oportunidade, index) => (
+                    {data.insights.oportunidades.map((oportunidade: string, index: number) => (
                       <li key={index} className="text-sm text-[#007AFF] dark:text-[#00C2FF]">
                         {oportunidade}
                       </li>

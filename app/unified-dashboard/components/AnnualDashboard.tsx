@@ -473,6 +473,11 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
         const sep = path.includes('?') ? '&' : '?'
         path = path + sep + 'pdf_gen=true'
 
+        // Pass activeCnpj to ensure PDF renders the correct company
+        if (activeCnpj) {
+            path += `&target_cnpj=${encodeURIComponent(activeCnpj)}`
+        }
+
         // Append visibility settings
         const visibleParts = []
         if (visibleCharts.quarterly) visibleParts.push('quarterly')
@@ -866,7 +871,38 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
     const monthlyRevenueBreakdown = useMemo(() => {
         return sortedFiles.map(file => {
             const dados = file.data as any
-            const detalhe = dados.calculos?.analise_aliquota?.detalhe || []
+            let detalhe = dados.calculos?.analise_aliquota?.detalhe || []
+            const parcelasGlobal = dados.calculos?.analise_aliquota?.parcelas_ajuste || []
+
+            // Normalize Anexo Helper
+            const normalizeAnexo = (v: any): number => {
+                if (typeof v === 'number') return v;
+                const s = String(v || '').trim().toUpperCase();
+                if (!s) return 0;
+                const n = Number(s);
+                if (!isNaN(n)) return n;
+                const clean = s.replace('ANEXO', '').trim();
+                const n2 = Number(clean);
+                if (!isNaN(n2)) return n2;
+                const romanos: Record<string, number> = { 'I': 1, 'II': 2, 'III': 3, 'IV': 4, 'V': 5 };
+                if (romanos[clean]) return romanos[clean];
+                return 0;
+            };
+
+            // Merge logic if needed
+            if (detalhe.length > 0 && parcelasGlobal.length > 0) {
+                 // Create a shallow copy to avoid mutating original state if it's reused
+                 detalhe = detalhe.map((d: any) => {
+                     if (!d.parcelas_ajuste || d.parcelas_ajuste.length === 0) {
+                         const anexoNum = normalizeAnexo(d.anexo || d.anexo_numero);
+                         const matching = parcelasGlobal.filter((p: any) => normalizeAnexo(p.numero) === anexoNum);
+                         if (matching.length > 0) {
+                             return { ...d, parcelas_ajuste: matching }
+                         }
+                     }
+                     return d
+                 })
+            }
 
             let servicos = 0
             let mercadorias = 0
@@ -874,7 +910,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
 
             if (detalhe.length > 0) {
                 detalhe.forEach((d: any) => {
-                    const anexo = Number(d.anexo)
+                    const anexo = normalizeAnexo(d.anexo)
                     const valor = d.parcelas_ajuste?.reduce((acc: number, p: any) => acc + (Number(p.valor) || 0), 0) || 0
 
                     if ([1].includes(anexo)) {
@@ -1172,7 +1208,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
     }, [selectedFileIndex, hasNext, hasPrev])
 
     return (
-        <div className={`flex flex-col lg:flex-row min-h-screen bg-background ${isPdfGen ? 'w-[1600px] mx-auto overflow-hidden' : ''}`}>
+        <div className={`flex flex-col lg:flex-row min-h-screen bg-background ${isPdfGen ? 'w-[1600px] mx-auto' : ''}`}>
 
             {/* Main Content Area */}
             <div className="flex-1 order-2 lg:order-1 min-w-0 flex flex-col">
@@ -1206,7 +1242,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
 
                 <div className={`relative flex-1 ${isPdfGen ? 'max-w-none' : ''}`}>
                     {/* Modal de Arquivos Inválidos */}
-                    {showInvalidFilesModal && invalidFiles && invalidFiles.length > 0 && (
+                    {showInvalidFilesModal && invalidFiles && invalidFiles.length > 0 && !isPdfGen && (
                         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
                             <Card className="w-full max-w-lg shadow-2xl border-destructive/20 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
                                 <CardHeader className="bg-destructive/10 border-b border-destructive/10 pb-4">
@@ -1258,9 +1294,10 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                         </div>
                     )}
 
-                    {isConsolidated ? (
-                        <div className="p-6 space-y-6">
-                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    {(isConsolidated || isPdfGen) && (
+                        <>
+                            <div className={`p-6 space-y-6 ${isPdfGen ? 'print-section' : ''}`} style={isPdfGen ? { height: '2400px', overflow: 'hidden', pageBreakAfter: 'always' } : undefined}>
+                                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                                 <div>
                                     <h1 className="text-2xl font-bold text-foreground">Visão Geral Anual</h1>
                                     <p className="text-muted-foreground">Consolidado de {sortedFiles.length} períodos apurados</p>
@@ -1766,7 +1803,10 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                 </CardContent>
                             </Card>
                         </div>
-                    ) : (
+                        </>
+                    )}
+
+                    {(!isPdfGen && !isConsolidated) && (
                         <>
                             <PGDASDProcessor
                                 key={currentFile?.filename || selectedFileIndex}
@@ -1778,37 +1818,57 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                             />
                         </>
                     )}
+
+                    {isPdfGen && (
+                        <div className="print-container">
+                            {sortedFiles.map((file, idx) => (
+                                <div key={idx} className="pdf-page-wrapper">
+                                    <div className="pdf-page" style={{ height: '2400px', overflow: 'hidden', pageBreakAfter: idx < sortedFiles.length - 1 ? 'always' : 'auto' }}>
+                                        <PGDASDProcessor
+                                            initialData={file.data}
+                                            hideDownloadButton={false}
+                                            isOwner={isOwner}
+                                            isPdfGen={true}
+                                            shareId={dashboardCode ? (selectedFileIndex !== null ? `${dashboardCode}?view_file_index=${selectedFileIndex}` : dashboardCode) : undefined}
+                                        />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
             </div>
 
             {/* Right Sidebar - Replaced with UnifiedSidebar */}
-            <UnifiedSidebar
-                files={localFiles}
-                selectedFileIndex={selectedFileIndex !== null 
-                    ? localFiles.findIndex(f => f.filename === targetFilename) 
-                    : null
-                }
-                onFileSelect={onFileSelect}
-                onAddFile={() => fileInputRef.current?.click()}
-                isConsolidatedView={isConsolidated}
-                onConsolidatedSelect={(cnpj) => {
-                    if (cnpj) {
-                        setActiveCnpj(cnpj)
+            {!isPdfGen && (
+                <UnifiedSidebar
+                    files={localFiles}
+                    selectedFileIndex={selectedFileIndex !== null 
+                        ? localFiles.findIndex(f => f.filename === targetFilename) 
+                        : null
                     }
-                    setSelectedFileIndex(null)
-                    setTargetFilename(null)
-                }}
-                isUploading={isUploading}
-                fileInputRef={fileInputRef}
-                onFileUpload={handleFileUpload}
-                isOwner={isOwner}
-                showConsolidatedOption={!isMultiCompany}
-                invalidFiles={invalidFiles}
-                activeCnpj={activeCnpj}
-            />
+                    onFileSelect={onFileSelect}
+                    onAddFile={() => fileInputRef.current?.click()}
+                    isConsolidatedView={isConsolidated}
+                    onConsolidatedSelect={(cnpj) => {
+                        if (cnpj) {
+                            setActiveCnpj(cnpj)
+                        }
+                        setSelectedFileIndex(null)
+                        setTargetFilename(null)
+                    }}
+                    isUploading={isUploading}
+                    fileInputRef={fileInputRef}
+                    onFileUpload={handleFileUpload}
+                    isOwner={isOwner}
+                    showConsolidatedOption={!isMultiCompany}
+                    invalidFiles={invalidFiles}
+                    activeCnpj={activeCnpj}
+                />
+            )}
 
             {/* Error Modal */}
-            {showErrorModal && (
+            {showErrorModal && !isPdfGen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#3A3A3A]/50 p-4">
                     <Card className="w-full max-w-lg shadow-xl border-destructive/50 bg-card">
                         <CardHeader className="flex flex-row items-center justify-between pb-2">

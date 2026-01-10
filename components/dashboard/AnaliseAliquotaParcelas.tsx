@@ -97,11 +97,37 @@ export const AnaliseAliquotaParcelas = memo(function AnaliseAliquotaParcelas({ d
               ]
               const matchCanonical = (p: any): string | null => {
                 const targets = [p?.nome, p?.atividade_nome, p?.descricao]
+                const norm = (s: any) => String(s || "").normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+                
                 for (const t of targets) {
                   const n = norm(t)
                   if (!n) continue
+                  
+                  // Check for Transport vs Communication
+                  const isTransp = n.includes('transporte')
+                  const isComunic = n.includes('comunicacao') || n.includes('comunicação')
+                  
+                  if (!isTransp && !isComunic) continue
+
+                  // Check for Substitution/Retention
+                  const hasSubst = n.includes('com retencao') || n.includes('com reten') || n.includes('substituicao tributaria') || n.includes('com substituicao')
+                  const noSubst = n.includes('sem retencao') || n.includes('sem reten') || n.includes('sem substituicao')
+                  
+                  // Default to "sem substituição" if "sem" is explicit OR if "com" is NOT present (safe default? or should we be strict?)
+                  // Being strict: if neither is present, return null? 
+                  // But if we return null, it falls to "otherParts" logic which might be confusing for comunicParts.
+                  // Let's try to match existing canonicals first, then fallback.
+                  
                   for (const canon of canonicalActivities) {
                     if (n.includes(norm(canon))) return canon
+                  }
+
+                  // Fallback logic
+                  if (isTransp) {
+                    return hasSubst ? 'Transporte com substituição tributária de ICMS' : 'Transporte sem substituição tributária de ICMS'
+                  }
+                  if (isComunic) {
+                     return hasSubst ? 'Comunicação com substituição tributária de ICMS' : 'Comunicação sem substituição tributária de ICMS'
                   }
                 }
                 return null
@@ -261,6 +287,13 @@ export const AnaliseAliquotaParcelas = memo(function AnaliseAliquotaParcelas({ d
                             const transpCom = comunicParts.filter(p => matchCanonical(p) === 'Transporte com substituição tributária de ICMS')
                             const comunSem = comunicParts.filter(p => matchCanonical(p) === 'Comunicação sem substituição tributária de ICMS')
                             const comunCom = comunicParts.filter(p => matchCanonical(p) === 'Comunicação com substituição tributária de ICMS')
+                            const others = comunicParts.filter(p => {
+                              const c = matchCanonical(p)
+                              return c !== 'Transporte sem substituição tributária de ICMS' &&
+                                     c !== 'Transporte com substituição tributária de ICMS' &&
+                                     c !== 'Comunicação sem substituição tributária de ICMS' &&
+                                     c !== 'Comunicação com substituição tributária de ICMS'
+                            })
                             const sumVals = (arr: any[]) => arr.reduce((acc, p) => acc + Number(p?.valor || 0), 0)
                             const totalTS = sumVals(transpSem)
                             const totalTC = sumVals(transpCom)
@@ -319,6 +352,19 @@ export const AnaliseAliquotaParcelas = memo(function AnaliseAliquotaParcelas({ d
                                 act: String(firstTC?.descricao ?? 'Transporte com substituição tributária de ICMS'),
                                 aO: aOrig,
                                 aA: aAtual,
+                              })
+                            }
+                            if (others.length > 0) {
+                              others.forEach(p => {
+                                const val = Number(p?.valor || 0)
+                                const aOrig = round4(p?.aliquota_efetiva_original_percent)
+                                const aAtual = round4(p?.aliquota_efetiva_atual_percent)
+                                rows.push({
+                                  v: val,
+                                  act: String(p?.descricao || p?.atividade_nome || 'Serviços de Comunicação/Transporte'),
+                                  aO: aOrig,
+                                  aA: aAtual
+                                })
                               })
                             }
                             const grouped = (() => {

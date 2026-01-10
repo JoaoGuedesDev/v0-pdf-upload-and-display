@@ -68,6 +68,7 @@ export default async function Page({ params, searchParams }: any) {
   const isOwner = hasCookie || adminValid
   const isPdfGen = sp?.pdf_gen === 'true'
   const viewFileIndex = sp?.view_file_index ? parseInt(sp?.view_file_index.toString()) : undefined
+  const targetCnpj = sp?.target_cnpj ? decodeURIComponent(sp.target_cnpj.toString()) : undefined
 
   // Handle Annual Dashboard (data.files exists)
     if ((data as any).files && Array.isArray((data as any).files)) {
@@ -93,6 +94,7 @@ export default async function Page({ params, searchParams }: any) {
             files={validFiles} 
             dashboardCode={id}
             initialViewIndex={viewFileIndex}
+            initialTargetCnpj={targetCnpj}
             isPdfGen={isPdfGen}
             receitas_anteriores={(data as any).receitas_anteriores}
             isOwner={isOwner}

@@ -53,13 +53,19 @@ function DashboardContent() {
   
   // Find initial file if specified in URL
   const targetFilename = searchParams.get('file')
+  const targetCnpjParam = searchParams.get('target_cnpj')
+
   const initialFileIndex = targetFilename 
     ? files.findIndex(f => f.filename === targetFilename)
     : undefined
     
-  const initialCnpj = initialFileIndex !== undefined && files[initialFileIndex]
-    ? files[initialFileIndex].data.identificacao.cnpj
-    : files[0]?.data.identificacao.cnpj
+  const initialCnpj = targetCnpjParam 
+    ? targetCnpjParam 
+    : (initialFileIndex !== undefined && files[initialFileIndex]
+        ? files[initialFileIndex].data.identificacao.cnpj
+        : files[0]?.data.identificacao.cnpj)
+
+  const isPdfGen = searchParams.get('pdf_gen') === 'true'
 
   return (
     <AnnualDashboard
@@ -67,6 +73,7 @@ function DashboardContent() {
       invalidFiles={invalidFiles}
       initialTargetCnpj={initialCnpj}
       initialViewIndex={initialFileIndex !== -1 ? initialFileIndex : undefined}
+      isPdfGen={isPdfGen}
       onFilesUpdated={handleFilesUpdated}
       onInvalidFilesUpdated={handleInvalidFilesUpdated}
     />

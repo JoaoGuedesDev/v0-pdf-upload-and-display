@@ -131,15 +131,36 @@ export async function GET(req: NextRequest) {
       h: Math.max(document.documentElement.scrollHeight, document.body.scrollHeight),
     }))
 
-    const pdf = await page.pdf({
-      width: `${Math.max(size.w, w)}px`,
-      height: `${Math.max(size.h, h)}px`,
+    // Detecta se é um relatório paginado (Annual Dashboard)
+    const isPaginated = pathQ.includes('pdf_gen=true')
+
+    let pdfOptions: any = {
       printBackground: true,
       preferCSSPageSize: true,
-      pageRanges: '1',
-      margin: { top: 0, right: 0, bottom: 0, left: 0 },
       timeout: 120000,
-    })
+    }
+
+    if (isPaginated) {
+      // Modo Relatório: Página Gigante Fixa (1600x2400) para garantir 1 página por seção
+      pdfOptions = {
+        ...pdfOptions,
+        width: '1600px',
+        height: '2400px', // Altura fixa suficiente para caber o conteúdo sem quebrar
+        scale: 1,
+        margin: { top: 0, right: 0, bottom: 0, left: 0 },
+      }
+    } else {
+      // Modo Screenshot: Página única com tamanho exato do conteúdo
+      pdfOptions = {
+        ...pdfOptions,
+        width: `${Math.max(size.w, w)}px`,
+        height: `${Math.max(size.h, h)}px`,
+        pageRanges: '1',
+        margin: { top: 0, right: 0, bottom: 0, left: 0 },
+      }
+    }
+
+    const pdf = await page.pdf(pdfOptions)
 
     return new Response(pdf as any, {
       status: 200,
