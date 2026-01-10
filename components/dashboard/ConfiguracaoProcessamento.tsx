@@ -168,36 +168,24 @@ export const ConfiguracaoProcessamento = memo(function ConfiguracaoProcessamento
                   Adicionar Arquivos
                 </Button>
 
-                {files.length > 0 && !isAnnual && (
-                  <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none bg-muted px-3 py-2 rounded-lg border border-border hover:bg-accent transition-colors opacity-0 pointer-events-none absolute">
-                    <input 
-                      type="checkbox" 
-                      checked={isAnnual} 
-                      onChange={(e) => setIsAnnual(e.target.checked)}
-                      className="w-4 h-4 rounded border-input text-primary focus:ring-ring"
-                    />
-                    <span>Modo Anual (Juntar arquivos)</span>
-                  </label>
+                {files.length > 0 && (
+                  <Button
+                    onClick={handleProcess}
+                    disabled={loading}
+                    size="sm"
+                    className={`bg-[#007AFF] hover:bg-[#0056B3] text-[#FFFFFF] w-full sm:w-auto transition-colors`}
+                  >
+                    {loading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Processando...
+                      </>
+                    ) : (
+                      `Processar ${files.length} PDF(s)`
+                    )}
+                  </Button>
                 )}
-              </div>
-              
-              {files.length > 0 && (
-                <Button
-                  onClick={handleProcess}
-                  disabled={loading || (isAnnual && files.length < 2)}
-                  size="sm"
-                  className={`bg-[#007AFF] hover:bg-[#0056B3] text-[#FFFFFF] w-full sm:w-auto transition-colors`}
-                >
-                  {loading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Processando...
-                    </>
-                  ) : (
-                    isAnnual ? `Processar Anual (${files.length})` : `Processar ${files.length} PDF(s)`
-                  )}
-                </Button>
-              )}
+            </div>
             </div>
           </div>
         </div>

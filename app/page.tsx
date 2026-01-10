@@ -1,9 +1,8 @@
 "use client"
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
 import { ConfiguracaoProcessamento } from "@/components/dashboard/ConfiguracaoProcessamento"
-import { ArrowLeft, FileText, Calendar, ExternalLink, CheckCircle, XCircle, Clock, Trash2 } from "lucide-react"
+import { ExternalLink, CheckCircle, XCircle, Clock, Trash2, LayoutDashboard, ArrowLeft } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ModeToggle } from "@/components/mode-toggle"
 import { HeaderLogo } from '@/components/header-logo'
@@ -14,6 +13,7 @@ interface ProcessResult {
   filename: string
   status: 'pending' | 'success' | 'error'
   url?: string
+  dashboardCode?: string
   error?: string
   file?: File
 }
@@ -29,8 +29,6 @@ interface HistoryItem {
 export default function Home() {
   const [loading, setLoading] = useState(false)
   const [results, setResults] = useState<ProcessResult[]>([])
-  const [step, setStep] = useState<'selection' | 'upload'>('selection')
-  const [selectedMode, setSelectedMode] = useState<'monthly' | 'annual'>('monthly')
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [history, setHistory] = useState<HistoryItem[]>([])
 
@@ -63,154 +61,72 @@ export default function Home() {
     localStorage.removeItem('pgdas_history')
   }
 
-  const handleSelection = (mode: 'monthly' | 'annual') => {
-    setSelectedMode(mode)
-    setStep('upload')
-  }
-
-  const processFile = async (file: File): Promise<{ url?: string, error?: string }> => {
-    try {
-      const form = new FormData()
-      form.append("file", file)
-      const res = await fetch("/api/process-pdf", { method: "POST", body: form })
-      if (!res.ok) throw new Error("Falha ao processar PDF")
-      const data = await res.json().catch(() => null)
-      const url2 = data?.dashboardAdminUrl || data?.dashboardUrl || data?.redirect || data?.url
-
-      if (url2) {
-        const target = (() => {
-          try {
-            const u = new URL(url2, window.location.origin)
-            const sameOrigin = u.origin === window.location.origin
-            return sameOrigin ? u.toString() : `${window.location.origin}${u.pathname}${u.search}${u.hash}`
-          } catch {
-            return url2
-          }
-        })()
-        return { url: target }
-      }
-      return { error: "URL não retornada pela API" }
-    } catch (e) {
-      return { error: e instanceof Error ? e.message : "Erro desconhecido" }
-    }
-  }
-
-  const onProcess = async (files: File[], isAnnual: boolean, force: boolean = false) => {
+  const onProcess = async (files: File[], isAnnual: boolean) => {
+    // isAnnual param is ignored, we always use the unified annual/multi-file process
     setLoading(true)
     setResults([])
     setCorrectionMode(false)
+    const force = false // Can add UI for force later if needed, or rely on wizard
 
-    if (isAnnual) {
-      setResults([{ filename: `Processando Dashboard Anual (${files.length} arquivos)...`, status: 'pending' }])
-      try {
-        const form = new FormData()
-        files.forEach(f => form.append("file", f))
-        if (force) form.append("force", "true")
+    setResults([{ filename: `Processando ${files.length} arquivos...`, status: 'pending' }])
+    try {
+      const form = new FormData()
+      files.forEach(f => form.append("file", f))
+      if (force) form.append("force", "true")
 
-        const res = await fetch("/api/process-annual-pdf", { method: "POST", body: form })
+      const res = await fetch("/api/process-annual-pdf", { method: "POST", body: form })
 
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
 
-          // Check for 422 Validation Error
-          if (res.status === 422 && errData.code === 'VALIDATION_ERROR') {
-            setValidationDetails(errData)
-            setFilesToCorrect(files)
-            setCorrectionMode(true)
-            setLoading(false)
-            return // Stop here to show wizard
+        // Check for 422 Validation Error
+        if (res.status === 422 && errData.code === 'VALIDATION_ERROR') {
+          setValidationDetails(errData)
+          setFilesToCorrect(files)
+          setCorrectionMode(true)
+          setLoading(false)
+          return // Stop here to show wizard
+        }
+
+        throw new Error(errData.error || "Falha ao processar arquivos")
+      }
+
+      const data = await res.json().catch(() => null)
+      const url = data?.dashboardAdminUrl || data?.dashboardUrl || data?.url
+
+      if (url) {
+        const target = (() => {
+          try {
+            const u = new URL(url, window.location.origin)
+            const sameOrigin = u.origin === window.location.origin
+            return sameOrigin ? u.toString() : `${window.location.origin}${u.pathname}${u.search}${u.hash}`
+          } catch {
+            return url
           }
+        })()
 
-          throw new Error(errData.error || "Falha ao processar arquivos anuais")
-        }
+        const title = `Dashboard Consolidado - ${data.cabecalho?.periodo?.apuracao || 'Multi-Empresas'}`
 
-        const data = await res.json().catch(() => null)
-        const url = data?.dashboardAdminUrl || data?.dashboardUrl || data?.url
+        setResults([{
+          filename: title,
+          status: 'success',
+          url: target
+        }])
 
-        if (url) {
-          const target = (() => {
-            try {
-              const u = new URL(url, window.location.origin)
-              const sameOrigin = u.origin === window.location.origin
-              return sameOrigin ? u.toString() : `${window.location.origin}${u.pathname}${u.search}${u.hash}`
-            } catch {
-              return url
-            }
-          })()
-
-          setResults([{
-            filename: `Dashboard Anual Consolidado - ${data.cabecalho?.periodo?.apuracao || 'Ano Completo'}`,
-            status: 'success',
-            url: target
-          }])
-
-          addToHistory({
-            filename: `Dashboard Anual - ${data.cabecalho?.periodo?.apuracao || 'Ano Completo'}`,
-            url: target,
-            date: new Date().toLocaleString('pt-BR'),
-            type: 'annual'
-          })
-
-          // Open in preview mode instead of redirecting
-          setPreviewUrl(target)
-        } else {
-          setResults([{ filename: `Dashboard Anual`, status: 'error', error: data?.error || "URL não retornada" }])
-        }
-      } catch (e) {
-        setResults([{ filename: `Dashboard Anual`, status: 'error', error: e instanceof Error ? e.message : "Erro desconhecido" }])
-      }
-      setLoading(false)
-      return
-    }
-
-    // Se for apenas um arquivo, mantém o comportamento de redirecionamento direto se der certo
-    if (files.length === 1) {
-      const res = await processFile(files[0])
-      if (res.url) {
         addToHistory({
-          filename: files[0].name,
-          url: res.url,
+          filename: title,
+          url: target,
           date: new Date().toLocaleString('pt-BR'),
-          type: 'monthly'
+          type: 'annual'
         })
-        setPreviewUrl(res.url)
-        return
+
+        // Open in preview mode instead of redirecting
+        setPreviewUrl(target)
+      } else {
+        setResults([{ filename: `Processamento`, status: 'error', error: data?.error || "URL não retornada" }])
       }
-      setResults([{ filename: files[0].name, status: 'error', error: res.error }])
-      setLoading(false)
-      return
-    }
-
-    // Múltiplos arquivos mensais (caso suportado no futuro)
-    const newResults: ProcessResult[] = []
-    for (const file of files) {
-      newResults.push({ filename: file.name, status: 'pending', file })
-    }
-    setResults([...newResults])
-
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i]
-      const res = await processFile(file)
-
-      if (res.url) {
-        addToHistory({
-          filename: file.name,
-          url: res.url,
-          date: new Date().toLocaleString('pt-BR'),
-          type: 'monthly'
-        })
-      }
-
-      setResults(prev => {
-        const next = [...prev]
-        next[i] = {
-          ...next[i],
-          status: res.url ? 'success' : 'error',
-          url: res.url,
-          error: res.error
-        }
-        return next
-      })
+    } catch (e) {
+      setResults([{ filename: `Processamento`, status: 'error', error: e instanceof Error ? e.message : "Erro desconhecido" }])
     }
     setLoading(false)
   }
@@ -266,125 +182,71 @@ export default function Home() {
           onUpdateFiles={setFilesToCorrect}
           onRetry={() => onProcess(filesToCorrect, true)}
           onCancel={() => setCorrectionMode(false)}
-          onForceProcess={(files) => onProcess(files, true, true)}
+          onForceProcess={(files) => onProcess(files, true)} // Fixed force process call
         />
       )}
 
       <main className="container mx-auto p-6 space-y-8">
         <div className="text-center space-y-4 py-8">
           <h1 className="text-4xl font-bold text-foreground tracking-tight">
-            Processamento de PGDAS-D
+            Dashboard Unificado PGDAS-D
           </h1>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Selecione o tipo de processamento desejado para iniciar a organização e análise dos documentos.
+            Faça upload de seus arquivos PDF (Mensal ou Anual) para gerar o dashboard completo.
+            Suporte a múltiplas empresas e consolidação automática.
           </p>
         </div>
 
         {results.length === 0 ? (
-          step === 'selection' ? (
-            <div className="space-y-12 max-w-4xl mx-auto">
-              <div className="grid md:grid-cols-2 gap-6">
-                <Card
-                  className={cn(
-                    "p-8 cursor-pointer transition-all hover:shadow-lg hover:border-[#007AFF]/50 dark:hover:border-[#007AFF] group relative overflow-hidden bg-card",
-                    selectedMode === 'monthly' && "ring-2 ring-[#007AFF] border-transparent"
-                  )}
-                  onClick={() => handleSelection('monthly')}
-                >
-                  <div className="absolute top-0 left-0 w-full h-1 bg-[#007AFF]/0 group-hover:bg-[#007AFF] transition-colors" />
-                  <div className="flex flex-col items-center text-center space-y-4">
-                    <div className="w-16 h-16 rounded-full bg-[#007AFF]/10 dark:bg-[#007AFF]/20 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                      <Calendar className="w-8 h-8 text-[#007AFF] dark:text-[#00C2FF]" />
-                    </div>
-                    <div className="space-y-2">
-                      <h3 className="text-xl font-bold text-foreground">Processo Mensal</h3>
-                      <p className="text-muted-foreground">
-                        Análise individual de uma competência específica.
-                      </p>
-                    </div>
-                  </div>
-                </Card>
-
-                <Card
-                  className={cn(
-                    "p-8 cursor-pointer transition-all hover:shadow-lg hover:border-[#00C2FF]/50 dark:hover:border-[#00C2FF] group relative overflow-hidden bg-card",
-                    selectedMode === 'annual' && "ring-2 ring-[#00C2FF] border-transparent"
-                  )}
-                  onClick={() => handleSelection('annual')}
-                >
-                  <div className="absolute top-0 left-0 w-full h-1 bg-[#00C2FF]/0 group-hover:bg-[#00C2FF] transition-colors" />
-                  <div className="flex flex-col items-center text-center space-y-4">
-                    <div className="w-16 h-16 rounded-full bg-[#00C2FF]/10 dark:bg-[#00C2FF]/20 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                      <FileText className="w-8 h-8 text-[#00C2FF] dark:text-[#3D5AFE]" />
-                    </div>
-                    <div className="space-y-2">
-                      <h3 className="text-xl font-bold text-foreground">Relatório Anual</h3>
-                      <p className="text-muted-foreground">
-                        Consolidação estratégica de 12 meses (Janeiro a Dezembro).
-                      </p>
-                    </div>
-                  </div>
-                </Card>
-              </div>
-
-              {history.length > 0 && (
-                <div className="w-full">
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-xl font-semibold text-foreground flex items-center gap-2">
-                      <Clock className="w-5 h-5" />
-                      Últimos Processamentos
-                    </h2>
-                    <Button variant="ghost" size="sm" onClick={clearHistory} className="text-red-500 hover:text-red-600 hover:bg-red-50">
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      Limpar Histórico
-                    </Button>
-                  </div>
-                  <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
-                    <div className="divide-y divide-border">
-                      {history.map((item) => (
-                        <div key={item.id} className="p-4 hover:bg-muted/50 flex items-center justify-between group transition-colors">
-                          <div className="flex items-center gap-3">
-                            <div className={cn(
-                              "w-10 h-10 rounded-full flex items-center justify-center shrink-0",
-                              item.type === 'annual' ? "bg-[#00C2FF]/20 text-[#00C2FF]" : "bg-[#007AFF]/20 text-[#007AFF]"
-                            )}>
-                              {item.type === 'annual' ? <FileText className="w-5 h-5" /> : <Calendar className="w-5 h-5" />}
-                            </div>
-                            <div>
-                              <p className="font-medium text-foreground">{item.filename}</p>
-                              <p className="text-xs text-muted-foreground">{item.date}</p>
-                            </div>
-                          </div>
-                          <Button asChild variant="outline" size="sm" className="opacity-0 group-hover:opacity-100 transition-opacity">
-                            <a href={item.url} target="_blank" rel="noopener noreferrer">
-                              Abrir <ExternalLink className="w-3 h-3 ml-2" />
-                            </a>
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : (
+          <div className="space-y-12 max-w-4xl mx-auto">
             <div className="max-w-2xl mx-auto space-y-4">
-              <Button
-                variant="ghost"
-                onClick={() => setStep('selection')}
-                className="text-muted-foreground hover:text-foreground -ml-2"
-              >
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Voltar para seleção
-              </Button>
               <ConfiguracaoProcessamento
                 onProcess={onProcess}
                 loading={loading}
                 className="min-h-[200px]"
-                initialIsAnnual={selectedMode === 'annual'}
+                initialIsAnnual={true} // Always unified/annual mode
               />
             </div>
-          )
+
+            {history.length > 0 && (
+              <div className="w-full">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-semibold text-foreground flex items-center gap-2">
+                    <Clock className="w-5 h-5" />
+                    Últimos Processamentos
+                  </h2>
+                  <Button variant="ghost" size="sm" onClick={clearHistory} className="text-red-500 hover:text-red-600 hover:bg-red-50">
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Limpar Histórico
+                  </Button>
+                </div>
+                <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
+                  <div className="divide-y divide-border">
+                    {history.map((item) => (
+                      <div key={item.id} className="p-4 hover:bg-muted/50 flex items-center justify-between group transition-colors">
+                        <div className="flex items-center gap-3">
+                          <div className={cn(
+                            "w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-[#00C2FF]/20 text-[#00C2FF]"
+                          )}>
+                            <LayoutDashboard className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <p className="font-medium text-foreground">{item.filename}</p>
+                            <p className="text-xs text-muted-foreground">{item.date}</p>
+                          </div>
+                        </div>
+                        <Button asChild variant="outline" size="sm" className="opacity-0 group-hover:opacity-100 transition-opacity">
+                          <a href={item.url} target="_blank" rel="noopener noreferrer">
+                            Abrir <ExternalLink className="w-3 h-3 ml-2" />
+                          </a>
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         ) : (
           <div className="max-w-4xl mx-auto space-y-6">
             {loading && <LoadingScreen />}
@@ -413,7 +275,7 @@ export default function Home() {
                       </div>
                       {res.url && (
                         <a
-                          href={res.url}
+                          href={res.dashboardCode ? `/unified-dashboard?file=dash-${res.dashboardCode}.json` : res.url}
                           className="text-[#007AFF] dark:text-[#00C2FF] hover:text-[#0056B3] dark:hover:text-[#E0E0E0] font-medium text-sm flex items-center gap-1"
                         >
                           Visualizar Dashboard <ExternalLink className="w-4 h-4" />

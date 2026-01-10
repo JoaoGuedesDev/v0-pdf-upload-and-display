@@ -270,6 +270,14 @@ export function processDasData(textRaw: string) {
                   { faixa: 5, min: 1800000.01, max: 3600000, aliquota_nominal: 0.143, valor_deduzir: 87300 },
                   { faixa: 6, min: 3600000.01, max: 4800000, aliquota_nominal: 0.19, valor_deduzir: 378000 },
                 ],
+                2: [
+                  { faixa: 1, min: 0, max: 180000, aliquota_nominal: 0.045, valor_deduzir: 0 },
+                  { faixa: 2, min: 180000.01, max: 360000, aliquota_nominal: 0.078, valor_deduzir: 5940 },
+                  { faixa: 3, min: 360000.01, max: 720000, aliquota_nominal: 0.10, valor_deduzir: 13860 },
+                  { faixa: 4, min: 720000.01, max: 1800000, aliquota_nominal: 0.112, valor_deduzir: 22500 },
+                  { faixa: 5, min: 1800000.01, max: 3600000, aliquota_nominal: 0.147, valor_deduzir: 85500 },
+                  { faixa: 6, min: 3600000.01, max: 4800000, aliquota_nominal: 0.30, valor_deduzir: 720000 },
+                ],
                 3: [
                   { faixa: 1, min: 0, max: 180000, aliquota_nominal: 0.06, valor_deduzir: 0 },
                   { faixa: 2, min: 180000.01, max: 360000, aliquota_nominal: 0.112, valor_deduzir: 9360 },
@@ -278,6 +286,39 @@ export function processDasData(textRaw: string) {
                   { faixa: 5, min: 1800000.01, max: 3600000, aliquota_nominal: 0.21, valor_deduzir: 125640 },
                   { faixa: 6, min: 3600000.01, max: 4800000, aliquota_nominal: 0.33, valor_deduzir: 648000 },
                 ],
+                4: [
+                  { faixa: 1, min: 0, max: 180000, aliquota_nominal: 0.045, valor_deduzir: 0 },
+                  { faixa: 2, min: 180000.01, max: 360000, aliquota_nominal: 0.09, valor_deduzir: 8100 },
+                  { faixa: 3, min: 360000.01, max: 720000, aliquota_nominal: 0.102, valor_deduzir: 12420 },
+                  { faixa: 4, min: 720000.01, max: 1800000, aliquota_nominal: 0.14, valor_deduzir: 39780 },
+                  { faixa: 5, min: 1800000.01, max: 3600000, aliquota_nominal: 0.22, valor_deduzir: 183780 },
+                  { faixa: 6, min: 3600000.01, max: 4800000, aliquota_nominal: 0.33, valor_deduzir: 828000 },
+                ],
+                5: [
+                  { faixa: 1, min: 0, max: 180000, aliquota_nominal: 0.155, valor_deduzir: 0 },
+                  { faixa: 2, min: 180000.01, max: 360000, aliquota_nominal: 0.18, valor_deduzir: 4500 },
+                  { faixa: 3, min: 360000.01, max: 720000, aliquota_nominal: 0.195, valor_deduzir: 9900 },
+                  { faixa: 4, min: 720000.01, max: 1800000, aliquota_nominal: 0.205, valor_deduzir: 17100 },
+                  { faixa: 5, min: 1800000.01, max: 3600000, aliquota_nominal: 0.23, valor_deduzir: 62100 },
+                  { faixa: 6, min: 3600000.01, max: 4800000, aliquota_nominal: 0.305, valor_deduzir: 540000 },
+                ],
+              }
+              const tabelaReparticao: Record<number, Record<number, { icms?: number; iss?: number }>> = {
+                1: {
+                  1: { icms: 0.34 }, 2: { icms: 0.34 }, 3: { icms: 0.335 }, 4: { icms: 0.335 }, 5: { icms: 0.335 }, 6: { icms: 0.335 }
+                },
+                2: { 
+                  1: { icms: 0.32 }, 2: { icms: 0.32 }, 3: { icms: 0.32 }, 4: { icms: 0.32 }, 5: { icms: 0.32 }, 6: { icms: 0.32 }
+                },
+                3: {
+                  1: { iss: 0.335 }, 2: { iss: 0.32 }, 3: { iss: 0.325 }, 4: { iss: 0.325 }, 5: { iss: 0.335 }, 6: { iss: 0.335 }
+                },
+                4: {
+                  1: { iss: 0.445 }, 2: { iss: 0.40 }, 3: { iss: 0.40 }, 4: { iss: 0.40 }, 5: { iss: 0.40 }, 6: { iss: 0.40 } 
+                },
+                5: {
+                   1: { iss: 0.335 }, 2: { iss: 0.32 }, 3: { iss: 0.325 }, 4: { iss: 0.325 }, 5: { iss: 0.335 }, 6: { iss: 0.335 }
+                }
               }
               const pickFaixa = (anexo: number, rbt12Val: number) => {
                 const table = tabelaFaixas[anexo] || []
@@ -370,16 +411,55 @@ export function processDasData(textRaw: string) {
                   const parcelas_ajuste = groupActs.map(at => {
                       const valor = toNumber(at.receita_bruta_informada) || 0
                       const nome = at.nome || at.name || at.descricao || ''
+                      const t = at.tributos || {}
+                      const totalTrib = toNumber(t.irpj) + toNumber(t.csll) + toNumber(t.cofins) + toNumber(t.pis) + toNumber(t.inss_cpp) + toNumber(t.icms) + toNumber(t.ipi) + toNumber(t.iss)
+                      const aliqReal = valor > 0 ? (totalTrib / valor) * 100 : 0
+                      
+                      const aliqTeoricaOrig = (fxOrig?.aliquota_efetiva || 0) * 100
+                  const aliqTeoricaAtual = (fxAtual?.aliquota_efetiva || 0) * 100
+                  
+                  // Detecção de ST/Retenção pelo nome
+                  const nNorm = nome.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+                  const isST_ICMS = /(substituicao|substituição).*(tributaria|tributária)/i.test(nNorm) || /(icms).*(st)/i.test(nNorm) || /(st).*(icms)/i.test(nNorm)
+                  const isRet_ISS = /(retencao|retenção).*(iss)/i.test(nNorm) || /(substituicao|substituição).*(tributaria|tributária).*(iss)/i.test(nNorm)
+
+                  let factor = aliqTeoricaOrig > 0.0001 ? aliqReal / aliqTeoricaOrig : (aliqReal > 0 ? 1 : 0)
+
+                  // Se o fator calculado for muito próximo de 1 (ou zero por falta de dados) mas houver indicativo de ST/Retenção,
+                  // forçamos o uso da tabela de repartição para estimar o fator correto.
+                  // Isso corrige casos onde o JSON traz os tributos cheios incorretamente ou zerados.
+                  const faixaNum = fxOrig?.faixa || 0
+                  const reparticao = tabelaReparticao[anexo]?.[faixaNum]
+                  
+                  if (reparticao) {
+                    let deduction = 0
+                    if (isST_ICMS && reparticao.icms) deduction += reparticao.icms
+                    if (isRet_ISS && reparticao.iss) deduction += reparticao.iss
+                    
+                    if (deduction > 0) {
+                      const estimatedFactor = 1 - deduction
+                      // Se o fator real for > 0.95 (quase cheio) ou 0 (sem dados) ou muito baixo (erro de parser), usamos o estimado
+                      // Adicionada tolerância para cima (ex: 1.05) caso haja arredondamentos
+                      if (factor > 0.90 || factor === 0) {
+                        factor = estimatedFactor
+                      }
+                    }
+                  }
+
+                  const aliqRealAtual = aliqTeoricaAtual * factor
+
                       return {
                           tipo_regra: 'geral',
                           nome: nome,
                           atividade_nome: nome,
                           descricao: nome,
                           valor: valor,
-                          aliquota_efetiva_original_percent: (fxOrig?.aliquota_efetiva || 0) * 100,
-                          aliquota_efetiva_atual_percent: (fxAtual?.aliquota_efetiva || 0) * 100,
-                          aliquota_efetiva_original_sem_iss_percent: (fxOrig?.aliquota_efetiva || 0) * 100, 
-                          aliquota_efetiva_atual_sem_iss_percent: (fxAtual?.aliquota_efetiva || 0) * 100
+                          aliquota_efetiva_original_percent: aliqTeoricaOrig,
+                          aliquota_efetiva_original_ajustada_percent: aliqReal,
+                          aliquota_efetiva_atual_percent: aliqTeoricaAtual,
+                          aliquota_efetiva_atual_ajustada_percent: aliqRealAtual,
+                          aliquota_efetiva_original_sem_iss_percent: aliqTeoricaOrig, 
+                          aliquota_efetiva_atual_sem_iss_percent: aliqTeoricaAtual
                       }
                   })
 

@@ -348,11 +348,10 @@ export const AnaliseAliquotaParcelas = memo(function AnaliseAliquotaParcelas({ d
                             for (const p of otherParts) {
                               const tipo = String(p?.tipo_regra || "").toLowerCase()
                               const actName = (() => {
-                                const desc = String(p?.descricao ?? '').trim()
-                                if (desc) return desc
                                 const mc = matchCanonical(p)
                                 if (mc) return mc
                                 
+                                const desc = String(p?.descricao ?? '').trim()
                                 const nome = String(p?.atividade_nome ?? '').trim()
                                 let trunc = String(desc ? desc : (nome ? nome : "-")).split(',')[0].trim()
                                 if (tipo === "geral") {
@@ -371,8 +370,8 @@ export const AnaliseAliquotaParcelas = memo(function AnaliseAliquotaParcelas({ d
                                 const text = [p?.nome, p?.atividade_nome, p?.descricao].filter(Boolean).map(String).join(' ')
                                 const n = norm(text)
                                 const rs = (() => {
-                                  if (n.includes('sem retencao') || n.includes('sem reten')) return 'sem retenção'
-                                  if (n.includes('com retencao') || n.includes('com reten') || n.includes('substituicao tributaria de iss')) return 'com retenção'
+                                  if (n.includes('sem retencao') || n.includes('sem reten') || n.includes('sem substituicao')) return 'sem retenção'
+                                  if (n.includes('com retencao') || n.includes('com reten') || n.includes('substituicao tributaria de iss') || n.includes('com substituicao')) return 'com retenção'
                                   return ''
                                 })()
                                 const withIss = trunc.includes('Prestação de Serviços') && rs
@@ -380,11 +379,13 @@ export const AnaliseAliquotaParcelas = memo(function AnaliseAliquotaParcelas({ d
                                 const isRevenda = base.includes('Revenda de mercadorias') || base.includes('Venda de mercadorias industrializadas') || base.includes('Revenda de mercadorias para o exterior')
                                 if (isRevenda) {
                                   const descText = String(p?.descricao ?? '').trim()
-                                  const nd = norm(descText)
+                                  const nameText = String(p?.atividade_nome ?? '').trim()
+                                  const combined = norm([descText, nameText].join(' '))
+                                  
                                   const extras: string[] = []
-                                  if (nd.includes('substituicao tributaria de icms')) extras.push('Substituição tributária de: ICMS.')
-                                  if (nd.includes('monofasica') || nd.includes('monofásica')) {
-                                    const tribs = [nd.includes('cofins') ? 'COFINS' : null, nd.includes('pis') ? 'PIS' : null].filter(Boolean).join(', ')
+                                  if (combined.includes('substituicao tributaria de icms') || combined.includes('com substituicao tributaria')) extras.push('Substituição tributária de: ICMS.')
+                                  if (combined.includes('monofasica') || combined.includes('monofásica')) {
+                                    const tribs = [combined.includes('cofins') ? 'COFINS' : null, combined.includes('pis') ? 'PIS' : null].filter(Boolean).join(', ')
                                     if (tribs) extras.push(`Tributação monofásica de: ${tribs}.`)
                                   }
                                   if (extras.length) base = `${extras.join(' ')} ${base}`
@@ -393,7 +394,15 @@ export const AnaliseAliquotaParcelas = memo(function AnaliseAliquotaParcelas({ d
                               })()
                               const val = Number(p?.valor || 0)
                               let aOrigAdj = round4(p?.aliquota_efetiva_original_ajustada_percent)
+                              if (!Number.isFinite(aOrigAdj)) {
+                                aOrigAdj = round4(p?.aliquota_efetiva_original_percent)
+                              }
+
                               let aAtualAdj = round4(p?.aliquota_efetiva_atual_ajustada_percent)
+                              if (!Number.isFinite(aAtualAdj)) {
+                                aAtualAdj = round4(p?.aliquota_efetiva_atual_percent)
+                              }
+
                               const canonical = matchCanonical(p)
                               if (canonical === 'Transporte com substituição tributária de ICMS') {
                                 aOrigAdj = round4(p?.aliquota_efetiva_original_sem_iss_percent)
@@ -407,17 +416,8 @@ export const AnaliseAliquotaParcelas = memo(function AnaliseAliquotaParcelas({ d
                               }
                               rows.push({ v: val, act: actName, aO: aOrigAdj, aA: aAtualAdj })
                             }
-                            const grouped = (() => {
-                              const m = new Map<string, { v: number; act: string; aO: number; aA: number }>()
-                              for (const r of rows) {
-                                const k = `${r.act}|${Number.isFinite(r.aO) ? r.aO.toFixed(4) : 'null'}|${Number.isFinite(r.aA) ? r.aA.toFixed(4) : 'null'}`
-                                const prev = m.get(k)
-                                if (prev) prev.v += r.v
-                                else m.set(k, { ...r })
-                              }
-                              return Array.from(m.values())
-                            })()
-                            return grouped.map((r, i) => {
+
+                            return rows.map((r, i) => {
                               return (
                                 <tr key={`other-${i}`} className="border-t border-border">
                                   <td className="px-2 py-1 whitespace-nowrap">{formatCurrency(r.v)}</td>

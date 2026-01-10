@@ -105,6 +105,7 @@ export async function POST(request: NextRequest) {
     }
 
     const processedResults = []
+    const invalidFiles: string[] = []
 
     // Process files sequentially to send to n8n one by one
     for (const file of files) {
@@ -184,6 +185,7 @@ export async function POST(request: NextRequest) {
 
         if (!parsed || !parsed.dados) {
           console.warn(`Arquivo ${file.name} não contém dados estruturados válidos.`)
+          invalidFiles.push(file.name)
           continue
         }
 
@@ -216,23 +218,25 @@ export async function POST(request: NextRequest) {
       return 0
     }
 
-    // Determine the most common CNPJ (Majority Vote)
-    const cnpjCounts: Record<string, number> = {}
-    processedResults.forEach(f => {
-      const c = f.data.identificacao?.cnpj
-      if (c) cnpjCounts[c] = (cnpjCounts[c] || 0) + 1
-    })
+    // Determine the most common CNPJ (Majority Vote) - DISABLED for Multi-Company
+    // const cnpjCounts: Record<string, number> = {}
+    // processedResults.forEach(f => {
+    //   const c = f.data.identificacao?.cnpj
+    //   if (c) cnpjCounts[c] = (cnpjCounts[c] || 0) + 1
+    // })
 
-    let targetCnpj = ''
-    let maxCount = 0
-    for (const [c, count] of Object.entries(cnpjCounts)) {
-      if (count > maxCount) {
-        maxCount = count
-        targetCnpj = c
-      }
-    }
+    // let targetCnpj = ''
+    // let maxCount = 0
+    // for (const [c, count] of Object.entries(cnpjCounts)) {
+    //   if (count > maxCount) {
+    //     maxCount = count
+    //     targetCnpj = c
+    //   }
+    // }
 
-    const targetCompanyName = processedResults.find(f => f.data.identificacao?.cnpj === targetCnpj)?.data.identificacao?.razaoSocial || 'Empresa Desconhecida'
+    // const targetCompanyName = processedResults.find(f => f.data.identificacao?.cnpj === targetCnpj)?.data.identificacao?.razaoSocial || 'Empresa Desconhecida'
+    const targetCnpj = 'MULTI'
+    const targetCompanyName = 'Múltiplas Empresas'
 
     // Validate each file
     const periodSet = new Set<string>()
@@ -244,17 +248,19 @@ export async function POST(request: NextRequest) {
       const fPeriod = f.data.identificacao?.periodoApuracao
       const dateVal = parseDate(fPeriod)
 
-      if (fCnpj !== targetCnpj) {
-        issues.push(`CNPJ incorreto: ${fCnpj} (Esperado: ${targetCnpj} - ${targetCompanyName})`)
-      }
+      // Disabled CNPJ check for multi-company support
+      // if (fCnpj !== targetCnpj) {
+      //   issues.push(`CNPJ incorreto: ${fCnpj} (Esperado: ${targetCnpj} - ${targetCompanyName})`)
+      // }
 
-      // Check for duplicates
-      if (fPeriod) {
-        if (periodSet.has(fPeriod)) {
-          issues.push(`Arquivo duplicado para o período ${fPeriod}`)
+      // Check for duplicates (Composite key: CNPJ + Period)
+      if (fPeriod && fCnpj) {
+        const key = `${fCnpj}-${fPeriod}`
+        if (periodSet.has(key)) {
+          issues.push(`Arquivo duplicado para a empresa ${fCnpj} e período ${fPeriod}`)
           duplicates.push(f.filename)
         } else {
-          periodSet.add(fPeriod)
+          periodSet.add(key)
         }
       }
 
@@ -269,7 +275,7 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    const hasCnpjErrors = validationResults.some(r => r.issues.some(i => i.includes('CNPJ')))
+    const hasCnpjErrors = false // validationResults.some(r => r.issues.some(i => i.includes('CNPJ')))
     const hasDuplicateErrors = duplicates.length > 0
     const validFiles = validationResults.filter(r => r.isValid)
 
@@ -277,26 +283,29 @@ export async function POST(request: NextRequest) {
     validFiles.sort((a, b) => a.dateVal - b.dateVal)
 
     const sequenceErrors: string[] = []
-    if (validFiles.length > 0) {
-      for (let i = 0; i < validFiles.length - 1; i++) {
-        const curr = validFiles[i]
-        const next = validFiles[i + 1]
-        if (next.dateVal - curr.dateVal !== 1) {
-          sequenceErrors.push(`Salto temporal detectado entre ${curr.period} e ${next.period}`)
-        }
-      }
-    }
+    // Disabled sequence check for now as it's complex with multi-company and user wants "radical" freedom
+    // if (validFiles.length > 0) {
+    //   for (let i = 0; i < validFiles.length - 1; i++) {
+    //     const curr = validFiles[i]
+    //     const next = validFiles[i + 1]
+    //     if (next.dateVal - curr.dateVal !== 1) {
+    //       sequenceErrors.push(`Salto temporal detectado entre ${curr.period} e ${next.period}`)
+    //     }
+    //   }
+    // }
 
     // Global Checks
     const errors: string[] = []
 
-    if (processedResults.length < 2) {
-      errors.push(`Quantidade insuficiente de arquivos: ${processedResults.length} (Mínimo: 2)`)
-    }
+    // Removed minimum file check to allow single file processing
+    // if (processedResults.length < 2) {
+    //   errors.push(`Quantidade insuficiente de arquivos: ${processedResults.length} (Mínimo: 2)`)
+    // }
 
-    if (hasCnpjErrors) {
-      errors.push("Arquivos de empresas diferentes detectados.")
-    }
+    // Removed CNPJ check to allow multi-company uploads (Unified Dashboard handles grouping)
+    // if (hasCnpjErrors) {
+    //   errors.push("Arquivos de empresas diferentes detectados.")
+    // }
 
     if (hasDuplicateErrors) {
       errors.push(`Arquivos duplicados detectados: ${duplicates.length}`)
@@ -333,7 +342,8 @@ export async function POST(request: NextRequest) {
             cnpj: r.cnpj,
             company: r.companyName
           })),
-          sequenceErrors
+          sequenceErrors,
+          invalidFiles
         }
       }, { status: 422 })
     }
@@ -351,6 +361,7 @@ export async function POST(request: NextRequest) {
     const finalData = {
       isAnnual: true,
       files: processedResults,
+      invalidFiles,
       createdAt: new Date().toISOString()
     }
 
@@ -364,6 +375,7 @@ export async function POST(request: NextRequest) {
       dashboardAdminUrl: adminUrl,
       dashboardCode: code,
       pdfUrl,
+      invalidFiles,
       message: `Processado ${processedResults.length} arquivos com sucesso.`
     })
 

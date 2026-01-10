@@ -38,6 +38,7 @@ export async function POST(request: NextRequest) {
     }
 
     const processedResults = []
+    const invalidFiles: string[] = []
 
     for (const file of files) {
       try {
@@ -109,17 +110,29 @@ export async function POST(request: NextRequest) {
         }
         
         if (parsed && parsed.dados) {
-            processedResults.push({
-                filename: file.name,
-                data: parsed.dados
-            })
+            // Validação mínima para considerar o arquivo válido
+            const hasCnpj = parsed.dados.identificacao?.cnpj && parsed.dados.identificacao.cnpj.length > 0;
+            const hasPeriodo = parsed.dados.identificacao?.periodoApuracao && parsed.dados.identificacao.periodoApuracao.length > 0;
+
+            if (hasCnpj && hasPeriodo) {
+                processedResults.push({
+                    filename: file.name,
+                    data: parsed.dados
+                })
+            } else {
+                console.warn(`Arquivo ${file.name} processado mas faltando dados essenciais (CNPJ/Período)`)
+                invalidFiles.push(file.name)
+            }
+        } else {
+            invalidFiles.push(file.name)
         }
       } catch (e) {
         console.error(`Erro ao processar arquivo ${file.name}:`, e)
+        invalidFiles.push(file.name)
       }
     }
 
-    return NextResponse.json({ files: processedResults })
+    return NextResponse.json({ files: processedResults, invalidFiles })
 
   } catch (error) {
     console.error("[parser] Erro:", error)

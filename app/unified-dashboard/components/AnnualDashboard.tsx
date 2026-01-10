@@ -6,9 +6,9 @@ import { MonthlyFile, ReceitasAnteriores } from '../types'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { ArrowLeft, AlertTriangle, ChevronRight, BarChart3, LayoutDashboard, Upload, X, CheckCircle, ArrowUpRight, ArrowDownRight, Minus } from "lucide-react"
-import { cn } from "@/lib/utils"
-import { HeaderLogo } from "@/components/header-logo"
+import { ArrowLeft, AlertTriangle, ChevronRight, ChevronLeft, BarChart3, LayoutDashboard, Upload, X, CheckCircle, ArrowUpRight, ArrowDownRight, Minus, FileText, Building2 } from "lucide-react"
+import { cn, formatPeriod } from "@/lib/utils"
+import { UnifiedSidebar } from './UnifiedSidebar'
 import { PGDASDProcessor } from "@/components/pgdasd-processor"
 import {
     Chart as ChartJS,
@@ -54,18 +54,40 @@ interface AnnualDashboardProps {
     onBack?: () => void
     dashboardCode?: string
     initialViewIndex?: number
+    initialTargetCnpj?: string
     isPdfGen?: boolean
     onFilesUpdated?: (files: MonthlyFile[]) => void
     receitas_anteriores?: ReceitasAnteriores
+    isOwner?: boolean
+    invalidFiles?: string[]
+    onInvalidFilesUpdated?: (files: string[]) => void
 }
 
-export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex, isPdfGen, onFilesUpdated, receitas_anteriores }: AnnualDashboardProps) {
+export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex, initialTargetCnpj, isPdfGen, onFilesUpdated, receitas_anteriores, isOwner = true, invalidFiles, onInvalidFilesUpdated }: AnnualDashboardProps) {
     const [localFiles, setLocalFiles] = useState<MonthlyFile[]>(files)
     const [selectedFileIndex, setSelectedFileIndex] = useState<number | null>(initialViewIndex ?? null)
+    
+    // Determine active CNPJ for filtering dashboard data
+    // If no initialTargetCnpj is provided, try to infer from initialViewIndex or first file
+    const [activeCnpj, setActiveCnpj] = useState<string | undefined>(() => {
+        if (initialTargetCnpj) return initialTargetCnpj
+        if (initialViewIndex !== undefined && files[initialViewIndex]) {
+            return files[initialViewIndex].data.identificacao.cnpj
+        }
+        return files[0]?.data.identificacao.cnpj
+    })
+
     const [isUploading, setIsUploading] = useState(false)
     const [uploadErrors, setUploadErrors] = useState<string[]>([])
     const [showErrorModal, setShowErrorModal] = useState(false)
     const [pendingFiles, setPendingFiles] = useState<MonthlyFile[]>([])
+    const [showInvalidFilesModal, setShowInvalidFilesModal] = useState(false)
+
+    useEffect(() => {
+        if (invalidFiles && invalidFiles.length > 0) {
+            setShowInvalidFilesModal(true)
+        }
+    }, [invalidFiles])
 
     // Chart visibility state
     const [visibleCharts, setVisibleCharts] = useState(() => {
@@ -101,6 +123,162 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [files])
 
+    // Filter files for the current view (Consolidated Charts/Tables)
+    // We only want to show data for the ACTIVE company
+    const companyFiles = useMemo(() => {
+        if (!activeCnpj) return localFiles
+        return localFiles.filter(f => f.data.identificacao.cnpj === activeCnpj)
+    }, [localFiles, activeCnpj])
+
+    // Sort company files for display/charts
+    const sortedFiles = useMemo(() => {
+        return [...companyFiles].sort((a, b) => {
+            const getMonthYear = (d: string) => {
+                if (!d) return 0
+                const parts = d.split(' ')[0].split('/')
+                // MM/YYYY
+                if (parts.length === 2) return parseInt(parts[1]) * 12 + parseInt(parts[0])
+                // DD/MM/YYYY
+                if (parts.length === 3) return parseInt(parts[2]) * 12 + parseInt(parts[1])
+                return 0
+            }
+            return getMonthYear(a.data?.identificacao?.periodoApuracao || '') - getMonthYear(b.data?.identificacao?.periodoApuracao || '')
+        })
+    }, [companyFiles])
+
+    // Handle Sidebar Selection
+    // If user selects a file from a DIFFERENT company, we need to switch activeCnpj
+    // and set the selectedFileIndex to the correct index within sortedFiles (if we were using sortedFiles index)
+    // BUT: UnifiedSidebar returns the index from `files` (localFiles).
+    // AnnualDashboard logic (below) uses `sortedFiles[selectedFileIndex]`.
+    // This is a mismatch if `selectedFileIndex` comes from sidebar (global index) but we use it on `sortedFiles` (filtered).
+    
+    // CORRECTION: UnifiedSidebar receives `localFiles` (all files).
+    // So `onFileSelect` returns index in `localFiles`.
+    // We need to map this global index to:
+    // 1. Update `activeCnpj` if needed.
+    // 2. Update `selectedFileIndex` to be the index within `sortedFiles`? 
+    //    Wait, `selectedFileIndex` is used as `sortedFiles[selectedFileIndex]`.
+    //    This implies `selectedFileIndex` MUST be an index into `sortedFiles`.
+    
+    //    BUT `UnifiedSidebar` passes index from `files`.
+    //    So we need to change how `selectedFileIndex` is interpreted OR how it is set.
+    
+    // Let's change `selectedFileIndex` to be the GLOBAL index (index in `localFiles`).
+    // Then derive `currentFile` from `localFiles[selectedFileIndex]`.
+    // And if `currentFile` is set, `activeCnpj` should match it.
+    
+    // However, existing logic uses `sortedFiles`.
+    // `sortedFiles` is `companyFiles` sorted.
+    
+    // If we want to keep existing logic mostly intact:
+    // We should keep `selectedFileIndex` as index into `sortedFiles` IF possible, 
+    // BUT `UnifiedSidebar` is generic and shows ALL files.
+    
+    // BETTER APPROACH:
+    // Let's separate "Sidebar Selection" from "View State".
+    // When sidebar selects a file:
+    //   1. Get the file from `localFiles[index]`.
+    //   2. Set `activeCnpj` = file.cnpj.
+    //   3. Find where this file is in `sortedFiles` (which will be recomputed with new Cnpj).
+    //   4. Set `selectedFileIndex` to that new index.
+    
+    // Check for multiple companies to toggle Consolidated View availability
+    const uniqueCnpjs = useMemo(() => {
+        const cnpjs = new Set(localFiles.map(f => f.data.identificacao.cnpj))
+        return Array.from(cnpjs)
+    }, [localFiles])
+    
+    const isMultiCompany = uniqueCnpjs.length > 1
+
+    // Logic to auto-select file if only one exists, or allow consolidated if multiple
+    useEffect(() => {
+        // If there is only 1 file, force select it (no consolidated view needed)
+        if (sortedFiles.length === 1 && selectedFileIndex === null) {
+             setSelectedFileIndex(0)
+             setTargetFilename(sortedFiles[0].filename)
+        }
+        // If there are multiple files, we ALLOW selectedFileIndex === null (Consolidated View)
+        // So we don't need to do anything here.
+    }, [sortedFiles.length, selectedFileIndex])
+
+    const handleSidebarSelect = (globalIndex: number) => {
+        const file = localFiles[globalIndex]
+        if (!file) return
+        
+        const newCnpj = file.data.identificacao.cnpj
+        
+        // If company changed, we update activeCnpj
+        if (newCnpj !== activeCnpj) {
+            setActiveCnpj(newCnpj)
+            // We need to wait for sortedFiles to update? 
+            // In React, state updates batch.
+            // But we can just find the file in the new filtered list.
+            // The `sortedFiles` memo will re-run.
+            // But we can't easily predict the new index here without duplicating sort logic.
+            
+            // Instead, we can set a "pending selection" or just rely on finding the file by ID/Name?
+            // `MonthlyFile` doesn't have a unique ID, but filename is usually unique.
+        }
+        
+        // We want to enter "Single Month View" for this file.
+        // We need to find the index of this file within the (potentially new) sortedFiles.
+        // Since we can't synchronously access the new sortedFiles, we might need a useEffect 
+        // OR change `selectedFileIndex` to store the FILENAME, not index.
+        
+        // Given the constraints and legacy code, let's try to find the index.
+        // Actually, if we switch CNPJ, the `sortedFiles` will change.
+        // We can use `useEffect` to sync selection if we store "targetFilename".
+    }
+
+    // Refactored State for Selection
+    // We'll store `targetFilename` when selection changes, and resolve it to index in `sortedFiles`.
+    const [targetFilename, setTargetFilename] = useState<string | null>(
+        initialViewIndex !== undefined && files[initialViewIndex] ? files[initialViewIndex].filename : null
+    )
+
+    // Sync selectedFileIndex with targetFilename
+    useEffect(() => {
+        if (targetFilename) {
+            const idx = sortedFiles.findIndex(f => f.filename === targetFilename)
+            if (idx !== -1) {
+                setSelectedFileIndex(idx)
+            } else {
+                // File not found in current sorted list (shouldn't happen if logic is correct, unless file deleted)
+                // If we just switched company, sortedFiles should update to include it.
+                // If it's still -1, maybe it's not in sortedFiles yet?
+            }
+        } else {
+            setSelectedFileIndex(null)
+        }
+    }, [targetFilename, sortedFiles])
+
+    const onFileSelect = (globalIndex: number) => {
+        const file = localFiles[globalIndex]
+        if (file) {
+            if (file.data.identificacao.cnpj !== activeCnpj) {
+                setActiveCnpj(file.data.identificacao.cnpj)
+            }
+            setTargetFilename(file.filename)
+        }
+    }
+
+    // Override handleFileUpload to use localFiles (already does)
+    
+    // ... (keep existing handleFileUpload)
+
+    // ... (keep existing data processing)
+
+    // UPDATE: sortedFiles definition was:
+    // const sortedFiles = [...localFiles].sort(...) 
+    // We need to replace it with the memoized filtered one above.
+    
+    // UPDATE: isConsolidated logic
+    // const isConsolidated = selectedFileIndex === null
+    // const currentFile = selectedFileIndex !== null ? sortedFiles[selectedFileIndex] : null
+    
+    // This logic still holds if `sortedFiles` is the company-filtered list and `selectedFileIndex` is index into it.
+
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (!e.target.files?.length) return
 
@@ -122,6 +300,17 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
 
             const data = await res.json()
 
+            if (data.invalidFiles && data.invalidFiles.length > 0) {
+                const newInvalidFiles = data.invalidFiles as string[]
+                const currentInvalidFiles = invalidFiles || []
+                const combined = [...currentInvalidFiles, ...newInvalidFiles]
+                const unique = Array.from(new Set(combined))
+                
+                if (onInvalidFilesUpdated) {
+                    onInvalidFilesUpdated(unique)
+                }
+            }
+
             const errors: string[] = []
             const validFiles: MonthlyFile[] = []
 
@@ -132,31 +321,28 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
 
             const newFiles = data.files as { filename: string, data: any }[]
 
-            // Validation Reference (from first existing file)
-            const refCnpj = localFiles[0]?.data?.identificacao?.cnpj
-            const refCompany = localFiles[0]?.data?.identificacao?.razaoSocial
-
-            // Existing periods
-            const existingPeriods = new Set(localFiles.map(f => f.data?.identificacao?.periodoApuracao))
-
+            // Validation - Check for duplicates within same company
+            
             newFiles.forEach(nf => {
                 const fCnpj = nf.data?.identificacao?.cnpj
                 const fPeriod = nf.data?.identificacao?.periodoApuracao
 
-                // Check Company
-                if (refCnpj && fCnpj !== refCnpj) {
-                    errors.push(`Arquivo '${nf.filename}': CNPJ ${fCnpj} difere da empresa atual (${refCnpj} - ${refCompany})`)
-                    return
-                }
+                // Check Duplicate in existing files
+                const isDuplicate = localFiles.some(f => 
+                    f.data?.identificacao?.cnpj === fCnpj && 
+                    f.data?.identificacao?.periodoApuracao === fPeriod
+                )
 
-                // Check Duplicate
-                if (existingPeriods.has(fPeriod)) {
-                    errors.push(`Arquivo '${nf.filename}': Período ${fPeriod} já existe no dashboard.`)
+                if (isDuplicate) {
+                    errors.push(`Arquivo '${nf.filename}': Período ${fPeriod} já existe para a empresa ${fCnpj}.`)
                     return
                 }
 
                 // Check Duplicate within new batch
-                if (validFiles.some(vf => vf.data?.identificacao?.periodoApuracao === fPeriod)) {
+                if (validFiles.some(vf => 
+                    vf.data?.identificacao?.cnpj === fCnpj && 
+                    vf.data?.identificacao?.periodoApuracao === fPeriod
+                )) {
                     errors.push(`Arquivo '${nf.filename}': Período ${fPeriod} duplicado no upload atual.`)
                     return
                 }
@@ -279,11 +465,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
     }
 
     const handleExportPdf = () => {
-        const sorted = [...localFiles].sort((a, b) => {
-            const dateA = new Date(a.data?.identificacao?.periodoApuracao || '')
-            const dateB = new Date(b.data?.identificacao?.periodoApuracao || '')
-            return dateA.getTime() - dateB.getTime()
-        })
+        const sorted = [...sortedFiles] // Use company-filtered sorted files
 
         const origin = typeof window !== 'undefined' ? window.location.origin : ''
         let path = dashboardCode ? `/d/${dashboardCode}` : (window.location.pathname + window.location.search)
@@ -324,18 +506,8 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
         tooltipBorder: isDark ? '#007AFF' : '#e2e8f0'
     }), [isDark])
 
-    const sortedFiles = [...localFiles].sort((a, b) => {
-        const getMonthYear = (d: string) => {
-            if (!d) return 0
-            const parts = d.split(' ')[0].split('/')
-            // MM/YYYY
-            if (parts.length === 2) return parseInt(parts[1]) * 12 + parseInt(parts[0])
-            // DD/MM/YYYY
-            if (parts.length === 3) return parseInt(parts[2]) * 12 + parseInt(parts[1])
-            return 0
-        }
-        return getMonthYear(a.data?.identificacao?.periodoApuracao || '') - getMonthYear(b.data?.identificacao?.periodoApuracao || '')
-    })
+    // REMOVED: Old sortedFiles definition (replaced by memoized one)
+    // const sortedFiles = [...localFiles].sort(...)
 
 
 
@@ -484,12 +656,12 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
 
     // Monthly Data By Year (Updated to use consolidatedData)
     const monthlyDataByYear = useMemo(() => {
-        const map = new Map<number, { labels: string[], revenue: number[], taxes: number[], interest: number[] }>()
+        const map = new Map<number, { labels: string[], revenue: (number | null)[], taxes: (number | null)[], interest: (number | null)[] }>()
         years.forEach(y => {
             const labels: string[] = []
-            const revenue: number[] = []
-            const taxes: number[] = []
-            const interest: number[] = []
+            const revenue: (number | null)[] = []
+            const taxes: (number | null)[] = []
+            const interest: (number | null)[] = []
 
             // We iterate 1-12
             for (let m = 1; m <= 12; m++) {
@@ -498,7 +670,10 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                 if (val !== undefined) {
                     const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
                     labels.push(monthNames[m - 1])
-                    revenue.push(val)
+                    
+                    // Use null for 0 values to hide them in charts
+                    revenue.push(val === 0 ? null : val)
+                    
                     // Taxes only available for explicit files, difficult to get from history if not stored
                     // Attempt to find explicit file for taxes
                     const file = sortedFiles.find(f => {
@@ -506,7 +681,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                         return p.y === y && p.m === m
                     })
                     const tVal = file?.data.tributos.Total || 0
-                    taxes.push(tVal)
+                    taxes.push(tVal === 0 ? null : tVal)
 
                     let interestVal = 0
                     if (file) {
@@ -516,7 +691,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                             interestVal = totalToPay - totalTaxesVal
                         }
                     }
-                    interest.push(interestVal)
+                    interest.push(interestVal === 0 ? null : interestVal)
                 }
             }
             if (labels.length > 0) {
@@ -768,14 +943,16 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
             barPercentage: 0.6,
             categoryPercentage: 0.8,
             datalabels: {
-                ...datalabelsConfig
+                ...datalabelsConfig,
+                align: 'center' as const,
+                anchor: 'center' as const
             }
         }
 
         if (totalMercadorias > 0) {
             datasets.push({
                 label: 'Mercadorias',
-                data: monthlyRevenueBreakdown.map(d => d.mercadorias),
+                data: monthlyRevenueBreakdown.map(d => d.mercadorias === 0 ? null : d.mercadorias),
                 backgroundColor: '#007AFF', // Azul elétrico vibrante
                 hoverBackgroundColor: '#0056B3',
                 stack: 'Stack 0',
@@ -786,7 +963,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
         if (totalIndustria > 0) {
             datasets.push({
                 label: 'Indústria',
-                data: monthlyRevenueBreakdown.map(d => d.industria),
+                data: monthlyRevenueBreakdown.map(d => d.industria === 0 ? null : d.industria),
                 backgroundColor: '#00C2FF', // Ciano vibrante
                 hoverBackgroundColor: '#009ACD',
                 stack: 'Stack 0',
@@ -797,7 +974,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
         if (totalServicos > 0) {
             datasets.push({
                 label: 'Serviços',
-                data: monthlyRevenueBreakdown.map(d => d.servicos),
+                data: monthlyRevenueBreakdown.map(d => d.servicos === 0 ? null : d.servicos),
                 backgroundColor: '#3D5AFE', // Índigo elétrico
                 hoverBackgroundColor: '#304FFE',
                 stack: 'Stack 0',
@@ -975,12 +1152,112 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
         }
     }, [revenueBreakdown, totalRevenue])
 
+    // Navigation Logic
+    const hasNext = selectedFileIndex !== null && selectedFileIndex < sortedFiles.length - 1
+    const hasPrev = selectedFileIndex !== null && selectedFileIndex > 0
+
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (selectedFileIndex === null) return
+            
+            if (e.key === 'ArrowLeft' && hasPrev) {
+                setSelectedFileIndex(selectedFileIndex - 1)
+            } else if (e.key === 'ArrowRight' && hasNext) {
+                setSelectedFileIndex(selectedFileIndex + 1)
+            }
+        }
+
+        window.addEventListener('keydown', handleKeyDown)
+        return () => window.removeEventListener('keydown', handleKeyDown)
+    }, [selectedFileIndex, hasNext, hasPrev])
+
     return (
         <div className={`flex flex-col lg:flex-row min-h-screen bg-background ${isPdfGen ? 'w-[1600px] mx-auto overflow-hidden' : ''}`}>
 
             {/* Main Content Area */}
-            <div className="flex-1 order-2 lg:order-1 min-w-0">
-                <div className={`relative ${isPdfGen ? 'max-w-none' : ''}`}>
+            <div className="flex-1 order-2 lg:order-1 min-w-0 flex flex-col">
+                {!isPdfGen && (
+                    <div className="sticky top-0 z-50 bg-background/95 backdrop-blur border-b flex items-center overflow-x-auto px-4 py-2 gap-2 w-full no-scrollbar">
+                        {/* Tabs por Empresa */}
+                        {uniqueCnpjs.map((cnpj) => {
+                            const companyFiles = localFiles.filter(f => f.data.identificacao.cnpj === cnpj);
+                            const companyName = companyFiles[0]?.data.identificacao.razaoSocial || cnpj;
+                            const isActive = activeCnpj === cnpj;
+
+                            return (
+                                <Button
+                                    key={cnpj}
+                                    variant={isActive ? "secondary" : "ghost"}
+                                    size="sm"
+                                    className={cn("shrink-0 gap-2", isActive && "font-bold")}
+                                    onClick={() => {
+                                        setActiveCnpj(cnpj);
+                                        setSelectedFileIndex(null); // Reseta para visão geral da empresa
+                                        setTargetFilename(null);
+                                    }}
+                                >
+                                    <Building2 className="w-4 h-4" />
+                                    {companyName.length > 30 ? companyName.substring(0, 30) + '...' : companyName}
+                                </Button>
+                            )
+                        })}
+                    </div>
+                )}
+
+                <div className={`relative flex-1 ${isPdfGen ? 'max-w-none' : ''}`}>
+                    {/* Modal de Arquivos Inválidos */}
+                    {showInvalidFilesModal && invalidFiles && invalidFiles.length > 0 && (
+                        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                            <Card className="w-full max-w-lg shadow-2xl border-destructive/20 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+                                <CardHeader className="bg-destructive/10 border-b border-destructive/10 pb-4">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2 bg-destructive/20 rounded-full">
+                                                <AlertTriangle className="w-5 h-5 text-destructive" />
+                                            </div>
+                                            <div>
+                                                <CardTitle className="text-destructive text-lg font-bold">Atenção: Arquivos Não Processados</CardTitle>
+                                            </div>
+                                        </div>
+                                        <Button 
+                                            variant="ghost" 
+                                            size="icon" 
+                                            className="h-8 w-8 text-destructive hover:bg-destructive/20 hover:text-destructive rounded-full" 
+                                            onClick={() => setShowInvalidFilesModal(false)}
+                                        >
+                                            <X className="w-4 h-4" />
+                                        </Button>
+                                    </div>
+                                </CardHeader>
+                                <CardContent className="pt-6 max-h-[60vh] overflow-y-auto">
+                                    <AlertDescription className="text-sm text-muted-foreground mb-4 leading-relaxed">
+                                        Os arquivos listados abaixo não possuem <strong>CNPJ</strong> ou <strong>Período de Apuração</strong> válidos e foram removidos automaticamente para garantir a integridade do dashboard.
+                                    </AlertDescription>
+                                    <div className="space-y-2 mb-6">
+                                        {invalidFiles.map((file, i) => (
+                                            <div key={i} className="flex items-center gap-3 p-3 bg-muted/40 hover:bg-muted/60 transition-colors rounded-lg border border-border group">
+                                                <div className="w-8 h-8 rounded-full bg-destructive/10 flex items-center justify-center shrink-0 group-hover:bg-destructive/20 transition-colors">
+                                                    <FileText className="w-4 h-4 text-destructive" />
+                                                </div>
+                                                <span className="text-sm font-medium truncate flex-1 select-all" title={file}>
+                                                    {file}
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <div className="flex justify-end pt-2 border-t border-border">
+                                        <Button 
+                                            className="bg-destructive hover:bg-destructive/90 text-destructive-foreground shadow-sm" 
+                                            onClick={() => setShowInvalidFilesModal(false)}
+                                        >
+                                            Entendi, fechar aviso
+                                        </Button>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </div>
+                    )}
+
                     {isConsolidated ? (
                         <div className="p-6 space-y-6">
                             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -1076,15 +1353,15 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                                                     tension: 0.4,
                                                                     fill: true
                                                                 },
-                                                                {
+                                                                ...(yearData?.taxes?.some(v => v !== null && v > 0) ? [{
                                                                     label: 'Impostos',
                                                                     data: yearData?.taxes || [],
                                                                     borderColor: '#db2777',
                                                                     backgroundColor: 'rgba(219, 39, 119, 0.1)',
                                                                     tension: 0.4,
                                                                     fill: true
-                                                                },
-                                                                ...(yearData?.interest?.some(v => v > 0) ? [{
+                                                                }] : []),
+                                                                ...(yearData?.interest?.some(v => v !== null && v > 0) ? [{
                                                                     label: 'Juros/Multa',
                                                                     data: yearData?.interest || [],
                                                                     borderColor: '#EF4444',
@@ -1204,6 +1481,11 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                                         display: true,
                                                         position: 'bottom',
                                                         labels: { color: chartTheme.text }
+                                                    },
+                                                    datalabels: {
+                                                        ...datalabelsConfig,
+                                                        align: 'center' as const,
+                                                        anchor: 'center' as const
                                                     },
                                                     tooltip: {
                                                         ...chartOptions.plugins?.tooltip,
@@ -1343,12 +1625,8 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                                 const irpjTotal = file.data.tributos?.IRPJ || 0
                                                 const rawPeriod = file.data.identificacao.periodoApuracao
 
-                                                // Format period: 01/06/2024 -> 06/2024
-                                                let periodoDisplay = rawPeriod
-                                                const pParts = rawPeriod.split(' ')[0].split('/')
-                                                if (pParts.length === 3) {
-                                                    periodoDisplay = `${pParts[1]}/${pParts[2]}`
-                                                }
+                                                // Format period: 01/06/2024 -> jun/2024
+                                                let periodoDisplay = formatPeriod(rawPeriod)
 
                                                 // Base Calculations for IRPJ proration
                                                 const baseMerc = breakdown.mercadorias * 0.08
@@ -1490,20 +1768,11 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                         </div>
                     ) : (
                         <>
-                            {!isPdfGen && onBack && (
-                                <div className="absolute top-4 left-4 z-10 print:hidden">
-                                    <Button variant="ghost" onClick={onBack} className="bg-white/50 hover:bg-white/80 dark:bg-[#3A3A3A]/20 dark:hover:bg-[#3A3A3A]/40 backdrop-blur-sm gap-2 shadow-sm border border-white/20 dark:border-white/10">
-                                        <ArrowLeft className="h-4 w-4" />
-                                        Voltar
-                                    </Button>
-                                </div>
-                            )}
-
                             <PGDASDProcessor
                                 key={currentFile?.filename || selectedFileIndex}
                                 initialData={currentFile?.data}
                                 hideDownloadButton={false}
-                                isOwner={true}
+                                isOwner={isOwner}
                                 isPdfGen={isPdfGen}
                                 shareId={dashboardCode ? (selectedFileIndex !== null ? `${dashboardCode}?view_file_index=${selectedFileIndex}` : dashboardCode) : undefined}
                             />
@@ -1512,123 +1781,31 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                 </div>
             </div>
 
-            {/* Right Sidebar */}
-            <div className={`w-full lg:w-80 border-l border-border bg-card order-1 lg:order-2 lg:h-screen lg:sticky lg:top-0 overflow-y-auto print:hidden ${isPdfGen ? 'hidden' : ''}`}>
-                <div className="p-4 border-b border-border sticky top-0 bg-card z-10 flex flex-col gap-4">
-                    <div className="flex justify-center lg:justify-start">
-                        <HeaderLogo className="h-8" />
-                    </div>
-                    <div>
-                        <h2 className="font-semibold text-foreground">Navegação Rápida ({sortedFiles.length})</h2>
-                        <p className="text-xs text-muted-foreground">Selecione um período para detalhar</p>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            className="w-full mt-3 flex items-center gap-2 bg-background hover:bg-muted"
-                            onClick={() => fileInputRef.current?.click()}
-                            disabled={isUploading}
-                        >
-                            {isUploading ? (
-                                <div className="flex items-center gap-2">
-                                    <span className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                                    <span>Processando...</span>
-                                </div>
-                            ) : (
-                                <>
-                                    <Upload className="h-3.5 w-3.5" />
-                                    <span>Adicionar Mês</span>
-                                </>
-                            )}
-                        </Button>
-                        <input
-                            type="file"
-                            ref={fileInputRef}
-                            onChange={handleFileUpload}
-                            className="hidden"
-                            accept="application/pdf"
-                            multiple
-                        />
-                    </div>
-                </div>
-                <div className="p-4 space-y-2">
-                    {/* Overview Option */}
-                    <button
-                        onClick={() => setSelectedFileIndex(null)}
-                        className={cn(
-                            "w-full flex items-center gap-3 p-3 rounded-lg text-left transition-all",
-                            isConsolidated
-                                ? "bg-[#3A3A3A]/10 dark:bg-[#3A3A3A]/40 border-[#5A5A5A]/30 dark:border-[#5A5A5A]/60 shadow-sm ring-1 ring-[#5A5A5A]/20 dark:ring-[#5A5A5A]/50"
-                                : "hover:bg-muted/50 border-transparent"
-                        )}
-                    >
-                        <div className={cn(
-                            "w-10 h-10 rounded-full flex items-center justify-center",
-                            isConsolidated ? "bg-[#3A3A3A] text-white" : "bg-muted text-muted-foreground"
-                          )}>
-                            <LayoutDashboard className="w-4 h-4" />
-                          </div>
-                          <div>
-                            <p className={cn("font-medium text-sm", isConsolidated ? "text-[#3A3A3A] dark:text-[#8A8A8A]" : "text-foreground")}>
-                              Visão Consolidada
-                            </p>
-                            <p className="text-xs text-muted-foreground">Consolidado Anual</p>
-                        </div>
-                        {isConsolidated && <ChevronRight className="w-4 h-4 text-[#3A3A3A] dark:text-[#8A8A8A]" />}
-                    </button>
-
-                    <div className="h-px bg-border my-2" />
-
-                    {/* Monthly Options */}
-                    {sortedFiles.map((file, index) => {
-                        const isActive = selectedFileIndex === index
-                        const fat = file.data?.receitas?.receitaPA || 0
-                        const p = file.data?.identificacao?.periodoApuracao || 'N/A'
-
-                        // Format period nicely
-                        let label = p
-                        try {
-                            const parts = p.split(' ')[0].split('/')
-                            let m = 0, y = ''
-                            if (parts.length === 2) { m = parseInt(parts[0]); y = parts[1] }
-                            else if (parts.length === 3) { m = parseInt(parts[1]); y = parts[2] }
-
-                            if (m > 0 && m <= 12) {
-                                const months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
-                                label = `${months[m - 1]} ${y}`
-                            }
-                        } catch { }
-
-                        return (
-                            <button
-                                key={file.filename}
-                                onClick={() => setSelectedFileIndex(index)}
-                                className={cn(
-                                    "w-full flex items-center gap-3 p-3 rounded-lg text-left transition-all border",
-                                    isActive
-                                        ? "bg-card border-blue-200 dark:border-blue-800 shadow-md ring-1 ring-blue-100 dark:ring-blue-900"
-                                        : "bg-card border-border hover:border-muted-foreground/30 hover:shadow-sm"
-                                )}
-                            >
-                                <div className={cn(
-                                    "w-10 h-10 rounded-full flex items-center justify-center shrink-0",
-                                    isActive ? "bg-blue-600 text-white" : "bg-muted text-muted-foreground"
-                                )}>
-                                    <BarChart3 className="w-5 h-5" />
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <p className={cn("font-medium text-sm truncate capitalize", isActive ? "text-blue-900 dark:text-blue-100" : "text-foreground")}>
-                                        {label}
-                                    </p>
-                                    <p className="text-xs text-muted-foreground truncate">
-                                        Fat: {fat.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                                    </p>
-                                </div>
-                                {isActive && <ChevronRight className="w-4 h-4 text-blue-500" />}
-                            </button>
-                        )
-                    })}
-                </div>
-            </div>
+            {/* Right Sidebar - Replaced with UnifiedSidebar */}
+            <UnifiedSidebar
+                files={localFiles}
+                selectedFileIndex={selectedFileIndex !== null 
+                    ? localFiles.findIndex(f => f.filename === targetFilename) 
+                    : null
+                }
+                onFileSelect={onFileSelect}
+                onAddFile={() => fileInputRef.current?.click()}
+                isConsolidatedView={isConsolidated}
+                onConsolidatedSelect={(cnpj) => {
+                    if (cnpj) {
+                        setActiveCnpj(cnpj)
+                    }
+                    setSelectedFileIndex(null)
+                    setTargetFilename(null)
+                }}
+                isUploading={isUploading}
+                fileInputRef={fileInputRef}
+                onFileUpload={handleFileUpload}
+                isOwner={isOwner}
+                showConsolidatedOption={!isMultiCompany}
+                invalidFiles={invalidFiles}
+                activeCnpj={activeCnpj}
+            />
 
             {/* Error Modal */}
             {showErrorModal && (

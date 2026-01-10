@@ -1,29 +1,40 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { getMonthlyFiles } from './actions'
 import { MonthlyFile } from './types'
-import { SelectionScreen } from './components/SelectionScreen'
-import { MonthlyView } from './components/MonthlyView'
 import { AnnualDashboard } from './components/AnnualDashboard'
 import { Loader2 } from 'lucide-react'
 import { LoadingScreen } from '@/components/loading-screen'
 
-export default function UnifiedDashboardPage() {
+function DashboardContent() {
   const [files, setFiles] = useState<MonthlyFile[]>([])
+  const [invalidFiles, setInvalidFiles] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
-  const [viewMode, setViewMode] = useState<'selection' | 'monthly' | 'annual'>('selection')
-  const [selectedMonthIndex, setSelectedMonthIndex] = useState<number>(0)
+  
+  const searchParams = useSearchParams()
 
   const handleFilesUpdated = (newFiles: MonthlyFile[]) => {
     setFiles(newFiles)
   }
 
+  const handleInvalidFilesUpdated = (newInvalidFiles: string[]) => {
+    setInvalidFiles(newInvalidFiles)
+  }
+
   useEffect(() => {
     async function loadData() {
       try {
-        const data = await getMonthlyFiles()
+        const { files: data, invalidFiles: invalid } = await getMonthlyFiles()
         setFiles(data)
+        setInvalidFiles(invalid)
+        
+        // Check for auto-selection from URL
+        // const targetFilename = searchParams.get('file')
+        // if (targetFilename) {
+        //   // We let the render logic handle initial selection via props
+        // }
       } catch (error) {
         console.error("Failed to load dashboard files", error)
       } finally {
@@ -31,42 +42,41 @@ export default function UnifiedDashboardPage() {
       }
     }
     loadData()
-  }, [])
+  }, [searchParams])
 
   if (loading) {
     return <LoadingScreen message="Carregando dados do dashboard..." />
   }
 
-  if (viewMode === 'monthly') {
-    return (
-      <MonthlyView
-        files={files}
-        currentIndex={selectedMonthIndex}
-        onNavigate={setSelectedMonthIndex}
-        onBack={() => setViewMode('selection')}
-        onFilesUpdated={handleFilesUpdated}
-      />
-    )
-  }
-
-  if (viewMode === 'annual') {
-    return (
-      <AnnualDashboard
-        files={files}
-        onBack={() => setViewMode('selection')}
-        onFilesUpdated={handleFilesUpdated}
-      />
-    )
-  }
+  // Always return AnnualDashboard, passing the necessary props
+  // We can determine the initial target CNPJ from the URL file or default to the first file's company
+  
+  // Find initial file if specified in URL
+  const targetFilename = searchParams.get('file')
+  const initialFileIndex = targetFilename 
+    ? files.findIndex(f => f.filename === targetFilename)
+    : undefined
+    
+  const initialCnpj = initialFileIndex !== undefined && files[initialFileIndex]
+    ? files[initialFileIndex].data.identificacao.cnpj
+    : files[0]?.data.identificacao.cnpj
 
   return (
-    <SelectionScreen
+    <AnnualDashboard
       files={files}
-      onSelectMonth={(index) => {
-        setSelectedMonthIndex(index)
-        setViewMode('monthly')
-      }}
-      onConsolidate={() => setViewMode('annual')}
+      invalidFiles={invalidFiles}
+      initialTargetCnpj={initialCnpj}
+      initialViewIndex={initialFileIndex !== -1 ? initialFileIndex : undefined}
+      onFilesUpdated={handleFilesUpdated}
+      onInvalidFilesUpdated={handleInvalidFilesUpdated}
     />
+  )
+}
+
+export default function UnifiedDashboardPage() {
+  return (
+    <Suspense fallback={<LoadingScreen message="Carregando..." />}>
+      <DashboardContent />
+    </Suspense>
   )
 }

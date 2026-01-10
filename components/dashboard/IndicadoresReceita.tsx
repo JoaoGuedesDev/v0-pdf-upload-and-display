@@ -334,19 +334,21 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
       const text = [p?.nome, p?.atividade_nome, p?.descricao].filter(Boolean).map(String).join(' ')
       const n = norm(text)
       const rs = (() => {
-        if (n.includes('sem retencao') || n.includes('sem reten')) return 'sem retenção'
-        if (n.includes('com retencao') || n.includes('com reten') || n.includes('substituicao tributaria de iss')) return 'com retenção'
+        if (n.includes('sem retencao') || n.includes('sem reten') || n.includes('sem substituicao')) return 'sem retenção'
+        if (n.includes('com retencao') || n.includes('com reten') || n.includes('substituicao tributaria de iss') || n.includes('com substituicao') || n.includes('substituicao tributaria')) return 'com retenção'
         return ''
       })()
       const withIss = trunc.includes('Prestação de Serviços') && rs
       let base = rs ? `${trunc} — ${rs}${withIss ? ' ISS' : ''}` : trunc
       const isRevenda = base.includes('Revenda de mercadorias') || base.includes('Venda de mercadorias industrializadas') || base.includes('Revenda de Mercadorias para o exterior')
       if (isRevenda) {
-        const nd = norm(desc)
+        const descText = String(p?.descricao ?? '').trim()
+        const nameText = String(p?.atividade_nome ?? '').trim()
+        const combined = norm([descText, nameText].join(' '))
         const extras: string[] = []
-        if (nd.includes('substituicao tributaria de icms')) extras.push('Substituição tributária de: ICMS.')
-        if (nd.includes('monofasica') || nd.includes('monofásica')) {
-          const tribs = [nd.includes('cofins') ? 'COFINS' : null, nd.includes('pis') ? 'PIS' : null].filter(Boolean).join(', ')
+        if (combined.includes('substituicao tributaria de icms') || combined.includes('com substituicao tributaria')) extras.push('Substituição tributária de: ICMS.')
+        if (combined.includes('monofasica') || combined.includes('monofásica')) {
+          const tribs = [combined.includes('cofins') ? 'COFINS' : null, combined.includes('pis') ? 'PIS' : null].filter(Boolean).join(', ')
           if (tribs) extras.push(`Tributação monofásica de: ${tribs}.`)
         }
         if (extras.length) base = `${extras.join(' ')} ${base}`
@@ -414,7 +416,7 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
     }
     return (aliquotaItems || [])[0]
   }, [aliquotaItems, principalAnexo])
-  const rowsDocFinal = dedupRowsByValue(rowsAjustadoDoc)
+  const rowsDocFinal = rowsAjustadoDoc
 
   const buildRowsAjustadoNext = (items: any[]): { label: string; value: number; valor?: number; fromParcela?: boolean }[] => {
     const out: { label: string; value: number; valor?: number; fromParcela?: boolean }[] = []
@@ -437,19 +439,21 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
       const text = [p?.nome, p?.atividade_nome, p?.descricao].filter(Boolean).map(String).join(' ')
       const n = norm(text)
       const rs = (() => {
-        if (n.includes('sem retencao') || n.includes('sem reten')) return 'sem retenção'
-        if (n.includes('com retencao') || n.includes('com reten') || n.includes('substituicao tributaria de iss')) return 'com retenção'
+        if (n.includes('sem retencao') || n.includes('sem reten') || n.includes('sem substituicao')) return 'sem retenção'
+        if (n.includes('com retencao') || n.includes('com reten') || n.includes('substituicao tributaria de iss') || n.includes('com substituicao') || n.includes('substituicao tributaria')) return 'com retenção'
         return ''
       })()
       const withIss = trunc.includes('Prestação de Serviços') && rs
       let base = rs ? `${trunc} — ${rs}${withIss ? ' ISS' : ''}` : trunc
       const isRevenda = base.includes('Revenda de mercadorias') || base.includes('Venda de mercadorias industrializadas') || base.includes('Revenda de Mercadorias para o exterior')
       if (isRevenda) {
-        const nd = norm(desc)
+        const descText = String(p?.descricao ?? '').trim()
+        const nameText = String(p?.atividade_nome ?? '').trim()
+        const combined = norm([descText, nameText].join(' '))
         const extras: string[] = []
-        if (nd.includes('substituicao tributaria de icms')) extras.push('Substituição tributária de: ICMS.')
-        if (nd.includes('monofasica') || nd.includes('monofásica')) {
-          const tribs = [nd.includes('cofins') ? 'COFINS' : null, nd.includes('pis') ? 'PIS' : null].filter(Boolean).join(', ')
+        if (combined.includes('substituicao tributaria de icms') || combined.includes('com substituicao tributaria')) extras.push('Substituição tributária de: ICMS.')
+        if (combined.includes('monofasica') || combined.includes('monofásica')) {
+          const tribs = [combined.includes('cofins') ? 'COFINS' : null, combined.includes('pis') ? 'PIS' : null].filter(Boolean).join(', ')
           if (tribs) extras.push(`Tributação monofásica de: ${tribs}.`)
         }
         if (extras.length) base = `${extras.join(' ')} ${base}`
@@ -499,7 +503,7 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
     return out
   }
   const rowsAjustadoNext = buildRowsAjustadoNext(aliquotaItems || [])
-  const rowsNextFinal = dedupRowsByValue(rowsAjustadoNext)
+  const rowsNextFinal = rowsAjustadoNext
 
   const rbt12Valor = useMemo(() => Number(receitas?.rbt12 || 0), [receitas])
   const faixaFromRBT12 = useMemo(() => {

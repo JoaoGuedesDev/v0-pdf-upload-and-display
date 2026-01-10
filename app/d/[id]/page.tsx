@@ -70,45 +70,37 @@ export default async function Page({ params, searchParams }: any) {
   const viewFileIndex = sp?.view_file_index ? parseInt(sp?.view_file_index.toString()) : undefined
 
   // Handle Annual Dashboard (data.files exists)
-  if ((data as any).files && Array.isArray((data as any).files)) {
-    // If a specific file is requested (e.g. for PDF generation or direct view)
-    if (viewFileIndex !== undefined && !isNaN(viewFileIndex) && (data as any).files[viewFileIndex]) {
-      const fileData = (data as any).files[viewFileIndex].data
-      const initialData = {
-        ...fileData,
-        graficos: fileData.graficos || {},
-        debug: fileData.debug,
-        calculos: fileData.calculos || fileData.dados?.calculos,
-        metadata: fileData.metadata,
-      }
+    if ((data as any).files && Array.isArray((data as any).files)) {
+      const rawFiles = (data as any).files;
+      const invalidFiles = (data as any).invalidFiles || [];
+      const validFiles: any[] = [];
+
+      // Validate files on load
+      rawFiles.forEach((f: any) => {
+        const hasCnpj = f.data?.identificacao?.cnpj && f.data.identificacao.cnpj.length > 0;
+        const hasPeriodo = f.data?.identificacao?.periodoApuracao && f.data.identificacao.periodoApuracao.length > 0;
+        
+        if (hasCnpj && hasPeriodo) {
+            validFiles.push(f);
+        } else {
+            invalidFiles.push(f.filename || 'Arquivo Inválido');
+        }
+      });
       
       return (
-        <main className="px-6 py-4">
-          <div className="mt-4">
-            <PGDASDProcessor 
-              initialData={initialData} 
-              shareId={`${id}?view_file_index=${viewFileIndex}`} 
-              isOwner={isOwner} 
-              isPdfGen={isPdfGen} 
-            />
-          </div>
+        <main className={isPdfGen ? "p-0" : "p-0"}>
+          <AnnualDashboard 
+            files={validFiles} 
+            dashboardCode={id}
+            initialViewIndex={viewFileIndex}
+            isPdfGen={isPdfGen}
+            receitas_anteriores={(data as any).receitas_anteriores}
+            isOwner={isOwner}
+            invalidFiles={invalidFiles}
+          />
         </main>
       )
     }
-
-    // Otherwise render the full Annual Dashboard
-    return (
-      <main className={isPdfGen ? "p-0" : "px-6 py-4"}>
-        <AnnualDashboard 
-          files={(data as any).files} 
-          dashboardCode={id}
-          initialViewIndex={viewFileIndex}
-          isPdfGen={isPdfGen}
-          receitas_anteriores={(data as any).receitas_anteriores}
-        />
-      </main>
-    )
-  }
 
   const initialData = data && data.dados ? {
     ...data.dados,
