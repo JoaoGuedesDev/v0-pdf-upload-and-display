@@ -6,7 +6,7 @@ import { MonthlyFile, ReceitasAnteriores } from '../types'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { ArrowLeft, AlertTriangle, ChevronRight, ChevronLeft, BarChart3, LayoutDashboard, Upload, X, CheckCircle, ArrowUpRight, ArrowDownRight, Minus, FileText, Building2 } from "lucide-react"
+import { ArrowLeft, AlertTriangle, ChevronRight, ChevronLeft, BarChart3, LayoutDashboard, Upload, X, CheckCircle, ArrowUpRight, ArrowDownRight, Minus, FileText, Building2, Grid } from "lucide-react"
 import { cn, formatPeriod } from "@/lib/utils"
 import { UnifiedSidebar } from './UnifiedSidebar'
 import { PGDASDProcessor } from "@/components/pgdasd-processor"
@@ -669,7 +669,10 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
     const years = useMemo(() => {
         const s = new Set<number>()
         // From consolidated data
-        consolidatedData.forEach((_, key) => {
+        consolidatedData.forEach((val, key) => {
+            // Filter out noise (< 1.00)
+            if (val < 1) return
+
             const y = parseInt(key.split('-')[0])
             if (!isNaN(y)) s.add(y)
         })
@@ -694,7 +697,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                     labels.push(monthNames[m - 1])
                     
                     // Use null for 0 values to hide them in charts
-                    revenue.push(val === 0 ? null : val)
+                    revenue.push(val < 0.01 ? null : val)
                     
                     // Taxes only available for explicit files, difficult to get from history if not stored
                     // Attempt to find explicit file for taxes
@@ -703,7 +706,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                         return p.y === y && p.m === m
                     })
                     const tVal = file?.data.tributos.Total || 0
-                    taxes.push(tVal === 0 ? null : tVal)
+                    taxes.push(tVal < 0.01 ? null : tVal)
 
                     let interestVal = 0
                     if (file) {
@@ -713,7 +716,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                             interestVal = totalToPay - totalTaxesVal
                         }
                     }
-                    interest.push(interestVal === 0 ? null : interestVal)
+                    interest.push(interestVal < 0.01 ? null : interestVal)
                 }
             }
             if (labels.length > 0) {
@@ -761,22 +764,24 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                 }
 
                 // Replace 0 with null to hide points
-                const finalData = data.map(v => v === 0 ? null : v)
+                const finalData = data.map(v => v < 1 ? null : v)
 
-                datasets.push({
-                    label: `${y}`,
-                    data: finalData,
-                    backgroundColor: colors[idx % colors.length],
-                    borderRadius: 4,
-                    barPercentage: 0.6,
-                    categoryPercentage: 0.8,
-                    datalabels: {
-                        display: true,
-                        ...datalabelsConfig
-                    },
-                    // Prevent chartjs from connecting lines over nulls (for line charts) or showing empty bars
-                    spanGaps: false 
-                })
+                if (finalData.some(v => v !== null)) {
+                    datasets.push({
+                        label: `${y}`,
+                        data: finalData,
+                        backgroundColor: colors[idx % colors.length],
+                        borderRadius: 4,
+                        barPercentage: 0.6,
+                        categoryPercentage: 0.8,
+                        datalabels: {
+                            display: true,
+                            ...datalabelsConfig
+                        },
+                        // Prevent chartjs from connecting lines over nulls (for line charts) or showing empty bars
+                        spanGaps: false 
+                    })
+                }
             })
             return { labels, datasets }
         }
@@ -789,7 +794,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                 for(let m=1; m<=12; m++) {
                     sum += consolidatedData.get(`${y}-${String(m).padStart(2, '0')}`) || 0
                 }
-                return sum > 0 ? sum : null // Return null if 0
+                return sum > 0.01 ? sum : null // Return null if 0
             })
             
             return {
@@ -823,14 +828,17 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
     const averageTaxes = sortedFiles.length > 0 ? totalTaxes / sortedFiles.length : 0
     const averageTaxRate = totalRevenue > 0 ? (totalTaxes / totalRevenue) * 100 : 0
 
+    // Grid Visibility State
+    const [showGrid, setShowGrid] = useState(false)
+
     // Chart Options Boilerplate
     const chartOptions = {
         layout: {
             padding: {
-                top: 10,
-                right: 15,
-                left: 5,
-                bottom: 5
+                top: 40,
+                right: 40,
+                left: 30, // Increased from 25 to 30
+                bottom: 10
             }
         },
         responsive: true,
@@ -865,26 +873,38 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                 }
             },
             datalabels: {
-                // Line chart specific overrides: No stroke, clamp to chart area
+                // Line chart specific overrides: No stroke, allow overflow
                 ...datalabelsConfig,
                 align: 'end' as const,
                 anchor: 'end' as const,
                 color: chartTheme.text,
                 textStrokeWidth: 0,
-                clamp: true,
+                clamp: false,
             }
         },
         scales: {
             y: {
-                grid: { color: chartTheme.grid },
+                grace: '5%',
+                grid: { 
+                    color: showGrid ? chartTheme.grid : 'transparent',
+                    borderColor: chartTheme.grid, // Keep axis line
+                    drawBorder: true
+                },
+                border: { display: true, color: chartTheme.grid }, // Ensure Y axis line is visible
                 ticks: { 
                     color: chartTheme.text, 
                     callback: (v: any) => new Intl.NumberFormat('pt-BR', { notation: 'compact' }).format(v),
-                    padding: 10,
+                    padding: 25, // Increased padding from 15 to 25
                 }
             },
             x: {
-                grid: { color: chartTheme.grid },
+                // offset removed to fix "isolated" look
+                grid: { 
+                    color: showGrid ? chartTheme.grid : 'transparent',
+                    borderColor: chartTheme.grid, // Keep axis line
+                    drawBorder: true
+                },
+                border: { display: true, color: chartTheme.grid }, // Ensure X axis line is visible
                 ticks: { color: chartTheme.text }
             }
         }
@@ -1490,7 +1510,34 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                                 <div key={year} className="h-[200px]">
                                                     <h3 className="text-sm font-semibold mb-2 text-center text-muted-foreground">Receita e Impostos - {year}</h3>
                                                     <Line
-                                                        options={chartOptions}
+                                                        options={{
+                                                            ...chartOptions,
+                                                            scales: {
+                                                                ...chartOptions.scales,
+                                                                y: {
+                                                                    ...chartOptions.scales?.y,
+                                                                    border: { display: false },
+                                                                    grid: {
+                                                                        ...chartOptions.scales?.y?.grid,
+                                                                        drawBorder: false,
+                                                                        borderColor: 'transparent'
+                                                                    }
+                                                                },
+                                                                x: {
+                                                                    ...chartOptions.scales?.x,
+                                                                    offset: false,
+                                                                    grid: {
+                                                                        ...chartOptions.scales?.x?.grid,
+                                                                        drawBorder: false,
+                                                                        borderColor: 'transparent',
+                                                                        color: (ctx: any) => {
+                                                                            if (ctx.index === 0) return 'transparent';
+                                                                            return showGrid ? chartTheme.grid : 'transparent';
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
+                                                        }}
                                                         data={{
                                                             labels: yearData?.labels || [],
                                                             datasets: [
@@ -1529,6 +1576,18 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
 
                                 {/* Chart Visibility Toggles */}
                                 <div className="flex justify-end gap-2 mb-2">
+                                    {/* Grid Toggle Button */}
+                                    <button
+                                        onClick={() => setShowGrid(!showGrid)}
+                                        className={cn(
+                                            "h-7 w-7 rounded-sm flex items-center justify-center transition-all bg-muted hover:bg-muted/80",
+                                            !showGrid && "opacity-50"
+                                        )}
+                                        title={showGrid ? "Ocultar grades" : "Mostrar grades"}
+                                    >
+                                        <Grid className="w-4 h-4 text-muted-foreground" />
+                                    </button>
+
                                     <div className="flex bg-muted rounded-md p-1 gap-1">
                                         <button
                                             onClick={() => setVisibleCharts(prev => ({ ...prev, quarterly: !prev.quarterly }))}
