@@ -27,9 +27,10 @@ interface PGDASDProcessorProps {
   isOwner?: boolean
   isPdfGen?: boolean
   isEmbedded?: boolean
+  showContactCard?: boolean
 }
 
-export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shareId, hideDownloadButton, isOwner, isPdfGen, isEmbedded }: PGDASDProcessorProps) {
+export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shareId, hideDownloadButton, isOwner, isPdfGen, isEmbedded, showContactCard = true }: PGDASDProcessorProps) {
   const { theme, setTheme } = useTheme()
   const [owner, setOwner] = useState<boolean>(!!isOwner)
   const chartRef = useRef<any>(null)
@@ -1528,7 +1529,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
           </Card>
         )}
 
-        {isPdfGen && (
+        {isPdfGen && showContactCard && (
           <Card className="bg-card border-border rounded-2xl" style={{ breakInside: 'avoid' }}>
             <CardHeader className="py-2">
               <CardTitle className="text-card-foreground tracking-tight">Contato e Ações</CardTitle>

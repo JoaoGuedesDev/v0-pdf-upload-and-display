@@ -1858,12 +1858,14 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                 <div key={idx} className="pdf-page-wrapper">
                                     <div className="pdf-page" style={{ height: 'auto', pageBreakAfter: idx < sortedFiles.length - 1 ? 'always' : 'auto' }}>
                                         <PGDASDProcessor
-                                            initialData={file.data}
-                                            hideDownloadButton={false}
-                                            isOwner={isOwner}
-                                            isPdfGen={true}
-                                            shareId={dashboardCode ? (selectedFileIndex !== null ? `${dashboardCode}?view_file_index=${selectedFileIndex}` : dashboardCode) : undefined}
-                                        />
+                                    initialData={file.data}
+                                    hideDownloadButton={false}
+                                    isOwner={isOwner}
+                                    isPdfGen={true}
+                                    isEmbedded={isEmbedded}
+                                    showContactCard={idx === sortedFiles.length - 1}
+                                    shareId={dashboardCode ? (selectedFileIndex !== null ? `${dashboardCode}?view_file_index=${selectedFileIndex}` : dashboardCode) : undefined}
+                                />
                                     </div>
                                 </div>
                             ))}
