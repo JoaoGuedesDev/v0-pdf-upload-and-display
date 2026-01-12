@@ -47,10 +47,11 @@ export const GraficoReceitaMensal = memo(function GraficoReceitaMensal({
   data, 
   title = '',
   description = 'Evolução de Receitas',
-  height = 400 
-}: GraficoReceitaMensalProps) {
-  const { theme } = useTheme()
-  const isDark = theme === 'dark'
+  height = 370,
+  showGrid = false
+}: GraficoReceitaMensalProps & { showGrid?: boolean }) {
+  const { theme, resolvedTheme } = useTheme()
+  const isDark = theme === 'dark' || resolvedTheme === 'dark'
   const chartData = (() => {
     if (!data || !data.labels || !data.values) {
       return { labels: [], datasets: [] };
@@ -209,8 +210,22 @@ export const GraficoReceitaMensal = memo(function GraficoReceitaMensal({
               return !!(ds && ds.hidden)
             }
             return [
-              { text: 'Mercado Externo', fillStyle: '#00C2FF', strokeStyle: '#00C2FF', hidden: getHidden(0), datasetIndex: 0 },
-              { text: 'Mercado Interno', fillStyle: '#007AFF', strokeStyle: '#007AFF', hidden: getHidden(1), datasetIndex: 1 },
+              { 
+                text: 'Mercado Externo', 
+                fillStyle: '#00C2FF', 
+                strokeStyle: '#00C2FF', 
+                fontColor: isDark ? '#FFFFFF' : '#050B14',
+                hidden: getHidden(0), 
+                datasetIndex: 0 
+              },
+              { 
+                text: 'Mercado Interno', 
+                fillStyle: '#007AFF', 
+                strokeStyle: '#007AFF', 
+                fontColor: isDark ? '#FFFFFF' : '#050B14',
+                hidden: getHidden(1), 
+                datasetIndex: 1 
+              },
             ] as any
           },
         },
@@ -308,6 +323,7 @@ export const GraficoReceitaMensal = memo(function GraficoReceitaMensal({
           padding: 16
         },
         grid: {
+          display: showGrid,
           color: isDark ? '#007AFF' : '#007AFF33',
         }
       },
@@ -325,6 +341,7 @@ export const GraficoReceitaMensal = memo(function GraficoReceitaMensal({
            }
         },
         grid: {
+          display: showGrid,
           color: isDark ? '#007AFF' : '#007AFF33',
         }
       }

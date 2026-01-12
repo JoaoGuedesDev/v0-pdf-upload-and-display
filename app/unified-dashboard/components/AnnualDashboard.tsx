@@ -945,7 +945,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
             legend: {
                 position: 'bottom' as const,
                 labels: { 
-                    color: chartTheme.text,
+                    color: theme === 'dark' ? '#FFFFFF' : chartTheme.text, // Legenda branca no modo noturno
                     padding: 10,
                     boxWidth: 10,
                     usePointStyle: true,
@@ -984,6 +984,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
             y: {
                 grace: '5%',
                 grid: { 
+                    display: showGrid,
                     color: showGrid ? chartTheme.grid : 'transparent',
                     borderColor: chartTheme.grid, // Keep axis line
                     drawBorder: true
@@ -998,6 +999,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
             x: {
                 // offset removed to fix "isolated" look
                 grid: { 
+                    display: showGrid,
                     color: showGrid ? chartTheme.grid : 'transparent',
                     borderColor: chartTheme.grid, // Keep axis line
                     drawBorder: true
@@ -1690,7 +1692,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                     <button
                                         onClick={() => setShowGrid(!showGrid)}
                                         className={cn(
-                                            "h-7 w-7 rounded-sm flex items-center justify-center transition-all bg-muted hover:bg-muted/80",
+                                            "h-6 w-6 rounded-full flex items-center justify-center transition-all bg-muted hover:bg-muted/80",
                                             !showGrid && "opacity-50"
                                         )}
                                         title={showGrid ? "Ocultar grades" : "Mostrar grades"}
@@ -1789,7 +1791,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                         <CardHeader className="py-2 px-4">
                                             <CardTitle className="text-base font-semibold">Composição do Faturamento Mensal</CardTitle>
                                         </CardHeader>
-                                        <CardContent className="px-2 pb-2 h-[240px]">
+                                        <CardContent className="px-2 pb-2 h-[210px]">
                                             <Bar
                                                 options={{
                                                     ...chartOptions,
@@ -1807,7 +1809,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                                         legend: {
                                                             display: true,
                                                             position: 'bottom',
-                                                            labels: { color: chartTheme.text }
+                                                            labels: { color: theme === 'dark' ? '#FFFFFF' : chartTheme.text } // Legenda branca no modo noturno
                                                         },
                                                         datalabels: {
                                                             ...datalabelsConfig,

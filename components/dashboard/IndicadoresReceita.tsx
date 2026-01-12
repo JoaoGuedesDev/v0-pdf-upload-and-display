@@ -66,6 +66,7 @@ interface IndicadoresReceitaProps {
 }
 
 export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, calculos, className = "", servicosTotal = 0, mercadoriasTotal = 0, servicosBrutoPA = 0, mercadoriasBrutoPA = 0, receitas12Meses, periodoApuracao, porAnexoItems }: IndicadoresReceitaProps) {
+  const [showGrid, setShowGrid] = useState(false)
   const { theme } = useTheme()
   const isDark = theme === 'dark'
   const receitaPA = useMemo(() => (receitas?.receitaPA || 0), [receitas])
@@ -869,8 +870,15 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
 
       {chartData && (servicosBrutoPA > 0 && mercadoriasBrutoPA > 0) && (
         <Card className="border shadow-sm rounded-xl bg-card border-border" style={{ breakInside: 'avoid' }}>
-          <CardHeader className="py-2 px-4 border-b bg-muted/50 border-border">
+          <CardHeader className="py-2 px-4 border-b bg-muted/50 border-border flex flex-row items-center justify-between">
             <CardTitle className="text-sm font-medium text-foreground">Composição do Faturamento Mensal</CardTitle>
+            <button 
+              onClick={() => setShowGrid(!showGrid)}
+              className="h-6 w-6 rounded-full flex items-center justify-center text-muted-foreground hover:text-primary transition-colors hover:bg-muted"
+              title={showGrid ? "Ocultar Grades" : "Mostrar Grades"}
+            >
+              <Grid className="h-4 w-4" />
+            </button>
           </CardHeader>
           <CardContent className="p-2 h-[120px]">
         <Bar data={chartData} options={chartOptions} />

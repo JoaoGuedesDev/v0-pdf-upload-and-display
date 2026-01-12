@@ -14,7 +14,7 @@ import { Doughnut } from 'react-chartjs-2'
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, Title } from 'chart.js'
 import ChartDataLabels from 'chartjs-plugin-datalabels'
 import { CHART_CONFIG, CHART_COLORS } from '@/lib/constants'
-import { MessageCircle, Mail, Download, Moon, Sun } from 'lucide-react'
+import { MessageCircle, Mail, Download, Moon, Sun, Grid } from 'lucide-react'
 import { useTheme } from "next-themes"
 
 ChartJS.register(ArcElement, Tooltip, Legend, Title, ChartDataLabels)
@@ -58,6 +58,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [shareCode, setShareCode] = useState<string | null>(null)
+  const [showGrid, setShowGrid] = useState(false)
 
   const [scale, setScale] = useState(1)
 
@@ -986,9 +987,18 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
           if (!hasData) return null
           return (
             <Card className="bg-card border-border py-1 gap-1" style={{ breakInside: 'avoid' }}>
-              <CardHeader className="pt-1 pb-0">
-                <CardTitle className="text-card-foreground">Receita Mensal (R$)</CardTitle>
-                <CardDescription>Mercado Interno e Externo</CardDescription>
+              <CardHeader className="pt-1 pb-0 flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="text-card-foreground">Receita Mensal (R$)</CardTitle>
+                  <CardDescription>Mercado Interno e Externo</CardDescription>
+                </div>
+                <button 
+                  onClick={() => setShowGrid(!showGrid)}
+                  className="h-6 w-6 rounded-full flex items-center justify-center text-muted-foreground hover:text-primary transition-colors hover:bg-muted"
+                  title={showGrid ? "Ocultar Grades" : "Mostrar Grades"}
+                >
+                  <Grid className="h-4 w-4" />
+                </button>
               </CardHeader>
               <CardContent className="pt-0 pb-0">
                 {(() => {
@@ -1053,6 +1063,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                     return (
                       <GraficoReceitaMensal
                         data={merged}
+                        showGrid={showGrid}
                       />
                     )
                   }
@@ -1087,14 +1098,15 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                     return (
                       <GraficoReceitaMensal
                         data={{ labels, values, externo }}
+                        showGrid={showGrid}
                       />
                     )
                   }
                   if (serieA) {
-                    return <GraficoReceitaMensal data={serieA} />
+                    return <GraficoReceitaMensal data={serieA} showGrid={showGrid} />
                   }
                   if (serieMI) {
-                    return <GraficoReceitaMensal data={serieMI} />
+                    return <GraficoReceitaMensal data={serieMI} showGrid={showGrid} />
                   }
                   return null
                 })()}
