@@ -433,7 +433,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
         </Card>
 
         {data?.receitas && (
-          <Card className="bg-card border-border">
+          <Card className="bg-card border-border" style={{ breakInside: 'avoid' }}>
             <CardHeader className="py-2">
               <CardTitle className="text-card-foreground">Discriminativo de Receitas</CardTitle>
               <CardDescription>Detalhamento completo das receitas conforme PGDASD</CardDescription>

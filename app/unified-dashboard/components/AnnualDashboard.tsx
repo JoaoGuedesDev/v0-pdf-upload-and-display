@@ -9,6 +9,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { ArrowLeft, AlertTriangle, ChevronRight, ChevronLeft, BarChart3, LayoutDashboard, Upload, X, CheckCircle, ArrowUpRight, ArrowDownRight, Minus, FileText, Building2, Grid, Trash2 } from "lucide-react"
 import { cn, formatPeriod } from "@/lib/utils"
 import { UnifiedSidebar } from './UnifiedSidebar'
+import { ReportCover } from './ReportCover'
 import { PGDASDProcessor } from "@/components/pgdasd-processor"
 import {
     Chart as ChartJS,
@@ -114,6 +115,9 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
         }
     })
 
+
+    // Tab State for Consolidated View
+    const [activeTab, setActiveTab] = useState<'resumo' | 'visao-geral'>('resumo')
 
     const fileInputRef = useRef<HTMLInputElement>(null)
     const { theme } = useTheme()
@@ -259,6 +263,19 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
     const [targetFilename, setTargetFilename] = useState<string | null>(
         initialViewIndex !== undefined && files[initialViewIndex] ? files[initialViewIndex].filename : null
     )
+
+    // History State to remember selected file per Company
+    const [viewHistory, setViewHistory] = useState<Record<string, string | null>>({})
+
+    // Update history when selection changes
+    useEffect(() => {
+        if (activeCnpj) {
+            setViewHistory(prev => ({
+                ...prev,
+                [activeCnpj]: targetFilename
+            }))
+        }
+    }, [targetFilename, activeCnpj])
 
     // Sync selectedFileIndex with targetFilename
     useEffect(() => {
@@ -1411,8 +1428,8 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                     className={cn("shrink-0 gap-2", isActive && "font-bold")}
                                     onClick={() => {
                                         setActiveCnpj(cnpj);
-                                        setSelectedFileIndex(null); // Reseta para visão geral da empresa
-                                        setTargetFilename(null);
+                                        const lastView = viewHistory[cnpj] ?? null
+                                        setTargetFilename(lastView);
                                     }}
                                 >
                                     <Building2 className="w-4 h-4" />
@@ -1479,23 +1496,41 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
 
                     {(isConsolidated || isPdfGen) && (
                         <>
-                            <div className={`p-6 space-y-6 ${isPdfGen ? 'print-section' : ''}`} style={isPdfGen ? { height: 'auto', pageBreakAfter: 'always' } : undefined}>
-                                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                                <div>
-                                    <h1 className="text-2xl font-bold text-foreground">Visão Geral Anual</h1>
-                                    <p className="text-muted-foreground">Consolidado de {sortedFiles.length} períodos apurados</p>
-                                </div>
-                                {!isEmbedded && (
+                            {/* Navigation Tabs (Hidden in PDF) */}
+                            {!isPdfGen && !isEmbedded && (
+                                <div className="flex justify-end mb-6 px-6 pt-4 mx-6 mt-4">
                                     <DashboardActions 
-                                onUpload={handleFileUpload} 
-                                isUploading={isUploading} 
-                                onExportPdf={handleExportPdf}
-                                isSaving={isSaving}
-                            />
-                                )}
-                            </div>
+                                        onUpload={handleFileUpload} 
+                                        isUploading={isUploading} 
+                                        onExportPdf={handleExportPdf}
+                                        isSaving={isSaving}
+                                    />
+                                </div>
+                            )}
 
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            {/* Report Cover (Resumo Geral) */}
+                            {(activeTab === 'resumo' || isPdfGen) && sortedFiles.length > 0 && (
+                                <div style={isPdfGen ? { pageBreakAfter: 'always' } : undefined} className={isPdfGen ? "print-section" : undefined}>
+                                    <ReportCover 
+                                        files={sortedFiles}
+                                        companyName={sortedFiles[0]?.data.identificacao.razaoSocial || activeCnpj || 'Empresa'}
+                                        cnpj={activeCnpj || ''}
+                                        isDark={isDark}
+                                    />
+                                </div>
+                            )}
+                            
+                            {/* Consolidated Charts (Visão Geral) */}
+                            {(activeTab === 'visao-geral' || isPdfGen) && (
+                                <div className={`p-6 space-y-6 ${isPdfGen ? 'print-section' : ''}`} style={isPdfGen ? { height: 'auto', pageBreakAfter: 'always' } : undefined}>
+                                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                                        <div>
+                                            <h1 className="text-2xl font-bold text-foreground">Visão Geral Anual</h1>
+                                            <p className="text-muted-foreground">Consolidado de {sortedFiles.length} períodos apurados</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <Card>
                                     <CardHeader className="pb-2">
                                         <CardTitle className="text-sm font-medium text-muted-foreground">Receita Bruta Total</CardTitle>
@@ -2003,8 +2038,9 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                 </CardContent>
                             </Card>
                         </div>
-                        </>
                     )}
+                    </>
+                )}
 
                     {(!isPdfGen && !isConsolidated) && (
                         <>
@@ -2071,6 +2107,8 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                     queuedFiles={queuedFiles}
                     onProcessQueue={handleProcessQueue}
                     onRemoveFromQueue={handleRemoveFromQueue}
+                    activeTab={activeTab}
+                    onTabSelect={setActiveTab}
                 />
             )}
 

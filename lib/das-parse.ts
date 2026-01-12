@@ -10,7 +10,25 @@ export function processDasData(textRaw: string) {
       const cab = obj.cabecalho || {}
       const disc = obj.discriminativo_receitas || {}
       const receitasAnt = obj.receitas_anteriores || {}
-      const toNumber = (v: any) => typeof v === 'number' ? v : Number(v) || 0
+      const toNumber = (v: any) => {
+        if (typeof v === 'number') return v
+        if (!v) return 0
+        let s = String(v).trim()
+        // Remove currency symbols (R$), percentage (%), and spaces
+        s = s.replace(/[R$\s%]/g, '')
+        
+        // Handle Brazilian format (1.234,56)
+        if (s.includes(',') && !s.includes('.')) {
+             s = s.replace(',', '.')
+        } else if (s.includes('.') && s.includes(',')) {
+             if (s.lastIndexOf(',') > s.lastIndexOf('.')) {
+                 s = s.replace(/\./g, '').replace(',', '.')
+             } else {
+                 s = s.replace(/,/g, '')
+             }
+        }
+        return Number(s) || 0
+      }
       const estabs = obj.estabelecimentos || []
       const estab0 = estabs[0] || {}
       const tot = (estab0.totais && estab0.totais.declarado) || null
@@ -167,16 +185,28 @@ export function processDasData(textRaw: string) {
       }
       const isServ = (nome: string) => /(servico|servicos|prestacao)/.test(toKey(nome))
       const isInd = (nome: string) => /(industria|industrializacao)/.test(toKey(nome))
-      const baseMap = () => ({ IRPJ: 0, CSLL: 0, COFINS: 0, PIS_PASEP: 0, INSS_CPP: 0, ICMS: 0, IPI: 0, ISS: 0 })
+      const baseMap = () => ({ IRPJ: 0, CSLL: 0, COFINS: 0, PIS_Pasep: 0, INSS_CPP: 0, ICMS: 0, IPI: 0, ISS: 0, Total: 0 })
       const addTrib = (map: any, t: any) => {
-        map.IRPJ += toNumber(t?.irpj)
-        map.CSLL += toNumber(t?.csll)
-        map.COFINS += toNumber(t?.cofins)
-        map.PIS_PASEP += toNumber(t?.pis)
-        map.INSS_CPP += toNumber(t?.inss_cpp)
-        map.ICMS += toNumber(t?.icms)
-        map.IPI += toNumber(t?.ipi)
-        map.ISS += toNumber(t?.iss)
+        const vIrpj = toNumber(t?.irpj || t?.IRPJ)
+        const vCsll = toNumber(t?.csll || t?.CSLL)
+        const vCofins = toNumber(t?.cofins || t?.COFINS)
+        const vPis = toNumber(t?.pis || t?.PIS || t?.PIS_Pasep)
+        const vInss = toNumber(t?.inss_cpp || t?.INSS_CPP || t?.inss)
+        const vIcms = toNumber(t?.icms || t?.ICMS)
+        const vIpi = toNumber(t?.ipi || t?.IPI)
+        const vIss = toNumber(t?.iss || t?.ISS)
+
+        map.IRPJ += vIrpj
+        map.CSLL += vCsll
+        map.COFINS += vCofins
+        map.PIS_Pasep += vPis
+        map.INSS_CPP += vInss
+        map.ICMS += vIcms
+        map.IPI += vIpi
+        map.ISS += vIss
+        
+        // Sum total
+        map.Total += (vIrpj + vCsll + vCofins + vPis + vInss + vIcms + vIpi + vIss)
       }
       const mInt = baseMap()
       const mExt = baseMap()
@@ -432,7 +462,10 @@ export function processDasData(textRaw: string) {
                       const aliqTeoricaAtual = (fxAtual?.aliquota_efetiva || 0) * 100
                   
                       // Helper to respect n8n values (including 0) over local calculation
-                      const getVal = (v: any) => (v !== undefined && v !== null && String(v).trim() !== '') ? Number(v) : undefined
+                      const getVal = (v: any) => {
+                        if (v === undefined || v === null || String(v).trim() === '') return undefined
+                        return toNumber(v)
+                      }
                       
                       const n8n_orig_adj = getVal(at.aliquota_efetiva_original_ajustada_percent)
                       const n8n_atual_adj = getVal(at.aliquota_efetiva_atual_ajustada_percent)
@@ -920,16 +953,26 @@ export function processDasData(textRaw: string) {
     return /(para\s+o\s+exterior|mercado\s+externo|para\s+exterior|exportacao)/.test(k)
   }
   const isServ = (nome: string) => /(servico|servicos|prestacao)/.test(toKey(nome))
-  const baseMap = () => ({ IRPJ: 0, CSLL: 0, COFINS: 0, PIS_PASEP: 0, INSS_CPP: 0, ICMS: 0, IPI: 0, ISS: 0 })
+  const baseMap = () => ({ IRPJ: 0, CSLL: 0, COFINS: 0, PIS_Pasep: 0, INSS_CPP: 0, ICMS: 0, IPI: 0, ISS: 0, Total: 0 })
   const addTrib = (map: any, t: any) => {
-    map.IRPJ += Number(t?.irpj || 0)
-    map.CSLL += Number(t?.csll || 0)
-    map.COFINS += Number(t?.cofins || 0)
-    map.PIS_PASEP += Number(t?.pis || 0)
-    map.INSS_CPP += Number(t?.inss_cpp || 0)
-    map.ICMS += Number(t?.icms || 0)
-    map.IPI += Number(t?.ipi || 0)
-    map.ISS += Number(t?.iss || 0)
+    const vIrpj = Number(t?.irpj || t?.IRPJ || 0)
+    const vCsll = Number(t?.csll || t?.CSLL || 0)
+    const vCofins = Number(t?.cofins || t?.COFINS || 0)
+    const vPis = Number(t?.pis || t?.PIS_Pasep || t?.PIS || 0)
+    const vInss = Number(t?.inss_cpp || t?.INSS_CPP || t?.inss || 0)
+    const vIcms = Number(t?.icms || t?.ICMS || 0)
+    const vIpi = Number(t?.ipi || t?.IPI || 0)
+    const vIss = Number(t?.iss || t?.ISS || 0)
+
+    map.IRPJ += vIrpj
+    map.CSLL += vCsll
+    map.COFINS += vCofins
+    map.PIS_Pasep += vPis
+    map.INSS_CPP += vInss
+    map.ICMS += vIcms
+    map.IPI += vIpi
+    map.ISS += vIss
+    map.Total += (vIrpj + vCsll + vCofins + vPis + vInss + vIcms + vIpi + vIss)
   }
   const mInt = baseMap()
   const mExt = baseMap()
