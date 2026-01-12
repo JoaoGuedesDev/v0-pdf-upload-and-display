@@ -3,8 +3,8 @@ import crypto from 'node:crypto'
 
 export type DashboardData = any
 
-export async function saveDashboard(data: DashboardData, _ttlDays = 7): Promise<string> {
-  const saved = await saveLocal(data, _ttlDays)
+export async function saveDashboard(data: DashboardData, _ttlDays = 7, forceId?: string): Promise<string> {
+  const saved = await saveLocal(data, _ttlDays, forceId)
   return saved.id
 }
 

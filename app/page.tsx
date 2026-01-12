@@ -1,5 +1,6 @@
 "use client"
 import { useState, useEffect } from "react"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { ConfiguracaoProcessamento } from "@/components/dashboard/ConfiguracaoProcessamento"
 import { ExternalLink, CheckCircle, XCircle, Clock, Trash2, LayoutDashboard, ArrowLeft, Download } from "lucide-react"
@@ -327,8 +328,9 @@ export default function Home() {
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-14 items-center justify-between px-6">
           <div className="flex items-center gap-2">
-            <HeaderLogo className="h-8" />
-            <span className="font-bold hidden sm:inline-block">v0 PDF App</span>
+            <Link href="/" className="transition-opacity hover:opacity-80">
+              <HeaderLogo className="h-8" />
+            </Link>
           </div>
           <ModeToggle />
         </div>

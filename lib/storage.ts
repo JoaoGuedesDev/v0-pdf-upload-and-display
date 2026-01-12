@@ -81,8 +81,8 @@ function generateId(): string {
   return (Date.now().toString(36) + rnd).slice(0, 12)
 }
 
-export async function saveDashboard(payload: any, ttlDays = 7): Promise<SaveResult> {
-  const id = generateId()
+export async function saveDashboard(payload: any, ttlDays = 7, forceId?: string): Promise<SaveResult> {
+  const id = forceId || generateId()
   const key = `dash:${id}`
   const now = Date.now()
   const expiresAtMs = now + Math.max(1, ttlDays) * 24 * 60 * 60 * 1000

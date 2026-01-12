@@ -1,6 +1,7 @@
 import { MonthlyFile } from '../types'
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { LayoutDashboard, Upload, FileText, ChevronRight, Building2, Calendar, DollarSign, AlertTriangle } from "lucide-react"
+import { LayoutDashboard, Upload, FileText, ChevronRight, Building2, Calendar, DollarSign, AlertTriangle, Trash2, CheckCircle, X } from "lucide-react"
 import { cn, formatPeriod } from "@/lib/utils"
 import { HeaderLogo } from "@/components/header-logo"
 import { useMemo } from 'react'
@@ -19,6 +20,10 @@ interface UnifiedSidebarProps {
   isOwner?: boolean
   invalidFiles?: string[]
   activeCnpj?: string
+  onDeleteFile?: (file: MonthlyFile) => void
+  queuedFiles?: MonthlyFile[]
+  onProcessQueue?: () => void
+  onRemoveFromQueue?: (index: number) => void
 }
 
 export function UnifiedSidebar({
@@ -34,7 +39,11 @@ export function UnifiedSidebar({
   showConsolidatedOption = true,
   isOwner = true,
   invalidFiles = [],
-  activeCnpj
+  activeCnpj,
+  onDeleteFile,
+  queuedFiles = [],
+  onProcessQueue,
+  onRemoveFromQueue
 }: UnifiedSidebarProps) {
   const groupedFiles = useMemo(() => {
     const groups: Record<string, { name: string, items: { file: MonthlyFile, index: number }[] }> = {}
@@ -62,7 +71,9 @@ export function UnifiedSidebar({
     <div className="w-full lg:w-80 border-l border-border bg-card order-1 lg:order-2 lg:h-screen lg:sticky lg:top-0 print:hidden flex flex-col">
       <div className="p-4 border-b border-border bg-card z-10 flex flex-col gap-4 shrink-0">
         <div className="flex justify-center lg:justify-start">
-          <HeaderLogo className="h-8" />
+          <Link href="/" className="transition-opacity hover:opacity-80">
+            <HeaderLogo className="h-8" />
+          </Link>
         </div>
         <div>
           <h2 className="font-semibold text-foreground">Navegação Rápida</h2>
@@ -75,24 +86,59 @@ export function UnifiedSidebar({
           {isOwner && (
             <>
               <Button
-                variant="outline"
-                size="sm"
-                className="w-full mt-3 flex items-center gap-2 bg-background hover:bg-muted"
+                className="w-full mt-3 justify-start gap-2 bg-[#007AFF] hover:bg-[#005bb5] text-white shadow-sm"
                 onClick={onAddFile}
                 disabled={isUploading}
               >
                 {isUploading ? (
-                  <div className="flex items-center gap-2">
-                    <span className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                    <span>Processando...</span>
-                  </div>
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
                 ) : (
-                  <>
-                    <Upload className="h-3.5 w-3.5" />
-                    <span>Adicionar Mês</span>
-                  </>
+                  <Upload className="h-4 w-4" />
                 )}
+                Adicionar Mês
               </Button>
+              
+              {queuedFiles.length > 0 && (
+                <div className="mt-4 space-y-3 p-3 bg-muted/30 rounded-lg border border-border/50 animate-in fade-in slide-in-from-top-2">
+                  <div className="flex items-center justify-between">
+                     <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                        <Upload className="w-3 h-3" /> Fila ({queuedFiles.length})
+                     </h3>
+                  </div>
+                  
+                  <div className="space-y-1 max-h-[200px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-muted-foreground/20">
+                    {queuedFiles.map((file, i) => (
+                      <div key={i} className="flex items-center justify-between group text-sm p-1.5 rounded hover:bg-background border border-transparent hover:border-border/50 transition-colors">
+                         <div className="flex items-center gap-2 min-w-0 flex-1">
+                            <FileText className="w-3 h-3 text-muted-foreground shrink-0" />
+                            <span className="truncate text-xs text-foreground/80" title={file.filename}>
+                               {file.filename}
+                            </span>
+                         </div>
+                         {onRemoveFromQueue && (
+                           <button 
+                             onClick={() => onRemoveFromQueue(i)}
+                             className="text-muted-foreground hover:text-destructive p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                           >
+                              <X className="w-3 h-3" />
+                           </button>
+                         )}
+                      </div>
+                    ))}
+                  </div>
+
+                  {onProcessQueue && (
+                    <Button 
+                      size="sm" 
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white h-8 text-xs shadow-sm"
+                      onClick={onProcessQueue}
+                    >
+                      <CheckCircle className="w-3 h-3 mr-1.5" />
+                      Processar Todos
+                    </Button>
+                  )}
+                </div>
+              )}
               <input
                 type="file"
                 ref={fileInputRef}
@@ -155,11 +201,11 @@ export function UnifiedSidebar({
                             const receita = data.receitas.receitaPA;
 
                             return (
-                                <button
+                                <div
                                     key={index}
                                     onClick={() => onFileSelect(index)}
                                     className={cn(
-                                        "w-full flex items-center gap-3 p-3 rounded-lg text-left transition-all group border",
+                                        "w-full flex items-center gap-3 p-3 rounded-lg text-left transition-all group border relative cursor-pointer",
                                         isSelected
                                             ? "bg-primary/5 border-primary/20 shadow-sm"
                                             : "hover:bg-muted/50 border-transparent hover:border-border/50"
@@ -178,16 +224,6 @@ export function UnifiedSidebar({
                                                 {formatPeriod(periodo)}
                                             </p>
                                         </div>
-                                        {/* Company name hidden in items when grouped, but kept if we want to be safe or if only 1 group without header? 
-                                            We decided to always show header, so we can hide company here to save space */}
-                                        {/* 
-                                        <div className="flex items-center gap-1.5">
-                                            <Building2 className="w-3 h-3 text-muted-foreground" />
-                                            <p className="text-xs text-muted-foreground truncate max-w-[140px]" title={razaoSocial}>
-                                                {razaoSocial}
-                                            </p>
-                                        </div>
-                                        */}
                                         <div className="flex items-center gap-1.5">
                                             <DollarSign className="w-3 h-3 text-muted-foreground" />
                                             <p className="text-xs text-muted-foreground font-medium">
@@ -195,8 +231,24 @@ export function UnifiedSidebar({
                                             </p>
                                         </div>
                                     </div>
-                                    {isSelected && <ChevronRight className="w-4 h-4 text-primary" />}
-                                </button>
+                                    
+                                    {isSelected && !onDeleteFile && <ChevronRight className="w-4 h-4 text-primary" />}
+                                    
+                                    {onDeleteFile && (
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-background/80 hover:bg-destructive/10 hover:text-destructive h-8 w-8 shadow-sm"
+                                            onClick={(e) => {
+                                                e.stopPropagation()
+                                                onDeleteFile(file)
+                                            }}
+                                            title="Remover arquivo"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </Button>
+                                    )}
+                                </div>
                             )
                         })}
                     </div>

@@ -9,9 +9,10 @@ interface DashboardActionsProps {
   isUploading: boolean
   onExportPdf: () => void
   className?: string
+  isSaving?: boolean
 }
 
-export function DashboardActions({ onUpload, isUploading, onExportPdf, className }: DashboardActionsProps) {
+export function DashboardActions({ onUpload, isUploading, onExportPdf, className, isSaving }: DashboardActionsProps) {
   const { theme, setTheme } = useTheme()
 
   return (
@@ -20,9 +21,14 @@ export function DashboardActions({ onUpload, isUploading, onExportPdf, className
         variant="ghost" 
         className="bg-[#007AFF]/20 text-[#007AFF] hover:bg-[#007AFF]/30 dark:bg-[#007AFF]/40 dark:text-[#FFFFFF] gap-2" 
         onClick={onExportPdf}
+        disabled={isSaving}
       >
-        <Download className="h-4 w-4" />
-        Exportar Relatório PDF
+        {isSaving ? (
+          <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+        ) : (
+          <Download className="h-4 w-4" />
+        )}
+        {isSaving ? 'Salvando...' : 'Exportar Relatório PDF'}
       </Button>
       <Button
         variant="ghost"

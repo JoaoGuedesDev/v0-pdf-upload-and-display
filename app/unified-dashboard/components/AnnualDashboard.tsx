@@ -6,7 +6,7 @@ import { MonthlyFile, ReceitasAnteriores } from '../types'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { ArrowLeft, AlertTriangle, ChevronRight, ChevronLeft, BarChart3, LayoutDashboard, Upload, X, CheckCircle, ArrowUpRight, ArrowDownRight, Minus, FileText, Building2, Grid } from "lucide-react"
+import { ArrowLeft, AlertTriangle, ChevronRight, ChevronLeft, BarChart3, LayoutDashboard, Upload, X, CheckCircle, ArrowUpRight, ArrowDownRight, Minus, FileText, Building2, Grid, Trash2 } from "lucide-react"
 import { cn, formatPeriod } from "@/lib/utils"
 import { UnifiedSidebar } from './UnifiedSidebar'
 import { PGDASDProcessor } from "@/components/pgdasd-processor"
@@ -83,6 +83,9 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
     const [showErrorModal, setShowErrorModal] = useState(false)
     const [pendingFiles, setPendingFiles] = useState<MonthlyFile[]>([])
     const [showInvalidFilesModal, setShowInvalidFilesModal] = useState(false)
+    
+    // Queue State
+    const [queuedFiles, setQueuedFiles] = useState<MonthlyFile[]>([])
 
     useEffect(() => {
         if (invalidFiles && invalidFiles.length > 0) {
@@ -192,6 +195,25 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
     
     const isMultiCompany = uniqueCnpjs.length > 1
 
+    const [isSaving, setIsSaving] = useState(false)
+
+    const persistChanges = async (newFiles: MonthlyFile[]) => {
+        if (!dashboardCode || !isOwner) return
+        
+        setIsSaving(true)
+        try {
+            await fetch(`/api/dashboard/${dashboardCode}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ files: newFiles })
+            })
+        } catch (e) {
+            console.error("Failed to persist changes", e)
+        } finally {
+            setIsSaving(false)
+        }
+    }
+
     // Logic to auto-select file if only one exists, or allow consolidated if multiple
     useEffect(() => {
         // If there is only 1 file, force select it (no consolidated view needed)
@@ -280,6 +302,33 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
     
     // This logic still holds if `sortedFiles` is the company-filtered list and `selectedFileIndex` is index into it.
 
+    const handleDeleteFile = (fileToDelete: MonthlyFile) => {
+        setLocalFiles(prev => {
+            const updated = prev.filter(f => f !== fileToDelete)
+            if (onFilesUpdated) setTimeout(() => onFilesUpdated(updated), 0)
+            persistChanges(updated)
+            return updated
+        })
+        if (selectedFileIndex !== null && sortedFiles[selectedFileIndex] === fileToDelete) {
+            setSelectedFileIndex(null)
+            setTargetFilename(null)
+        }
+    }
+
+    const handleProcessQueue = () => {
+        setLocalFiles(prev => {
+            const updated = [...prev, ...queuedFiles]
+            if (onFilesUpdated) setTimeout(() => onFilesUpdated(updated), 0)
+            persistChanges(updated)
+            return updated
+        })
+        setQueuedFiles([])
+    }
+
+    const handleRemoveFromQueue = (index: number) => {
+        setQueuedFiles(prev => prev.filter((_, i) => i !== index))
+    }
+
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (!e.target.files?.length) return
 
@@ -328,8 +377,11 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                 const fCnpj = nf.data?.identificacao?.cnpj
                 const fPeriod = nf.data?.identificacao?.periodoApuracao
 
-                // Check Duplicate in existing files
+                // Check Duplicate in existing files OR in queued files
                 const isDuplicate = localFiles.some(f => 
+                    f.data?.identificacao?.cnpj === fCnpj && 
+                    f.data?.identificacao?.periodoApuracao === fPeriod
+                ) || queuedFiles.some(f => 
                     f.data?.identificacao?.cnpj === fCnpj && 
                     f.data?.identificacao?.periodoApuracao === fPeriod
                 )
@@ -353,73 +405,11 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
 
             if (errors.length > 0) {
                 setUploadErrors(errors)
-                // If we have valid files mixed with errors, or just errors that we might want to bypass (like duplicates if user insists, though usually duplicates are skipped. 
-                // But request says 'continue showing error, appear option to continue'. 
-                // So we should store ALL files attempted (or just the ones that failed? 
-                // Actually, the request implies ignoring the errors.
-                // Current logic separates validFiles (passed checks) and errors.
-                // If we want to force process, we probably want to add the ones that caused errors? 
-                // Or maybe the 'errors' are blocking validFiles from being added? 
-                // The current code adds validFiles immediately even if there are errors (lines 145-153).
-                // So if files really are valid, they are added.
-                // The issue "Sequência de meses descontínua" likely comes from the server or logic I haven't seen yet?
-                // Wait, I saw "Sequência de meses descontínua" in grep for api/process-annual-pdf/route.ts but NOT in this file.
-                // Ah, line 100 thrown error!
-
-                // If data.error is thrown, execution jumps to catch block (line 155). 
-                // In that case validFiles is never processed.
-
-                // If the error comes from individual checks (lines 115-138), validFiles are added.
-                // The user's screenshot shows "Erro: Sequência de meses descontínua".
-                // If that error is from `data.error` (server side), we need to handle it.
-                // But `data.error` throws immediately.
-
-                // Let's look at where that error comes from. 
-                // If it's a server error 400 that returns JSON with error, we throw. 
-                // We need to capture the files returned even if there is an error?
-                // Or maybe the server returns processed files AND an error?
-
-                // Assuming `data.files` is present even if `data.error` is present? 
-                // If so, we shouldn't throw line 101 immediately if we want to allow bypass.
-
-                // BUT, looking at the code: 
-                // if (data.error) { throw new Error(data.error) }
-
-                // If I remove this throw, the code proceeds to process `data.files`.
-                // So I should instead push data.error to `errors` list and proceed, 
-                // letting the user decide? 
-
-                // HOWEVER, the logic below (115-138) processes `newFiles`. 
-                // If `data.files` is valid, we can process it.
-
-                // So I will change the logic to NOT throw on data.error, but add it to errors.
-                // And I will store `validFiles` into `pendingFiles` if there are errors, preventing auto-add 
-                // if we want to give 'continue' option? 
-                // Or just add them and show error? 
-                // The user said: "continue showing error, appear option ... and process anyway".
-                // Detailed interpretation: The process is currently BLOCKED.
-                // If `validFiles` are added immediately (lines 145), then it's not blocked? 
-                // Unless `data.files` is empty or undefined because of the error?
-
-                // Let's assume the server returns `files` even with that error, or used to.
-                // If the error is "Sequência...", it implies some validation.
-
-                // Strategy: 
-                // 1. Do NOT throw on data.error if data.files exists. 
-                // 2. If errors exist, DO NOT add to localFiles immediately. 
-                // 3. Set pendingFiles = validFiles.
-                // 4. Show Modal. 
-                // 5. "Processar Mesmo Assim" moves pendingFiles to localFiles.
-
                 setPendingFiles(validFiles)
                 setShowErrorModal(true)
             } else if (validFiles.length > 0) {
-                // No errors, add immediately
-                setLocalFiles(prev => {
-                    const updated = [...prev, ...validFiles]
-                    if (onFilesUpdated) setTimeout(() => onFilesUpdated(updated), 0)
-                    return updated
-                })
+                // No errors, add to queue
+                setQueuedFiles(prev => [...prev, ...validFiles])
             }
 
         } catch (err: any) {
@@ -427,16 +417,14 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
             setShowErrorModal(true)
         } finally {
             setIsUploading(false)
+            // Reset input value to allow selecting same files again if needed
+            if (e.target) e.target.value = ''
         }
     }
 
     const handleForceProcess = () => {
         if (pendingFiles.length > 0) {
-            setLocalFiles(prev => {
-                const updated = [...prev, ...pendingFiles]
-                if (onFilesUpdated) setTimeout(() => onFilesUpdated(updated), 0)
-                return updated
-            })
+            setQueuedFiles(prev => [...prev, ...pendingFiles])
         }
         setShowErrorModal(false)
         setPendingFiles([])
@@ -1412,11 +1400,12 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                     <p className="text-muted-foreground">Consolidado de {sortedFiles.length} períodos apurados</p>
                                 </div>
                                 {!isEmbedded && (
-                                    <DashboardActions
-                                        onUpload={handleFileUpload}
-                                        isUploading={isUploading}
-                                        onExportPdf={handleExportPdf}
-                                    />
+                                    <DashboardActions 
+                                onUpload={handleFileUpload} 
+                                isUploading={isUploading} 
+                                onExportPdf={handleExportPdf}
+                                isSaving={isSaving}
+                            />
                                 )}
                             </div>
 
@@ -1734,14 +1723,14 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                             {/* Analysis Report */}
                             <div className="space-y-6">
                                 <h2 className="text-xl font-semibold print:hidden">Relatório de Análise Comparativa</h2>
-                                <div className="space-y-8 print:space-y-6">
+                                <div className="flex flex-wrap gap-6 print:block print:space-y-6">
                                     {[
                                         { title: 'Comparativo Anual', data: detailedAnalysis.annual },
                                         { title: 'Comparativo Semestral', data: detailedAnalysis.semiannual },
                                         { title: 'Comparativo Trimestral', data: detailedAnalysis.quarterly }
                                     ].map((section, idx) => (
                                         section.data.length > 0 && (
-                                            <Card key={idx} style={{ breakInside: 'avoid' }}>
+                                            <Card key={idx} className="w-fit max-w-full" style={{ breakInside: 'avoid' }}>
                                                 <CardHeader className="py-2">
                                                     <CardTitle className="text-base font-semibold">{section.title}</CardTitle>
                                                 </CardHeader>
@@ -2146,6 +2135,10 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                     showConsolidatedOption={!isMultiCompany}
                     invalidFiles={invalidFiles}
                     activeCnpj={activeCnpj}
+                    onDeleteFile={handleDeleteFile}
+                    queuedFiles={queuedFiles}
+                    onProcessQueue={handleProcessQueue}
+                    onRemoveFromQueue={handleRemoveFromQueue}
                 />
             )}
 
@@ -2184,6 +2177,8 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                     </Card>
                 </div>
             )}
+
+            {/* Queue Modal - REMOVED (Moved to Sidebar) */}
         </div>
     )
 }

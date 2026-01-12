@@ -476,8 +476,9 @@ export const AnaliseAliquotaParcelas = memo(function AnaliseAliquotaParcelas({ d
                               // Col 2 (Next Period): Always r.aA (Actual).
                               // r.aA already prioritizes 'aliquota_efetiva_atual_ajustada_percent' > 'aliquota_efetiva_atual_percent' > 'aliquota_efetiva_atual'.
                               
-                              const isFeb2021 = docPeriodoLabel === '02/2021'
-                              let valCol1 = isFeb2021 ? r.aA : r.aO
+                              // Generalize override: use calculated/actual rate for current period if available
+                              const hasActual = Number.isFinite(r.aA)
+                              let valCol1 = hasActual ? r.aA : r.aO
                               let valCol2 = r.aA
                               
                               return (
