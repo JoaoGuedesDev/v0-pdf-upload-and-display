@@ -70,7 +70,7 @@ export const AnaliseAliquotaParcelas = memo(function AnaliseAliquotaParcelas({ d
 
   return (
     <div className={`grid gap-3 ${className}`}>
-      <Card className="bg-card border-border" style={{ breakInside: 'avoid' }}>
+      <Card className="bg-card border-border">
         <CardHeader className="py-2">
           <CardTitle className="text-card-foreground">Análise de Alíquota</CardTitle>
           <CardDescription className="text-muted-foreground">Detalhamento por Anexo e Faixa</CardDescription>

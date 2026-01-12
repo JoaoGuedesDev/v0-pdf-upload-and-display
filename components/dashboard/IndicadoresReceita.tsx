@@ -751,7 +751,7 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
     <div className={`flex flex-col gap-4 ${className}`}>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-2">
         {/* Receita Bruta PA - Azul Elétrico */}
-        <Card className="h-full bg-[#3A3A3A] dark:bg-[#3A3A3A] text-white border border-[#007AFF] shadow-lg hover:shadow-xl transition-all duration-200 py-1 rounded-2xl flex flex-col justify-between">
+        <Card className="h-full bg-[#3A3A3A] dark:bg-[#3A3A3A] text-white border border-[#007AFF] shadow-lg hover:shadow-xl transition-all duration-200 py-1 rounded-2xl flex flex-col justify-between" style={{ breakInside: 'avoid' }}>
           <CardHeader className="pb-0.5 p-1 sm:p-2 flex flex-row items-center justify-between space-y-0">
             <CardTitle className="text-[12px] sm:text-sm font-semibold tracking-tight">Receita Bruta PA</CardTitle>
             <DollarSign className="h-4 w-4 text-[#007AFF]" />
@@ -789,7 +789,7 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
 
 
         {/* Total DAS - Ciano Vibrante */}
-        <Card className="h-full bg-[#00C2FF] dark:bg-[#00C2FF] text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200 rounded-2xl flex flex-col justify-between">
+        <Card className="h-full bg-[#00C2FF] dark:bg-[#00C2FF] text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200 rounded-2xl flex flex-col justify-between" style={{ breakInside: 'avoid' }}>
           <CardHeader className="pb-0.5 p-1 sm:p-2 flex flex-row items-center justify-between space-y-0">
             <CardTitle className="text-[12px] sm:text-sm font-semibold tracking-tight text-white">Total DAS</CardTitle>
             <FileText className="h-4 w-4 text-white" />
@@ -820,7 +820,7 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
         </Card>
 
         {/* Alíquota do Período Atual - Azul Elétrico */}
-        <Card className="h-full bg-[#007AFF] dark:bg-[#007AFF] text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200 py-1 rounded-2xl flex flex-col">
+        <Card className="h-full bg-[#007AFF] dark:bg-[#007AFF] text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200 py-1 rounded-2xl flex flex-col" style={{ breakInside: 'avoid' }}>
           <CardHeader className="pb-0.5 p-1 sm:p-2 flex flex-row items-center justify-between space-y-0">
             <CardTitle className="text-[12px] sm:text-sm font-semibold tracking-tight">Alíquota {currentPeriodoLabel}</CardTitle>
             <TrendingUp className="h-4 w-4 text-white" />
@@ -844,7 +844,7 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
         </Card>
 
         {/* Alíquota do Próximo Mês - Índigo Elétrico */}
-        <Card className="h-full bg-[#3D5AFE] dark:bg-[#3D5AFE] text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200 py-1 rounded-2xl flex flex-col">
+        <Card className="h-full bg-[#3D5AFE] dark:bg-[#3D5AFE] text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200 py-1 rounded-2xl flex flex-col" style={{ breakInside: 'avoid' }}>
           <CardHeader className="pb-0.5 p-1 sm:p-2 flex flex-row items-center justify-between">
             <CardTitle className="text-[12px] sm:text-sm font-semibold tracking-tight">Alíquota {nextPeriodoLabel}</CardTitle>
           </CardHeader>
@@ -868,7 +868,7 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
       </div>
 
       {chartData && (servicosBrutoPA > 0 && mercadoriasBrutoPA > 0) && (
-        <Card className="border shadow-sm rounded-xl bg-card border-border">
+        <Card className="border shadow-sm rounded-xl bg-card border-border" style={{ breakInside: 'avoid' }}>
           <CardHeader className="py-2 px-4 border-b bg-muted/50 border-border">
             <CardTitle className="text-sm font-medium text-foreground">Composição do Faturamento Mensal</CardTitle>
           </CardHeader>

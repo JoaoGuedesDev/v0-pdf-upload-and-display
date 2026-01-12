@@ -760,11 +760,58 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                         data: finalData,
                         backgroundColor: colors[idx % colors.length],
                         borderRadius: 4,
+                        maxBarThickness: 70,
                         barPercentage: 0.6,
                         categoryPercentage: 0.8,
                         datalabels: {
                             display: true,
-                            ...datalabelsConfig
+                            labels: {
+                            value: {
+                                ...datalabelsConfig,
+                                align: 'start' as const,
+                                anchor: 'end' as const,
+                                offset: 4,
+                                backgroundColor: 'transparent',
+                                color: 'white',
+                                formatter: (val: any) => {
+                                    if (val === null || val === undefined || val === 0) return ''
+                                    return val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                                }
+                            },
+                            variation: {
+                                ...datalabelsConfig,
+                                align: 'end' as const,
+                                anchor: 'end' as const,
+                                offset: 4,
+                                font: { weight: 'bold' as const, size: 11 },
+                                display: (ctx: any) => ctx.datasetIndex > 0,
+                                color: (ctx: any) => {
+                                    const dsIdx = ctx.datasetIndex
+                                    if (dsIdx === 0) return 'transparent'
+                                    
+                                    const curr = ctx.dataset.data[ctx.dataIndex]
+                                    const prev = ctx.chart.data.datasets[dsIdx - 1].data[ctx.dataIndex]
+                                    
+                                    if (!curr || !prev) return 'transparent'
+                                    return curr >= prev ? '#059669' : '#EF4444'
+                                },
+                                formatter: (val: any, ctx: any) => {
+                                    const dsIdx = ctx.datasetIndex
+                                    if (dsIdx === 0) return ''
+                                    
+                                    const curr = ctx.dataset.data[ctx.dataIndex]
+                                    const prev = ctx.chart.data.datasets[dsIdx - 1].data[ctx.dataIndex]
+                                    
+                                    if (!curr || !prev) return ''
+                                    
+                                    const diff = curr - prev
+                                    const pct = (diff / prev) * 100
+                                    const symbol = diff >= 0 ? '▲' : '▼'
+                                    
+                                    return `${symbol} ${Math.abs(pct).toFixed(1)}%\n${diff > 0 ? '+' : ''}${diff.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
+                                }
+                            }
+                        }
                         },
                         // Prevent chartjs from connecting lines over nulls (for line charts) or showing empty bars
                         spanGaps: false 
@@ -792,10 +839,56 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                     data,
                     backgroundColor: years.map((_, i) => colors[i % colors.length]),
                     borderRadius: 4,
-                    barThickness: 60,
+                    maxBarThickness: 70,
                     datalabels: {
                         display: true,
-                        ...datalabelsConfig
+                        labels: {
+                            value: {
+                                ...datalabelsConfig,
+                                align: 'start' as const,
+                                anchor: 'end' as const,
+                                offset: 4,
+                                backgroundColor: 'transparent',
+                                color: 'white',
+                                formatter: (val: any) => {
+                                    if (val === null || val === undefined || val === 0) return ''
+                                    return val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                                }
+                            },
+                            variation: {
+                                ...datalabelsConfig,
+                                align: 'end' as const,
+                                anchor: 'end' as const,
+                                offset: 4,
+                                font: { weight: 'bold' as const, size: 11 },
+                                display: (ctx: any) => ctx.dataIndex > 0,
+                                color: (ctx: any) => {
+                                    const idx = ctx.dataIndex
+                                    if (idx === 0) return 'transparent'
+                                    
+                                    const curr = ctx.dataset.data[idx]
+                                    const prev = ctx.dataset.data[idx - 1]
+                                    
+                                    if (!curr || !prev) return 'transparent'
+                                    return curr >= prev ? '#059669' : '#EF4444'
+                                },
+                                formatter: (val: any, ctx: any) => {
+                                    const idx = ctx.dataIndex
+                                    if (idx === 0) return ''
+                                    
+                                    const curr = ctx.dataset.data[idx]
+                                    const prev = ctx.dataset.data[idx - 1]
+                                    
+                                    if (!curr || !prev) return ''
+                                    
+                                    const diff = curr - prev
+                                    const pct = (diff / prev) * 100
+                                    const symbol = diff >= 0 ? '▲' : '▼'
+                                    
+                                    return `${symbol} ${Math.abs(pct).toFixed(1)}%\n${diff > 0 ? '+' : ''}${diff.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
+                                }
+                            }
+                        }
                     }
                 }]
             }
@@ -1237,22 +1330,17 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
         const datasets = []
 
         const common = {
-            barPercentage: 0.6,
-            categoryPercentage: 0.8,
-            datalabels: {
-                ...datalabelsConfig,
-                align: 'center' as const,
-                anchor: 'center' as const
-            }
+            barPercentage: 0.4,
+            categoryPercentage: 0.7,
+            maxBarThickness: 40,
         }
 
         if (totalMercadorias > 0) {
             datasets.push({
                 label: 'Mercadorias',
-                data: monthlyRevenueBreakdown.map(d => d.mercadorias === 0 ? null : d.mercadorias),
+                data: monthlyRevenueBreakdown.map(d => d.mercadorias),
                 backgroundColor: '#007AFF', // Azul elétrico vibrante
                 hoverBackgroundColor: '#0056B3',
-                stack: 'Stack 0',
                 ...common
             })
         }
@@ -1260,10 +1348,9 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
         if (totalIndustria > 0) {
             datasets.push({
                 label: 'Indústria',
-                data: monthlyRevenueBreakdown.map(d => d.industria === 0 ? null : d.industria),
+                data: monthlyRevenueBreakdown.map(d => d.industria),
                 backgroundColor: '#00C2FF', // Ciano vibrante
                 hoverBackgroundColor: '#009ACD',
-                stack: 'Stack 0',
                 ...common
             })
         }
@@ -1271,10 +1358,9 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
         if (totalServicos > 0) {
             datasets.push({
                 label: 'Serviços',
-                data: monthlyRevenueBreakdown.map(d => d.servicos === 0 ? null : d.servicos),
+                data: monthlyRevenueBreakdown.map(d => d.servicos),
                 backgroundColor: '#3D5AFE', // Índigo elétrico
                 hoverBackgroundColor: '#304FFE',
-                stack: 'Stack 0',
                 ...common
             })
         }
@@ -1487,7 +1573,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                             </div>
 
                             <div className="space-y-6">
-                                <Card>
+                                <Card style={{ breakInside: 'avoid' }}>
                                     <CardHeader className="flex flex-row items-center justify-between pb-2">
                                         <CardTitle>Evolução Financeira</CardTitle>
                                     </CardHeader>
@@ -1668,10 +1754,18 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                         <CardHeader className="py-2 px-4">
                                             <CardTitle className="text-base font-semibold">Composição do Faturamento Mensal</CardTitle>
                                         </CardHeader>
-                                        <CardContent className="px-2 pb-2 h-[200px]">
+                                        <CardContent className="px-2 pb-2 h-[240px]">
                                             <Bar
                                                 options={{
                                                     ...chartOptions,
+                                                    layout: {
+                                                        padding: {
+                                                            top: 50,
+                                                            right: 20,
+                                                            left: 20,
+                                                            bottom: 10
+                                                        }
+                                                    },
                                                     maintainAspectRatio: false,
                                                     plugins: {
                                                         ...chartOptions.plugins,
@@ -1682,8 +1776,10 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                                         },
                                                         datalabels: {
                                                             ...datalabelsConfig,
-                                                            align: 'center' as const,
-                                                            anchor: 'center' as const
+                                                            align: 'end' as const,
+                                                            anchor: 'end' as const,
+                                                            rotation: -60,
+                                                            offset: 0
                                                         },
                                                         tooltip: {
                                                             ...chartOptions.plugins?.tooltip,
@@ -1705,11 +1801,12 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                                         ...chartOptions.scales,
                                                         x: {
                                                             ...chartOptions.scales?.x,
-                                                            stacked: true,
+                                                            stacked: false,
                                                         },
                                                         y: {
                                                             ...chartOptions.scales?.y,
-                                                            stacked: true,
+                                                            stacked: false,
+                                                            grace: '5%'
                                                         }
                                                     }
                                                 }}
@@ -1720,172 +1817,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                 )}
                             </div>
 
-                            {/* Analysis Report */}
-                            <div className="space-y-6">
-                                <h2 className="text-xl font-semibold print:hidden">Relatório de Análise Comparativa</h2>
-                                <div className="flex flex-wrap gap-6 print:block print:space-y-6">
-                                    {[
-                                        { title: 'Comparativo Anual', data: detailedAnalysis.annual },
-                                        { title: 'Comparativo Semestral', data: detailedAnalysis.semiannual },
-                                        { title: 'Comparativo Trimestral', data: detailedAnalysis.quarterly }
-                                    ].map((section, idx) => (
-                                        section.data.length > 0 && (
-                                            <Card key={idx} className="w-fit max-w-full" style={{ breakInside: 'avoid' }}>
-                                                <CardHeader className="py-2">
-                                                    <CardTitle className="text-base font-semibold">{section.title}</CardTitle>
-                                                </CardHeader>
-                                                <CardContent className="pb-2">
-                                                    <div className="rounded-md border">
-                                                        <Table>
-                                                            <TableHeader>
-                                                                <TableRow>
-                                                                    <TableHead className="w-[200px] py-1 h-8">Período</TableHead>
-                                                                    <TableHead className="py-1 h-8">Receita Atual</TableHead>
-                                                                    <TableHead className="py-1 h-8">Receita Anterior</TableHead>
-                                                                    <TableHead className="py-1 h-8">Variação (R$)</TableHead>
-                                                                    <TableHead className="py-1 h-8">Variação (%)</TableHead>
-                                                                    <TableHead className="text-right py-1 h-8">Tendência</TableHead>
-                                                                </TableRow>
-                                                            </TableHeader>
-                                                            <TableBody>
-                                                                {section.data.map((row: any, rIdx: number) => {
-                                                                    if (row.comparisons) {
-                                                                        return (
-                                                                            <TableRow key={rIdx}>
-                                                                                <TableCell className="font-medium py-1 align-top">
-                                                                                    <div className="flex flex-col gap-2">
-                                                                                        <span>{row.periodName}</span>
-                                                                                        <div className="flex flex-col gap-1">
-                                                                                            {row.comparisons.map((comp: any, cIdx: number) => (
-                                                                                                <span key={cIdx} className="text-xs text-muted-foreground h-5 flex items-center">{comp.prevLabel} x {comp.currentLabel}</span>
-                                                                                            ))}
-                                                                                        </div>
-                                                                                    </div>
-                                                                                </TableCell>
-                                                                                <TableCell className="py-1 align-top">
-                                                                                     <div className="flex flex-col gap-2">
-                                                                                        <span className="opacity-0">{row.periodName}</span>
-                                                        <div className="flex flex-col gap-1">
-                                                            {row.comparisons.map((comp: any, cIdx: number) => (
-                                                                <div key={cIdx} className="h-5 flex items-center text-[11px]">{comp.current}</div>
-                                                            ))}
-                                                        </div>
-                                                     </div>
-                                                </TableCell>
-                                                                                <TableCell className="text-muted-foreground py-1 align-top">
-                                                                                     <div className="flex flex-col gap-2">
-                                                                                        <span className="opacity-0">{row.periodName}</span>
-                                                        <div className="flex flex-col gap-1">
-                                                            {row.comparisons.map((comp: any, cIdx: number) => (
-                                                                <div key={cIdx} className="h-5 flex items-center text-[11px]">{comp.previous}</div>
-                                                            ))}
-                                                        </div>
-                                                     </div>
-                                                </TableCell>
-                                                                                <TableCell className="font-medium py-1 align-top">
-                                                                                     <div className="flex flex-col gap-2">
-                                                                                        <span className="opacity-0">{row.periodName}</span>
-                                                        <div className="flex flex-col gap-1">
-                                                            {row.comparisons.map((comp: any, cIdx: number) => (
-                                                                <div key={cIdx} className={cn("h-5 flex items-center text-[11px]", comp.isPositive ? "text-emerald-600" : comp.isNeutral ? "text-muted-foreground" : "text-red-600")}>
-                                                                    {comp.isPositive ? '+' : ''}{comp.abs}
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                     </div>
-                                                </TableCell>
-                                                                                <TableCell className="py-1 align-top">
-                                                                                     <div className="flex flex-col gap-2">
-                                                                                        <span className="opacity-0">{row.periodName}</span>
-                                                        <div className="flex flex-col gap-1">
-                                                            {row.comparisons.map((comp: any, cIdx: number) => (
-                                                                <div key={cIdx} className={cn("h-5 flex items-center text-[11px]", comp.isPositive ? "text-emerald-600" : comp.isNeutral ? "text-muted-foreground" : "text-red-600")}>
-                                                                    {comp.isPositive ? '+' : ''}{comp.pct}
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                     </div>
-                                                </TableCell>
-                                                                                <TableCell className="text-right py-1 align-top">
-                                                                                     <div className="flex flex-col gap-2">
-                                                                                        <span className="opacity-0">{row.periodName}</span>
-                                                                                        <div className="flex flex-col gap-1 items-end">
-                                                                                            {row.comparisons.map((comp: any, cIdx: number) => (
-                                                                                                <div key={cIdx} className="h-5 flex items-center justify-end">
-                                                                                                    {comp.isNeutral ? (
-                                                                                                        <div className="flex items-center justify-end gap-1 text-muted-foreground">
-                                                                                                            <Minus className="h-4 w-4" />
-                                                                                                            <span className="text-xs">Estável</span>
-                                                                                                        </div>
-                                                                                                    ) : comp.isPositive ? (
-                                                                                                        <div className="flex items-center justify-end gap-1 text-emerald-600">
-                                                                                                            <ArrowUpRight className="h-4 w-4" />
-                                                                                                            <span className="text-xs">Crescimento</span>
-                                                                                                        </div>
-                                                                                                    ) : (
-                                                                                                        <div className="flex items-center justify-end gap-1 text-red-600">
-                                                                                                            <ArrowDownRight className="h-4 w-4" />
-                                                                                                            <span className="text-xs">Queda</span>
-                                                                                                        </div>
-                                                                                                    )}
-                                                                                                </div>
-                                                                                            ))}
-                                                                                        </div>
-                                                                                     </div>
-                                                                                </TableCell>
-                                                                            </TableRow>
-                                                                        )
-                                                                    }
-                                                                    return (
-                                                                    <TableRow key={rIdx}>
-                                                                        <TableCell className="font-medium py-1">
-                                                                            <div className="flex flex-col">
-                                                                                <span>{row.period}</span>
-                                                                                <span className="text-xs text-muted-foreground">{row.prevLabel} x {row.currentLabel}</span>
-                                                                            </div>
-                                                                        </TableCell>
-                                                                        <TableCell className="py-1 text-[11px]">{row.current}</TableCell>
-                                                                        <TableCell className="text-muted-foreground py-1 text-[11px]">{row.previous}</TableCell>
-                                                                        <TableCell className={cn(
-                                                                            "font-medium py-1 text-[11px]",
-                                                                            row.isPositive ? "text-emerald-600" : row.isNeutral ? "text-muted-foreground" : "text-red-600"
-                                                                        )}>
-                                                                            {row.isPositive ? '+' : ''}{row.abs}
-                                                                        </TableCell>
-                                                                        <TableCell className={cn(
-                                                                            "font-bold py-1 text-[11px]",
-                                                                            row.isPositive ? "text-emerald-600" : row.isNeutral ? "text-muted-foreground" : "text-red-600"
-                                                                        )}>
-                                                                            {row.isPositive ? '+' : ''}{row.pct}
-                                                                        </TableCell>
-                                                                        <TableCell className="text-right py-1">
-                                                                            {row.isNeutral ? (
-                                                                                <Minus className="inline h-4 w-4 text-muted-foreground" />
-                                                                            ) : row.isPositive ? (
-                                                                                <div className="flex items-center justify-end gap-1 text-emerald-600">
-                                                                                    <ArrowUpRight className="h-4 w-4" />
-                                                                                    <span className="text-xs">Crescimento</span>
-                                                                                </div>
-                                                                            ) : (
-                                                                                <div className="flex items-center justify-end gap-1 text-red-600">
-                                                                                    <ArrowDownRight className="h-4 w-4" />
-                                                                                    <span className="text-xs">Queda</span>
-                                                                                </div>
-                                                                            )}
-                                                                        </TableCell>
-                                                                    </TableRow>
-                                                                )})}
-                                                            </TableBody>
-                                                        </Table>
-                                                    </div>
-                                                </CardContent>
-                                            </Card>
-                                        )
-                                    ))}
-                                </div>
-                            </div>
-
-                            <Card>
+                            <Card style={{ breakInside: 'avoid' }}>
                                 <CardHeader className="py-2">
                                     <CardTitle className="text-base font-semibold">Quadro de Distribuição de Resultados</CardTitle>
                                 </CardHeader>

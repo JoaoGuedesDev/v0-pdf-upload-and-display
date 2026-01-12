@@ -62,6 +62,7 @@ export const ComparacaoAtividades = memo(function ComparacaoAtividades({ ativida
   return (
     <Card
       className={`bg-[#3A3A3A] border border-[#00C2FF] shadow-lg hover:shadow-xl transition-all duration-200 print:inline-block print:w-1/3 print:align-top print:break-inside-avoid ${className}`}
+      style={{ breakInside: 'avoid' }}
     >
       <CardHeader className="flex flex-row items-center justify-between pb-1">
         <div>

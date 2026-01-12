@@ -142,12 +142,13 @@ export async function GET(req: NextRequest) {
 
     if (isPaginated) {
       // Modo Relatório: Página ajustada com escala para caber mais conteúdo verticalmente sem ficar gigante
+      // Reduzindo escala para 0.75 para garantir margem lateral (1600px * 0.75 = 1200px < 1280px)
       pdfOptions = {
         ...pdfOptions,
-        width: '1280px', // 1600px * 0.8
-        height: '2600px', // Equivalente a 3250px de conteúdo original (2600 / 0.8)
-        scale: 0.8,
-        margin: { top: 0, right: 0, bottom: 0, left: 0 },
+        width: '1280px', 
+        height: '2600px', 
+        scale: 0.75,
+        margin: { top: 20, right: 20, bottom: 20, left: 20 },
       }
     } else {
       // Modo Screenshot: Página única com tamanho exato do conteúdo

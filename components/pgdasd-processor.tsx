@@ -415,7 +415,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
 
 
 
-        <Card className="bg-[#3A3A3A] text-white border border-[#5A5A5A] shadow-xl py-2">
+        <Card className="bg-[#3A3A3A] text-white border border-[#5A5A5A] shadow-xl py-2" style={{ breakInside: 'avoid' }}>
           <CardContent className="grid sm:grid-cols-2 md:grid-cols-3 gap-2">
             <div>
               <p className="text-[#8A8A8A] text-xs sm:text-sm">CNPJ</p>
@@ -1268,7 +1268,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
             responsive: true,
             maintainAspectRatio: false,
             devicePixelRatio: 2,
-            layout: { padding: { top: 30, bottom: 10, left: 0, right: 0 } },
+            layout: { padding: { top: 50, bottom: 30, left: 20, right: 20 } },
             animation: false,
             interaction: { mode: null as any },
             plugins: {
@@ -1478,7 +1478,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
 
         {/* Insights */}
         {data?.insights && (
-          <Card className="bg-card border-border">
+          <Card className="bg-card border-border" style={{ breakInside: 'avoid' }}>
             <CardHeader className="py-2">
               <CardTitle className="text-card-foreground">
                 Insights e Recomendações
