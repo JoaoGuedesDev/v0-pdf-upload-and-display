@@ -1,4 +1,5 @@
 "use client"
+import * as XLSX from 'xlsx'
 import { useState, useEffect, useRef, memo, useMemo, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -14,7 +15,7 @@ import { Doughnut } from 'react-chartjs-2'
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, Title } from 'chart.js'
 import ChartDataLabels from 'chartjs-plugin-datalabels'
 import { CHART_CONFIG, CHART_COLORS } from '@/lib/constants'
-import { MessageCircle, Mail, Download, Moon, Sun, Grid } from 'lucide-react'
+import { MessageCircle, Mail, Download, Moon, Sun, Grid, FileText } from 'lucide-react'
 import { useTheme } from "next-themes"
 
 ChartJS.register(ArcElement, Tooltip, Legend, Title, ChartDataLabels)
@@ -28,9 +29,10 @@ interface PGDASDProcessorProps {
   isPdfGen?: boolean
   isEmbedded?: boolean
   showContactCard?: boolean
+  hideDistributionTable?: boolean
 }
 
-export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shareId, hideDownloadButton, isOwner, isPdfGen, isEmbedded, showContactCard = true }: PGDASDProcessorProps) {
+export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shareId, hideDownloadButton, isOwner, isPdfGen, isEmbedded, showContactCard = true, hideDistributionTable = false }: PGDASDProcessorProps) {
   const { theme, setTheme } = useTheme()
   const [owner, setOwner] = useState<boolean>(!!isOwner)
   const chartRef = useRef<any>(null)
@@ -305,6 +307,155 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
       window.location.assign(url)
     }
   }, [shareId, shareCode, data])
+
+  const distributionData = useMemo(() => {
+      const rawPeriod = String(data?.identificacao?.periodoApuracao || '')
+      const p0 = rawPeriod.split(' ')[0].split('/')
+      const periodoDisplay = p0.length === 3 ? `${p0[1]}/${p0[2]}` : rawPeriod
+      const rpa = Number(data?.receitas?.receitaPA || 0)
+      
+      let servicos = 0
+      let mercadorias = 0
+      let industria = 0 
+
+      const detalhe = (data as any)?.calculos?.analise_aliquota?.detalhe || (data as any)?.calculos?.analiseAliquota?.detalhe || []
+      if (Array.isArray(detalhe) && detalhe.length > 0) {
+         detalhe.forEach((d: any) => {
+            const anexo = Number(d.anexo)
+            const valor = d.parcelas_ajuste?.reduce((acc: number, p: any) => acc + (Number(p.valor) || 0), 0) || Number(d.receita_bruta) || 0
+            
+            if ([1].includes(anexo)) {
+                mercadorias += valor
+            } else if ([2].includes(anexo)) {
+                industria += valor
+                 mercadorias += valor
+            } else if ([3, 4, 5].includes(anexo)) {
+                servicos += valor
+            }
+         })
+      } else {
+          const at = (data as any)?.atividades
+          if (at && typeof at === 'object') {
+            const items = Object.values(at).filter((x: any) => x && typeof x === 'object')
+            if (items.length) {
+              items.forEach((i: any) => {
+                const nome = String(i?.descricao || '').toLowerCase()
+                const val = Number(i?.Total || 0)
+                if (nome.includes('servi')) servicos += val
+                else mercadorias += val
+              })
+              const sum = servicos + mercadorias
+              if (sum > 0 && rpa > 0) {
+                servicos = rpa * (servicos / sum)
+                mercadorias = rpa * (mercadorias / sum)
+              } else {
+                servicos = rpa
+              }
+            } else {
+              const tServ = (data?.tributosServicosInterno?.Total || 0) + (data?.tributosServicosExterno?.Total || 0)
+              const tMerc = (data?.tributosMercadoriasInterno?.Total || 0) + (data?.tributosMercadoriasExterno?.Total || 0)
+              const tInd = (data?.tributosIndustriaInterno?.Total || 0) + (data?.tributosIndustriaExterno?.Total || 0)
+              const totalT = tServ + tMerc + tInd
+
+              if (totalT > 0) {
+                servicos = rpa * (tServ / totalT)
+                mercadorias = rpa * ((tMerc + tInd) / totalT)
+              } else {
+                servicos = rpa
+              }
+            }
+          } else {
+             const tServ = (data?.tributosServicosInterno?.Total || 0) + (data?.tributosServicosExterno?.Total || 0)
+             const tMerc = (data?.tributosMercadoriasInterno?.Total || 0) + (data?.tributosMercadoriasExterno?.Total || 0)
+             const tInd = (data?.tributosIndustriaInterno?.Total || 0) + (data?.tributosIndustriaExterno?.Total || 0)
+             const totalT = tServ + tMerc + tInd
+             
+             if (totalT > 0) {
+               servicos = rpa * (tServ / totalT)
+               mercadorias = rpa * ((tMerc + tInd) / totalT)
+             } else {
+               servicos = rpa
+             }
+          }
+      }
+
+      const irpjTotal = Number(data?.tributos?.IRPJ || 0)
+      const baseMerc = mercadorias * 0.08
+      const baseServ = servicos * 0.32
+      const totalBase = baseMerc + baseServ
+      const irpjMerc = totalBase > 0 ? (irpjTotal * (baseMerc / totalBase)) : 0
+      const irpjServ = totalBase > 0 ? (irpjTotal * (baseServ / totalBase)) : 0
+      const distMerc = baseMerc - irpjMerc
+      const distServ = baseServ - irpjServ
+      
+      return {
+          periodoDisplay,
+          mercadorias,
+          servicos,
+          irpjMerc,
+          irpjServ,
+          distMerc,
+          distServ
+      }
+  }, [data])
+
+  const handleExportExcel = () => {
+      const { periodoDisplay, mercadorias, servicos, irpjMerc, irpjServ, distMerc, distServ } = distributionData
+      const companyName = data?.identificacao?.razaoSocial || 'Empresa'
+      
+      const fmt = (val: number) => val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+
+      // Using Merged Headers + Sub-columns strategy
+      const ws_data: any[][] = [
+          ["Empresa:", companyName],
+          ["Período:", periodoDisplay],
+          [], // Spacer
+          // Main Headers (Grouped)
+          ["Período", "Receita Bruta", "", "IRPJ", "", "Alíquota", "", "Distribuição", ""],
+          // Sub Headers
+          ["", "Mercadorias", "Serviços", "Mercadorias", "Serviços", "Mercadorias", "Serviços", "Mercadorias", "Serviços"],
+          // Data
+          [
+            periodoDisplay,
+            fmt(mercadorias),
+            fmt(servicos),
+            fmt(irpjMerc),
+            fmt(irpjServ),
+            "8%",
+            "32%",
+            fmt(distMerc),
+            fmt(distServ)
+          ]
+      ]
+
+      const ws = XLSX.utils.aoa_to_sheet(ws_data)
+      
+      // Define Merges for Headers
+      ws['!merges'] = [
+          { s: { r: 3, c: 0 }, e: { r: 4, c: 0 } }, // Período (Row 3-4, Col 0)
+          { s: { r: 3, c: 1 }, e: { r: 3, c: 2 } }, // Receita Bruta (Row 3, Col 1-2)
+          { s: { r: 3, c: 3 }, e: { r: 3, c: 4 } }, // IRPJ (Row 3, Col 3-4)
+          { s: { r: 3, c: 5 }, e: { r: 3, c: 6 } }, // Alíquota (Row 3, Col 5-6)
+          { s: { r: 3, c: 7 }, e: { r: 3, c: 8 } }  // Distribuição (Row 3, Col 7-8)
+      ]
+
+      const wscols = [
+          { wch: 15 }, // Período
+          { wch: 20 }, // RB Merc
+          { wch: 20 }, // RB Serv
+          { wch: 15 }, // IRPJ Merc
+          { wch: 15 }, // IRPJ Serv
+          { wch: 12 }, // Aliq Merc
+          { wch: 12 }, // Aliq Serv
+          { wch: 20 }, // Dist Merc
+          { wch: 20 }  // Dist Serv
+      ]
+      ws['!cols'] = wscols
+      
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, "Distribuição de Resultados")
+      XLSX.writeFile(wb, "distribuicao_resultados.xlsx")
+  }
 
   if (error) {
     return (
@@ -742,9 +893,16 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
           )
         })()}
 
+        {!hideDistributionTable && (
         <Card className="bg-card border-border mt-6" style={{ breakInside: 'avoid' }}>
-          <CardHeader className="py-2">
+          <CardHeader className="py-2 flex flex-row items-center justify-between">
             <CardTitle className="text-card-foreground">Quadro de Distribuição de Resultados</CardTitle>
+            {!isPdfGen && (
+              <Button variant="outline" size="sm" className="h-8 gap-2" onClick={handleExportExcel}>
+                <FileText className="h-4 w-4" />
+                Exportar Excel
+              </Button>
+            )}
           </CardHeader>
           <CardContent>
             {(() => {
@@ -931,6 +1089,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
             })()}
           </CardContent>
         </Card>
+        )}
 
 
         {(() => {
@@ -1273,7 +1432,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
             datasets: [{
               data: items.map(i => i.value),
               backgroundColor: items.map(i => i.color),
-              borderColor: (!isPdfGen && theme === 'dark') ? '#050B14' : '#ffffff',
+              borderColor: (!isPdfGen && theme === 'dark') ? '#3A3A3A' : '#ffffff',
               borderWidth: 1,
               cutout: '68%',
               radius: '95%',
@@ -1305,7 +1464,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
               const cy = (chartArea.top + chartArea.bottom) / 2
               ctx.save()
               ctx.textAlign = 'center'
-              ctx.fillStyle = isDark ? '#FAF5FF' : '#050B14'
+              ctx.fillStyle = isDark ? '#FAF5FF' : '#3A3A3A'
               ctx.font = '600 14px Inter, system-ui, -apple-system, Segoe UI'
               ctx.fillText('Total de Tributos', cx, cy - 10)
               ctx.font = '700 14px Inter, system-ui, -apple-system, Segoe UI'
@@ -1368,7 +1527,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                 ctx.lineTo(n.lx, n.ly)
                 ctx.stroke()
                 ctx.textAlign = n.right ? 'left' : 'right'
-                ctx.fillStyle = String(n.color || (isDark ? '#FAF5FF' : '#050B14'))
+                ctx.fillStyle = String(n.color || (isDark ? '#FAF5FF' : '#3A3A3A'))
                 ctx.font = '600 14px Inter, system-ui, -apple-system, Segoe UI'
                 const txt = `${n.label}: ${formatCurrency(Number(n.value || 0))} (${n.pct.toFixed(1)}%)`
                 ctx.fillText(txt, n.lx, n.ly - 2)

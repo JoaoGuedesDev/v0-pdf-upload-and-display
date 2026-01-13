@@ -10,7 +10,7 @@ export const CHART_COLORS = [
   '#3D5AFE', // Indigo
   '#2962FF', // Azul Real
   '#00E5FF', // Ciano Brilhante
-  '#050B14', // Fundo Escuro
+  '#3A3A3A', // Fundo Escuro
 ] as const;
 
 // Cores para atividades

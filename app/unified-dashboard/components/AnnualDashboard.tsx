@@ -1,6 +1,8 @@
 'use client'
 
-import { useState, useMemo, useEffect, useRef } from 'react'
+import ExcelJS from 'exceljs'
+import { saveAs } from 'file-saver'
+import React, { useState, useMemo, useEffect, useRef } from 'react'
 import { useTheme } from "next-themes"
 import { MonthlyFile, ReceitasAnteriores } from '../types'
 import { Button } from "@/components/ui/button"
@@ -138,11 +140,11 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
 
 
     // Tab State for Consolidated View
-    const [activeTab, setActiveTab] = useState<'resumo' | 'visao-geral'>(() => {
+    const [activeTab, setActiveTab] = useState<'resumo' | 'visao-geral' | 'distribuicao-resultados'>(() => {
         if (typeof window !== 'undefined') {
             const params = new URLSearchParams(window.location.search)
             const tab = params.get('active_tab')
-            if (tab === 'resumo' || tab === 'visao-geral') return tab
+            if (tab === 'resumo' || tab === 'visao-geral' || tab === 'distribuicao-resultados') return tab as any
         }
         return 'resumo'
     })
@@ -797,10 +799,10 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
     const isDark = theme === 'dark'
     const chartTheme = useMemo(() => ({
         grid: isDark ? '#007AFF' : '#e2e8f0', // Azul elétrico vibrante
-        text: isDark ? '#FFFFFF' : '#050B14', // Branco puro / Preto profundo
-        tooltipBg: isDark ? 'rgba(5, 11, 20, 0.95)' : 'rgba(255, 255, 255, 0.95)', // Azul marinho profundo
-        tooltipTitle: isDark ? '#FFFFFF' : '#050B14',
-        tooltipBody: isDark ? '#00C2FF' : '#050B14', // Ciano vibrante / Preto profundo
+        text: isDark ? '#FFFFFF' : '#3A3A3A', // Branco puro / Preto profundo
+        tooltipBg: isDark ? 'rgba(58, 58, 58, 0.95)' : 'rgba(255, 255, 255, 0.95)', // Azul marinho profundo
+        tooltipTitle: isDark ? '#FFFFFF' : '#3A3A3A',
+        tooltipBody: isDark ? '#00C2FF' : '#3A3A3A', // Ciano vibrante / Preto profundo
         tooltipBorder: isDark ? '#007AFF' : '#e2e8f0'
     }), [isDark])
 
@@ -1676,6 +1678,293 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
         }
     }, [monthlyRevenueBreakdown])
 
+    const handleExportExcel = async () => {
+        const companyName = sortedFiles[0]?.data.identificacao.razaoSocial || activeCnpj || 'Empresa'
+        
+        // Group files by year
+        const filesByYear: Record<string, number[]> = {}
+        sortedFiles.forEach((file, index) => {
+            const year = file.data.identificacao.periodoApuracao.match(/\d{4}/)?.[0] || 'Unknown'
+            if (!filesByYear[year]) filesByYear[year] = []
+            filesByYear[year].push(index)
+        })
+        const years = Object.keys(filesByYear).sort()
+
+        // Fix Period Label logic
+        const startFile = sortedFiles[0]
+        const endFile = sortedFiles[sortedFiles.length - 1]
+        const startLabel = startFile ? formatPeriod(startFile.data.identificacao.periodoApuracao) : ''
+        const endLabel = endFile ? formatPeriod(endFile.data.identificacao.periodoApuracao) : ''
+        const periodLabel = startLabel === endLabel ? startLabel : `${startLabel} a ${endLabel}`
+
+        // Create Workbook
+        const workbook = new ExcelJS.Workbook()
+        const worksheet = workbook.addWorksheet('Distribuição de Resultados')
+
+        // Fetch and Add Logo
+        try {
+            const response = await fetch('/shared/integra-logo.png')
+            if (response.ok) {
+                const buffer = await response.arrayBuffer()
+                const logoId = workbook.addImage({
+                    buffer: buffer,
+                    extension: 'png',
+                })
+                worksheet.addImage(logoId, {
+                    tl: { col: 0, row: 0 },
+                    ext: { width: 180, height: 60 }
+                })
+            }
+        } catch (e) {
+            console.error("Failed to add logo", e)
+        }
+
+        // Set Columns
+        worksheet.columns = [
+            { width: 25 }, // Período
+            { width: 20 }, // Rec Merc
+            { width: 20 }, // Rec Serv
+            { width: 18 }, // IRPJ Merc
+            { width: 18 }, // IRPJ Serv
+            { width: 12 }, // Aliq Merc
+            { width: 12 }, // Aliq Serv
+            { width: 20 }, // Dist Merc
+            { width: 20 }, // Dist Serv
+            { width: 20 }, // Total Dist
+        ]
+
+        // Header Info
+        worksheet.getCell('B2').value = companyName
+        worksheet.getCell('B2').font = { size: 16, bold: true, color: { argb: 'FF000000' } }
+        
+        worksheet.getCell('B3').value = `Período: ${periodLabel}`
+        worksheet.getCell('B3').font = { size: 12, color: { argb: 'FF555555' } }
+
+        // Table Headers
+        const headerRowIndex = 6
+        const headerRow = worksheet.getRow(headerRowIndex)
+        headerRow.values = ["Período", "Receita Bruta", "", "IRPJ", "", "Alíquota", "", "Distribuição", "", "Total"]
+        headerRow.height = 30
+        
+        const subHeaderRow = worksheet.getRow(headerRowIndex + 1)
+        subHeaderRow.values = ["", "Mercadorias", "Serviços", "Mercadorias", "Serviços", "Mercadorias", "Serviços", "Mercadorias", "Serviços", ""]
+        subHeaderRow.height = 25
+
+        // Style Headers
+        const headerFill: ExcelJS.Fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FF007AFF' }
+        }
+        const headerFont = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 }
+        const headerBorder: Partial<ExcelJS.Borders> = {
+            top: { style: 'thin', color: { argb: 'FFFFFFFF' } },
+            left: { style: 'thin', color: { argb: 'FFFFFFFF' } },
+            bottom: { style: 'thin', color: { argb: 'FFFFFFFF' } },
+            right: { style: 'thin', color: { argb: 'FFFFFFFF' } }
+        }
+
+        for (let r = headerRowIndex; r <= headerRowIndex + 1; r++) {
+            for (let c = 1; c <= 10; c++) {
+                const cell = worksheet.getCell(r, c)
+                cell.fill = headerFill
+                cell.font = headerFont
+                cell.alignment = { horizontal: 'center', vertical: 'middle' }
+                cell.border = headerBorder as ExcelJS.Borders
+            }
+        }
+
+        // Merge Headers
+        worksheet.mergeCells(`A${headerRowIndex}:A${headerRowIndex+1}`)
+        worksheet.mergeCells(`B${headerRowIndex}:C${headerRowIndex}`)
+        worksheet.mergeCells(`D${headerRowIndex}:E${headerRowIndex}`)
+        worksheet.mergeCells(`F${headerRowIndex}:G${headerRowIndex}`)
+        worksheet.mergeCells(`H${headerRowIndex}:I${headerRowIndex}`)
+        worksheet.mergeCells(`J${headerRowIndex}:J${headerRowIndex+1}`)
+
+        // Pre-calculate totals
+        const grandTotal = { recMerc: 0, recServ: 0, irpjMerc: 0, irpjServ: 0, distMerc: 0, distServ: 0 }
+        const totalsByYear: Record<string, typeof grandTotal> = {}
+
+        years.forEach(year => {
+            totalsByYear[year] = { recMerc: 0, recServ: 0, irpjMerc: 0, irpjServ: 0, distMerc: 0, distServ: 0 }
+            const indices = filesByYear[year]
+            
+            indices.forEach(index => {
+                const file = sortedFiles[index]
+                const breakdown = monthlyRevenueBreakdown[index]
+                const irpjTotal = file.data.tributos?.IRPJ || 0
+                
+                const baseMerc = breakdown.mercadorias * 0.08
+                const baseServ = breakdown.servicos * 0.32
+                const totalBase = baseMerc + baseServ
+                const irpjMerc = totalBase > 0 ? (irpjTotal * (baseMerc / totalBase)) : 0
+                const irpjServ = totalBase > 0 ? (irpjTotal * (baseServ / totalBase)) : 0
+                const distMerc = baseMerc - irpjMerc
+                const distServ = baseServ - irpjServ
+
+                totalsByYear[year].recMerc += breakdown.mercadorias
+                totalsByYear[year].recServ += breakdown.servicos
+                totalsByYear[year].irpjMerc += irpjMerc
+                totalsByYear[year].irpjServ += irpjServ
+                totalsByYear[year].distMerc += distMerc
+                totalsByYear[year].distServ += distServ
+
+                grandTotal.recMerc += breakdown.mercadorias
+                grandTotal.recServ += breakdown.servicos
+                grandTotal.irpjMerc += irpjMerc
+                grandTotal.irpjServ += irpjServ
+                grandTotal.distMerc += distMerc
+                grandTotal.distServ += distServ
+            })
+        })
+
+        // Add Data Rows
+        let currentRowIndex = headerRowIndex + 2
+        
+        years.forEach(year => {
+            const indices = filesByYear[year]
+            indices.forEach(index => {
+                const file = sortedFiles[index]
+                const breakdown = monthlyRevenueBreakdown[index]
+                const irpjTotal = file.data.tributos?.IRPJ || 0
+                const rawPeriod = file.data.identificacao.periodoApuracao
+                const periodoDisplay = formatPeriod(rawPeriod)
+
+                const baseMerc = breakdown.mercadorias * 0.08
+                const baseServ = breakdown.servicos * 0.32
+                const totalBase = baseMerc + baseServ
+                const irpjMerc = totalBase > 0 ? (irpjTotal * (baseMerc / totalBase)) : 0
+                const irpjServ = totalBase > 0 ? (irpjTotal * (baseServ / totalBase)) : 0
+                const distMerc = baseMerc - irpjMerc
+                const distServ = baseServ - irpjServ
+
+                const row = worksheet.getRow(currentRowIndex)
+                row.values = [
+                    periodoDisplay,
+                    breakdown.mercadorias,
+                    breakdown.servicos,
+                    irpjMerc,
+                    irpjServ,
+                    0.08,
+                    0.32,
+                    distMerc,
+                    distServ,
+                    distMerc + distServ
+                ]
+
+                // Apply formats
+                row.getCell(2).numFmt = '"R$ "#,##0.00'
+                row.getCell(3).numFmt = '"R$ "#,##0.00'
+                row.getCell(4).numFmt = '"R$ "#,##0.00'
+                row.getCell(5).numFmt = '"R$ "#,##0.00'
+                row.getCell(6).numFmt = '0%'
+                row.getCell(7).numFmt = '0%'
+                row.getCell(8).numFmt = '"R$ "#,##0.00'
+                row.getCell(9).numFmt = '"R$ "#,##0.00'
+                row.getCell(10).numFmt = '"R$ "#,##0.00'
+                
+                // Zebra Striping
+                if (currentRowIndex % 2 !== 0) {
+                    for(let c=1; c<=10; c++) {
+                        row.getCell(c).fill = {
+                            type: 'pattern',
+                            pattern: 'solid',
+                            fgColor: { argb: 'FFF5F5F5' }
+                        }
+                    }
+                }
+                
+                row.alignment = { vertical: 'middle' }
+                row.getCell(1).alignment = { horizontal: 'left' } // Period
+                
+                currentRowIndex++
+            })
+        })
+
+        currentRowIndex++ // Spacer
+
+        // Year Totals
+        years.forEach(year => {
+            const yearTotals = totalsByYear[year]
+            const row = worksheet.getRow(currentRowIndex)
+            row.values = [
+                `TOTAL ${year}`,
+                yearTotals.recMerc,
+                yearTotals.recServ,
+                yearTotals.irpjMerc,
+                yearTotals.irpjServ,
+                null,
+                null,
+                yearTotals.distMerc,
+                yearTotals.distServ,
+                yearTotals.distMerc + yearTotals.distServ
+            ]
+            
+            row.font = { bold: true }
+            row.getCell(2).numFmt = '"R$ "#,##0.00'
+            row.getCell(3).numFmt = '"R$ "#,##0.00'
+            row.getCell(4).numFmt = '"R$ "#,##0.00'
+            row.getCell(5).numFmt = '"R$ "#,##0.00'
+            row.getCell(8).numFmt = '"R$ "#,##0.00'
+            row.getCell(9).numFmt = '"R$ "#,##0.00'
+            row.getCell(10).numFmt = '"R$ "#,##0.00'
+            
+            // Light Blue Background for Totals
+            for(let c=1; c<=10; c++) {
+                row.getCell(c).fill = {
+                    type: 'pattern',
+                    pattern: 'solid',
+                    fgColor: { argb: 'FFE6F2FF' }
+                }
+                row.getCell(c).border = { top: { style: 'thin' }, bottom: { style: 'thin' } }
+            }
+
+            currentRowIndex++
+        })
+
+        currentRowIndex++ // Spacer
+
+        // Grand Total
+        const grandRow = worksheet.getRow(currentRowIndex)
+        grandRow.values = [
+            "TOTAL GERAL",
+            grandTotal.recMerc,
+            grandTotal.recServ,
+            grandTotal.irpjMerc,
+            grandTotal.irpjServ,
+            null,
+            null,
+            grandTotal.distMerc,
+            grandTotal.distServ,
+            grandTotal.distMerc + grandTotal.distServ
+        ]
+        
+        grandRow.font = { bold: true, size: 12 }
+        grandRow.getCell(2).numFmt = '"R$ "#,##0.00'
+        grandRow.getCell(3).numFmt = '"R$ "#,##0.00'
+        grandRow.getCell(4).numFmt = '"R$ "#,##0.00'
+        grandRow.getCell(5).numFmt = '"R$ "#,##0.00'
+        grandRow.getCell(8).numFmt = '"R$ "#,##0.00'
+        grandRow.getCell(9).numFmt = '"R$ "#,##0.00'
+        grandRow.getCell(10).numFmt = '"R$ "#,##0.00'
+
+        // Highlight Grand Total
+        for(let c=1; c<=10; c++) {
+            grandRow.getCell(c).fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FFCCE5FF' }
+            }
+            grandRow.getCell(c).border = { top: { style: 'medium' }, bottom: { style: 'medium' } }
+        }
+
+        // Save
+        const buffer = await workbook.xlsx.writeBuffer()
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+        saveAs(blob, `distribuicao_resultados_${companyName.replace(/\s+/g, '_')}.xlsx`)
+    }
+
     // Navigation Logic
     const hasNext = selectedFileIndex !== null && selectedFileIndex < sortedFiles.length - 1
     const hasPrev = selectedFileIndex !== null && selectedFileIndex > 0
@@ -1926,12 +2215,12 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                         </div>
                                     </div>
 
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <Card>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                <Card className="flex flex-col h-full">
                                     <CardHeader className="pb-2">
                                         <CardTitle className="text-sm font-medium text-muted-foreground">Receita Bruta Total</CardTitle>
                                     </CardHeader>
-                                    <CardContent>
+                                    <CardContent className="flex flex-col justify-between flex-1">
                                         <div className="flex flex-col gap-1 mb-2">
                                             {revenueBreakdown.servicos > 0 && (
                                                 <span className="inline-flex items-center rounded-full bg-[#007AFF]/20 text-[#007AFF] dark:bg-[#007AFF]/40 dark:text-[#FFFFFF] px-2 py-0.5 text-[10px] font-semibold w-fit">
@@ -1953,17 +2242,56 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                             <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
                                                 {totalRevenue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                                             </div>
-                                            <p className="text-xs text-muted-foreground">
+                                            <p className="text-[11px] text-muted-foreground whitespace-nowrap">
                                                 Média: {averageRevenue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}/mês
                                             </p>
                                         </div>
                                     </CardContent>
                                 </Card>
-                                <Card>
+
+                                {/* New Card: Resumo por Ano */}
+                                <Card className="flex flex-col h-full">
+                                    <CardHeader className="pb-2">
+                                        <CardTitle className="text-sm font-medium text-muted-foreground">Resumo por Ano</CardTitle>
+                                    </CardHeader>
+                                    <CardContent className="flex flex-col justify-between flex-1">
+                                        <div className="flex flex-col gap-1 mb-2">
+                                            {years.map(year => {
+                                                const yearData = monthlyDataByYear.get(year)
+                                                const yearTotal = (yearData?.revenue || []).reduce((sum, val) => sum + (val || 0), 0)
+                                                return (
+                                                    <span key={year} className="inline-flex items-center rounded-full bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300 px-2 py-0.5 text-[10px] font-semibold w-fit">
+                                                        {year}: {yearTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                                    </span>
+                                                )
+                                            })}
+                                        </div>
+                                        {(() => {
+                                            const grandTotalRevenue = years.reduce((acc, year) => {
+                                                const yearData = monthlyDataByYear.get(year)
+                                                return acc + (yearData?.revenue || []).reduce((sum, val) => sum + (val || 0), 0)
+                                            }, 0)
+                                            const averagePerYear = years.length > 0 ? grandTotalRevenue / years.length : 0
+
+                                            return (
+                                                <div className="flex flex-row items-baseline gap-2">
+                                                    <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
+                                                        {grandTotalRevenue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                                    </div>
+                                                    <p className="text-[11px] text-muted-foreground whitespace-nowrap">
+                                                        Média: {averagePerYear.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}/ano
+                                                    </p>
+                                                </div>
+                                            )
+                                        })()}
+                                    </CardContent>
+                                </Card>
+
+                                <Card className="flex flex-col h-full">
                                     <CardHeader className="pb-2">
                                         <CardTitle className="text-sm font-medium text-muted-foreground">Total de Impostos</CardTitle>
                                     </CardHeader>
-                                    <CardContent>
+                                    <CardContent className="flex flex-col justify-between flex-1">
                                         <div className="flex flex-col gap-1 mb-2">
                                             {taxesBreakdown.servicos > 0 && (
                                                 <span className="inline-flex items-center rounded-full bg-[#007AFF]/20 text-[#007AFF] dark:bg-[#007AFF]/40 dark:text-[#FFFFFF] px-2 py-0.5 text-[10px] font-semibold w-fit">
@@ -1985,17 +2313,17 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                             <div className="text-lg font-bold text-red-600 dark:text-red-400">
                                                 {totalTaxes.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                                             </div>
-                                            <p className="text-xs text-muted-foreground">
+                                            <p className="text-[11px] text-muted-foreground whitespace-nowrap">
                                                 Média: {averageTaxes.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}/mês
                                             </p>
                                         </div>
                                     </CardContent>
                                 </Card>
-                                <Card>
+                                <Card className="flex flex-col h-full">
                                     <CardHeader className="pb-2">
                                         <CardTitle className="text-sm font-medium text-muted-foreground">Alíquota Efetiva Média</CardTitle>
                                     </CardHeader>
-                                    <CardContent>
+                                    <CardContent className="flex flex-col justify-between flex-1">
                                         <div className="flex flex-col gap-1 mb-2">
                                             {revenueBreakdown.servicos > 0 && (
                                                 <span className="inline-flex items-center rounded-full bg-[#007AFF]/20 text-[#007AFF] dark:bg-[#007AFF]/40 dark:text-[#FFFFFF] px-2 py-0.5 text-[10px] font-semibold w-fit">
@@ -2032,7 +2360,9 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
 
                                             return (
                                                 <div key={year} className="h-[420px]">
-                                                    <h3 className="text-sm font-semibold mb-2 text-center text-muted-foreground">Receita e Impostos - {year}</h3>
+                                                    <div className="flex flex-col items-center mb-2">
+                                                        <h3 className="text-sm font-semibold text-muted-foreground">Receita e Impostos - {year}</h3>
+                                                    </div>
                                                     <Line
                                                         options={{
                                                             ...chartOptions,
@@ -2401,201 +2731,346 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                 )}
                             </div>
 
-                            <Card style={{ breakInside: 'avoid' }}>
-                                <CardHeader className="py-2">
-                                    <CardTitle className="text-base font-semibold">Quadro de Distribuição de Resultados</CardTitle>
-                                </CardHeader>
-                                <CardContent className="pb-2">
-                                    <Table>
-                                        <TableHeader>
-                                            <TableRow>
-                                                <TableHead className="py-1 h-8">Período</TableHead>
-                                                <TableHead className="py-1 h-8">Receita Bruta</TableHead>
-                                                <TableHead className="py-1 h-8">IRPJ</TableHead>
-                                                <TableHead className="py-1 h-8">Alíquota</TableHead>
-                                                <TableHead className="py-1 h-8">Distribuição</TableHead>
-                                                <TableHead className="py-1 h-8">Ações</TableHead>
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {sortedFiles.map((file, index) => {
-                                                const breakdown = monthlyRevenueBreakdown[index]
-                                                const irpjTotal = file.data.tributos?.IRPJ || 0
-                                                const rawPeriod = file.data.identificacao.periodoApuracao
 
-                                                // Format period: 01/06/2024 -> jun/2024
-                                                let periodoDisplay = formatPeriod(rawPeriod)
-
-                                                // Base Calculations for IRPJ proration
-                                                const baseMerc = breakdown.mercadorias * 0.08
-                                                const baseServ = breakdown.servicos * 0.32
-                                                // Assuming Industry follows Mercadorias logic or similar for simplicity unless specified otherwise in future
-                                                // For now, we only focus on Merc/Serv as requested in prompt for the text
-
-                                                const totalBase = baseMerc + baseServ
-                                                const irpjMerc = totalBase > 0 ? (irpjTotal * (baseMerc / totalBase)) : 0
-                                                const irpjServ = totalBase > 0 ? (irpjTotal * (baseServ / totalBase)) : 0
-
-                                                const totalRevenue = breakdown.mercadorias + breakdown.servicos + breakdown.industria
-
-                                                return (
-                                                    <TableRow key={index} className="hover:bg-muted/50 align-top">
-                                                        <TableCell className="font-medium whitespace-nowrap py-1 text-sm uppercase">{periodoDisplay}</TableCell>
-                                                        <TableCell className="min-w-[300px] py-1">
-                                                            <div className="flex flex-col gap-1">
-                                                                {breakdown.mercadorias > 0 && (
-                                                                    <div className="flex flex-col">
-                                                                        <span className="text-[11px] font-semibold uppercase text-muted-foreground">Mercadorias</span>
-                                                                        <span className="font-medium text-xs">{breakdown.mercadorias.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
-                                                                    </div>
-                                                                )}
-                                                                {breakdown.servicos > 0 && (
-                                                                    <div className="flex flex-col">
-                                                                        <span className="text-[11px] font-semibold uppercase text-muted-foreground">Serviços</span>
-                                                                        <span className="font-medium text-xs">{breakdown.servicos.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        </TableCell>
-                                                        <TableCell className="py-1">
-                                                            <div className="flex flex-col gap-1">
-                                                                {breakdown.mercadorias > 0 && (
-                                                                    <div className="flex flex-col">
-                                                                        <span className="text-[11px] text-muted-foreground">Mercadorias</span>
-                                                                        <span className="font-medium text-xs">{irpjMerc.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
-                                                                    </div>
-                                                                )}
-                                                                {breakdown.servicos > 0 && (
-                                                                    <div className="flex flex-col">
-                                                                        <span className="text-[11px] text-muted-foreground">Serviços</span>
-                                                                        <span className="font-medium text-xs">{irpjServ.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        </TableCell>
-                                                        <TableCell className="py-1">
-                                                            <div className="flex flex-col gap-1">
-                                                                {breakdown.mercadorias > 0 && <div className="text-xs font-medium">Mercadorias: <span className="font-bold">8%</span></div>}
-                                                                {breakdown.servicos > 0 && <div className="text-xs font-medium">Serviços: <span className="font-bold">32%</span></div>}
-                                                            </div>
-                                                        </TableCell>
-                                                        <TableCell className="py-1">
-                                                            <div className="flex flex-col gap-1">
-                                                                {breakdown.mercadorias > 0 && (
-                                                                    <div className="flex flex-col">
-                                                                        <span className="text-[11px] text-muted-foreground">Mercadorias</span>
-                                                                        <span className="font-medium text-xs text-emerald-600 dark:text-emerald-400">
-                                                                            {(baseMerc - irpjMerc).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                                                                        </span>
-                                                                    </div>
-                                                                )}
-                                                                {breakdown.servicos > 0 && (
-                                                                    <div className="flex flex-col">
-                                                                        <span className="text-[11px] text-muted-foreground">Serviços</span>
-                                                                        <span className="font-medium text-xs text-emerald-600 dark:text-emerald-400">
-                                                                            {(baseServ - irpjServ).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                                                                        </span>
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        </TableCell>
-                                                        <TableCell className="py-1">
-                                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-500 hover:text-blue-700" onClick={() => handleSingleFileDownload(file)}>
-                                                                <Download className="w-4 h-4" />
-                                                            </Button>
-                                                        </TableCell>
-                                                    </TableRow>
-                                                )
-                                            })}
-                                            {(() => {
-                                                const totals = sortedFiles.reduce((acc, file, index) => {
-                                                    const breakdown = monthlyRevenueBreakdown[index]
-                                                    const irpjTotal = file.data.tributos?.IRPJ || 0
-
-                                                    const baseMerc = breakdown.mercadorias * 0.08
-                                                    const baseServ = breakdown.servicos * 0.32
-                                                    const totalBase = baseMerc + baseServ
-
-                                                    const irpjMerc = totalBase > 0 ? (irpjTotal * (baseMerc / totalBase)) : 0
-                                                    const irpjServ = totalBase > 0 ? (irpjTotal * (baseServ / totalBase)) : 0
-
-                                                    return {
-                                                        recMerc: acc.recMerc + breakdown.mercadorias,
-                                                        recServ: acc.recServ + breakdown.servicos,
-                                                        irpjMerc: acc.irpjMerc + irpjMerc,
-                                                        irpjServ: acc.irpjServ + irpjServ,
-                                                        distMerc: acc.distMerc + (baseMerc - irpjMerc),
-                                                        distServ: acc.distServ + (baseServ - irpjServ)
-                                                    }
-                                                }, { recMerc: 0, recServ: 0, irpjMerc: 0, irpjServ: 0, distMerc: 0, distServ: 0 })
-
-                                                return (
-                                                    <TableRow className="bg-muted/50 font-bold border-t-2 border-border">
-                                                        <TableCell className="py-1 text-sm">Total Anual</TableCell>
-                                                        <TableCell className="py-1">
-                                                            <div className="flex flex-col gap-1">
-                                                                {totals.recMerc > 0 && (
-                                                                    <div className="flex flex-col">
-                                                                        <span className="text-[11px] font-bold uppercase text-muted-foreground">Mercadorias</span>
-                                                                        <span className="font-bold text-xs">{totals.recMerc.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
-                                                                    </div>
-                                                                )}
-                                                                {totals.recServ > 0 && (
-                                                                    <div className="flex flex-col">
-                                                                        <span className="text-[11px] font-bold uppercase text-muted-foreground">Serviços</span>
-                                                                        <span className="font-bold text-xs">{totals.recServ.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        </TableCell>
-                                                        <TableCell className="py-1">
-                                                            <div className="flex flex-col gap-1">
-                                                                {totals.recMerc > 0 && (
-                                                                    <div className="flex flex-col">
-                                                                        <span className="text-[11px] font-bold text-muted-foreground">Mercadorias</span>
-                                                                        <span className="font-bold text-xs">{totals.irpjMerc.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
-                                                                    </div>
-                                                                )}
-                                                                {totals.recServ > 0 && (
-                                                                    <div className="flex flex-col">
-                                                                        <span className="text-[11px] font-bold text-muted-foreground">Serviços</span>
-                                                                        <span className="font-bold text-xs">{totals.irpjServ.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        </TableCell>
-                                                        <TableCell className="py-1"></TableCell>
-                                                        <TableCell className="py-1">
-                                                            <div className="flex flex-col gap-1">
-                                                                {totals.recMerc > 0 && (
-                                                                    <div className="flex flex-col">
-                                                                        <span className="text-[11px] font-bold text-muted-foreground">Mercadorias</span>
-                                                                        <span className="font-bold text-xs text-emerald-700 dark:text-emerald-300">
-                                                                            {totals.distMerc.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                                                                        </span>
-                                                                    </div>
-                                                                )}
-                                                                {totals.recServ > 0 && (
-                                                                    <div className="flex flex-col">
-                                                                        <span className="text-[11px] font-bold text-muted-foreground">Serviços</span>
-                                                                        <span className="font-bold text-xs text-emerald-700 dark:text-emerald-300">
-                                                                            {totals.distServ.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                                                                        </span>
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        </TableCell>
-                                                        <TableCell className="py-1"></TableCell>
-                                                    </TableRow>
-                                                )
-                                            })()}
-                                        </TableBody>
-                                    </Table>
-                                </CardContent>
-                            </Card>
                         </div>
                     )}
                     </>
+                )}
+
+                {/* Quadro de Distribuição de Resultados (Dedicated Tab) */}
+                {((isConsolidated && activeTab === 'distribuicao-resultados' && !isPdfGen) || (isPdfGen && !onlyConsolidated) || (isPdfGen && onlyConsolidated && activeTab === 'distribuicao-resultados')) && (
+                    <div className={`p-6 space-y-6 ${isPdfGen ? 'print-section' : ''}`} style={isPdfGen ? { height: 'auto', pageBreakAfter: 'always' } : undefined}>
+                         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                            <div>
+                                <h1 className="text-2xl font-bold text-foreground">Distribuição de Resultados</h1>
+                                <p className="text-muted-foreground">Detalhamento da composição de receitas e distribuição de lucros</p>
+                            </div>
+                        </div>
+                        <Card style={{ breakInside: 'avoid' }}>
+                            <CardHeader className="py-2 flex flex-row items-center justify-between">
+                                <CardTitle className="text-base font-semibold">Quadro de Distribuição de Resultados</CardTitle>
+                                {!isPdfGen && (
+                                    <Button variant="outline" size="sm" className="h-8 gap-2" onClick={handleExportExcel}>
+                                        <FileText className="h-4 w-4" />
+                                        Exportar Excel
+                                    </Button>
+                                )}
+                            </CardHeader>
+                            <CardContent className="pb-2">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead className="py-1 h-8 text-[#007AFF] dark:text-[#00C2FF]">Período</TableHead>
+                                            <TableHead className="py-1 h-8 text-[#007AFF] dark:text-[#00C2FF]">Receita Bruta</TableHead>
+                                            <TableHead className="py-1 h-8 text-[#007AFF] dark:text-[#00C2FF]">IRPJ</TableHead>
+                                            <TableHead className="py-1 h-8 text-[#007AFF] dark:text-[#00C2FF]">Alíquota</TableHead>
+                                            <TableHead className="py-1 h-8 text-[#007AFF] dark:text-[#00C2FF]">Distribuição</TableHead>
+                                            <TableHead className="py-1 h-8 text-[#007AFF] dark:text-[#00C2FF]">Total</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {(() => {
+                                            const filesByYear: Record<string, Array<{ file: any, index: number }>> = {}
+                                            sortedFiles.forEach((file, index) => {
+                                                // Extract 4-digit year reliably from "MM/YYYY", "YYYY-MM", or "YYYY/MM"
+                                                const year = file.data.identificacao.periodoApuracao.match(/\d{4}/)?.[0] || 'Unknown'
+                                                if (!filesByYear[year]) filesByYear[year] = []
+                                                filesByYear[year].push({ file, index })
+                                            })
+                                            
+                                            const years = Object.keys(filesByYear).sort()
+                                            const grandTotal = {
+                                                recMerc: 0, recServ: 0,
+                                                irpjMerc: 0, irpjServ: 0,
+                                                distMerc: 0, distServ: 0
+                                            }
+                                            const totalsByYear: Record<string, typeof grandTotal> = {}
+
+                                            // Pre-calculate totals
+                                            years.forEach(year => {
+                                                totalsByYear[year] = {
+                                                    recMerc: 0, recServ: 0,
+                                                    irpjMerc: 0, irpjServ: 0,
+                                                    distMerc: 0, distServ: 0
+                                                }
+                                                filesByYear[year].forEach(({ file, index }) => {
+                                                    const breakdown = monthlyRevenueBreakdown[index]
+                                                    const irpjTotal = file.data.tributos?.IRPJ || 0
+                                                    
+                                                    // Base Calculations
+                                                    const baseMerc = breakdown.mercadorias * 0.08
+                                                    const baseServ = breakdown.servicos * 0.32
+                                                    const totalBase = baseMerc + baseServ
+                                                    const irpjMerc = totalBase > 0 ? (irpjTotal * (baseMerc / totalBase)) : 0
+                                                    const irpjServ = totalBase > 0 ? (irpjTotal * (baseServ / totalBase)) : 0
+                                                    const distMerc = baseMerc - irpjMerc
+                                                    const distServ = baseServ - irpjServ
+
+                                                    // Accumulate Year Totals
+                                                    totalsByYear[year].recMerc += breakdown.mercadorias
+                                                    totalsByYear[year].recServ += breakdown.servicos
+                                                    totalsByYear[year].irpjMerc += irpjMerc
+                                                    totalsByYear[year].irpjServ += irpjServ
+                                                    totalsByYear[year].distMerc += distMerc
+                                                    totalsByYear[year].distServ += distServ
+
+                                                    // Accumulate Grand Total
+                                                    grandTotal.recMerc += breakdown.mercadorias
+                                                    grandTotal.recServ += breakdown.servicos
+                                                    grandTotal.irpjMerc += irpjMerc
+                                                    grandTotal.irpjServ += irpjServ
+                                                    grandTotal.distMerc += distMerc
+                                                    grandTotal.distServ += distServ
+                                                })
+                                            })
+
+                                            return (
+                                                <>
+                                                    {/* 1. All Monthly Rows */}
+                                                    {years.map(year => {
+                                                        const yearFiles = filesByYear[year]
+                                                        return (
+                                                            <React.Fragment key={year}>
+                                                                {yearFiles.map(({ file, index }) => {
+                                                                    const breakdown = monthlyRevenueBreakdown[index]
+                                                                    const irpjTotal = file.data.tributos?.IRPJ || 0
+                                                                    const rawPeriod = file.data.identificacao.periodoApuracao
+                                                                    const periodoDisplay = formatPeriod(rawPeriod)
+                                                                    
+                                                                    // Base Calculations (Needed for display)
+                                                                    const baseMerc = breakdown.mercadorias * 0.08
+                                                                    const baseServ = breakdown.servicos * 0.32
+                                                                    const totalBase = baseMerc + baseServ
+                                                                    const irpjMerc = totalBase > 0 ? (irpjTotal * (baseMerc / totalBase)) : 0
+                                                                    const irpjServ = totalBase > 0 ? (irpjTotal * (baseServ / totalBase)) : 0
+                                                                    const distMerc = baseMerc - irpjMerc
+                                                                    const distServ = baseServ - irpjServ
+
+                                                                    return (
+                                                                        <TableRow key={index} className="hover:bg-muted/50 align-top font-medium">
+                                                                            <TableCell className="py-1 text-sm font-semibold">{periodoDisplay}</TableCell>
+                                                                            <TableCell className="py-1">
+                                                                                <div className="flex flex-col gap-1">
+                                                                                    {breakdown.mercadorias > 0 && (
+                                                                                        <div className="flex flex-col">
+                                                                                            <span className="text-[11px] font-bold uppercase text-[#007AFF] dark:text-[#00C2FF]">Mercadorias</span>
+                                                                                            <span className="font-bold text-xs">{breakdown.mercadorias.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                                                                                        </div>
+                                                                                    )}
+                                                                                    {breakdown.servicos > 0 && (
+                                                                                        <div className="flex flex-col">
+                                                                                            <span className="text-[11px] font-bold uppercase text-[#3D5AFE] dark:text-[#3D5AFE]">Serviços</span>
+                                                                                            <span className="font-bold text-xs">{breakdown.servicos.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                                                                                        </div>
+                                                                                    )}
+                                                                                </div>
+                                                                            </TableCell>
+                                                                            <TableCell className="py-1">
+                                                                                <div className="flex flex-col gap-1">
+                                                                                    {breakdown.mercadorias > 0 && (
+                                                                                        <div className="flex flex-col">
+                                                                                            <span className="text-[11px] font-bold text-[#007AFF] dark:text-[#00C2FF]">Mercadorias</span>
+                                                                                            <span className="font-bold text-xs">{irpjMerc.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                                                                                        </div>
+                                                                                    )}
+                                                                                    {breakdown.servicos > 0 && (
+                                                                                        <div className="flex flex-col">
+                                                                                            <span className="text-[11px] font-bold text-[#3D5AFE] dark:text-[#3D5AFE]">Serviços</span>
+                                                                                            <span className="font-bold text-xs">{irpjServ.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                                                                                        </div>
+                                                                                    )}
+                                                                                </div>
+                                                                            </TableCell>
+                                                                            <TableCell className="py-1">
+                                                                                <div className="flex flex-col gap-1">
+                                                                                    {breakdown.mercadorias > 0 && (
+                                                                                        <div className="flex flex-col">
+                                                                                            <span className="text-[11px] font-bold text-[#007AFF] dark:text-[#00C2FF]">Mercadorias: 8%</span>
+                                                                                        </div>
+                                                                                    )}
+                                                                                    {breakdown.servicos > 0 && (
+                                                                                        <div className="flex flex-col">
+                                                                                            <span className="text-[11px] font-bold text-[#3D5AFE] dark:text-[#3D5AFE]">Serviços: 32%</span>
+                                                                                        </div>
+                                                                                    )}
+                                                                                </div>
+                                                                            </TableCell>
+                                                                            <TableCell className="py-1">
+                                                                                <div className="flex flex-col gap-1">
+                                                                                    {breakdown.mercadorias > 0 && (
+                                                                                        <div className="flex flex-col">
+                                                                                            <span className="text-[11px] font-bold text-[#007AFF] dark:text-[#00C2FF]">Mercadorias</span>
+                                                                                            <span className="font-bold text-xs text-emerald-700 dark:text-emerald-300">
+                                                                                                {distMerc.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                                                                            </span>
+                                                                                        </div>
+                                                                                    )}
+                                                                                    {breakdown.servicos > 0 && (
+                                                                                        <div className="flex flex-col">
+                                                                                            <span className="text-[11px] font-bold text-[#3D5AFE] dark:text-[#3D5AFE]">Serviços</span>
+                                                                                            <span className="font-bold text-xs text-emerald-700 dark:text-emerald-300">
+                                                                                                {distServ.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                                                                            </span>
+                                                                                        </div>
+                                                                                    )}
+                                                                                </div>
+                                                                            </TableCell>
+                                                                            <TableCell className="py-1">
+                                                                                <div className="flex flex-col gap-1">
+                                                                                    <span className="font-bold text-xs text-emerald-700 dark:text-emerald-300">
+                                                                                        {(distMerc + distServ).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                                                                    </span>
+                                                                                </div>
+                                                                            </TableCell>
+                                                                        </TableRow>
+                                                                    )
+                                                                })}
+                                                            </React.Fragment>
+                                                        )
+                                                    })}
+
+                                                    {/* 2. Year Totals Rows */}
+                                                    {years.map(year => {
+                                                        const yearTotal = totalsByYear[year]
+                                                        return (
+                                                            <TableRow key={`total-${year}`} className="bg-muted/30 font-bold border-t-2 border-muted">
+                                                                <TableCell className="py-2 text-sm">Total {year}</TableCell>
+                                                                <TableCell className="py-2">
+                                                                    <div className="flex flex-col gap-1">
+                                                                        {yearTotal.recMerc > 0 && (
+                                                                            <div className="flex flex-col">
+                                                                                <span className="text-[11px] font-bold uppercase text-[#007AFF] dark:text-[#00C2FF]">Mercadorias</span>
+                                                                                <span className="font-bold text-xs">{yearTotal.recMerc.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                                                                            </div>
+                                                                        )}
+                                                                        {yearTotal.recServ > 0 && (
+                                                                            <div className="flex flex-col">
+                                                                                <span className="text-[11px] font-bold uppercase text-[#3D5AFE] dark:text-[#3D5AFE]">Serviços</span>
+                                                                                <span className="font-bold text-xs">{yearTotal.recServ.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                </TableCell>
+                                                                <TableCell className="py-2">
+                                                                     <div className="flex flex-col gap-1">
+                                                                        {(yearTotal.recMerc > 0 || yearTotal.irpjMerc > 0) && (
+                                                                            <div className="flex flex-col">
+                                                                                <span className="text-[11px] font-bold text-[#007AFF] dark:text-[#00C2FF]">Mercadorias</span>
+                                                                                <span className="font-bold text-xs">{yearTotal.irpjMerc.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                                                                            </div>
+                                                                        )}
+                                                                        {(yearTotal.recServ > 0 || yearTotal.irpjServ > 0) && (
+                                                                            <div className="flex flex-col">
+                                                                                <span className="text-[11px] font-bold text-[#3D5AFE] dark:text-[#3D5AFE]">Serviços</span>
+                                                                                <span className="font-bold text-xs">{yearTotal.irpjServ.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                </TableCell>
+                                                                <TableCell className="py-2"></TableCell>
+                                                                <TableCell className="py-2">
+                                                                    <div className="flex flex-col gap-1">
+                                                                        {(yearTotal.recMerc > 0 || yearTotal.distMerc > 0) && (
+                                                                            <div className="flex flex-col">
+                                                                                <span className="text-[11px] font-bold text-[#007AFF] dark:text-[#00C2FF]">Mercadorias</span>
+                                                                                <span className="font-bold text-xs text-emerald-700 dark:text-emerald-300">
+                                                                                    {yearTotal.distMerc.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                                                                </span>
+                                                                            </div>
+                                                                        )}
+                                                                        {(yearTotal.recServ > 0 || yearTotal.distServ > 0) && (
+                                                                            <div className="flex flex-col">
+                                                                                <span className="text-[11px] font-bold text-[#3D5AFE] dark:text-[#3D5AFE]">Serviços</span>
+                                                                                <span className="font-bold text-xs text-emerald-700 dark:text-emerald-300">
+                                                                                    {yearTotal.distServ.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                                                                </span>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                </TableCell>
+                                                                <TableCell className="py-2">
+                                                                    <div className="flex flex-col gap-1">
+                                                                        <span className="font-bold text-xs text-emerald-700 dark:text-emerald-300">
+                                                                            {(yearTotal.distMerc + yearTotal.distServ).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                                                        </span>
+                                                                    </div>
+                                                                </TableCell>
+                                                            </TableRow>
+                                                        )
+                                                    })}
+
+                                                    {/* Grand Total Row */}
+                                                     <TableRow className="bg-muted/50 font-extrabold border-t-2 border-primary/20">
+                                                        <TableCell className="py-3 text-sm">Total Geral</TableCell>
+                                                        <TableCell className="py-3">
+                                                            <div className="flex flex-col gap-1">
+                                                                {grandTotal.recMerc > 0 && (
+                                                                    <div className="flex flex-col">
+                                                                        <span className="text-[11px] font-bold uppercase text-[#007AFF] dark:text-[#00C2FF]">Mercadorias</span>
+                                                                        <span className="font-bold text-xs">{grandTotal.recMerc.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                                                                    </div>
+                                                                )}
+                                                                {grandTotal.recServ > 0 && (
+                                                                    <div className="flex flex-col">
+                                                                        <span className="text-[11px] font-bold uppercase text-[#3D5AFE] dark:text-[#3D5AFE]">Serviços</span>
+                                                                        <span className="font-bold text-xs">{grandTotal.recServ.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </TableCell>
+                                                        <TableCell className="py-3">
+                                                             <div className="flex flex-col gap-1">
+                                                                {(grandTotal.recMerc > 0 || grandTotal.irpjMerc > 0) && (
+                                                                    <div className="flex flex-col">
+                                                                        <span className="text-[11px] font-bold text-[#007AFF] dark:text-[#00C2FF]">Mercadorias</span>
+                                                                        <span className="font-bold text-xs">{grandTotal.irpjMerc.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                                                                    </div>
+                                                                )}
+                                                                {(grandTotal.recServ > 0 || grandTotal.irpjServ > 0) && (
+                                                                    <div className="flex flex-col">
+                                                                        <span className="text-[11px] font-bold text-[#3D5AFE] dark:text-[#3D5AFE]">Serviços</span>
+                                                                        <span className="font-bold text-xs">{grandTotal.irpjServ.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </TableCell>
+                                                        <TableCell className="py-3"></TableCell>
+                                                        <TableCell className="py-3">
+                                                            <div className="flex flex-col gap-1">
+                                                                {(grandTotal.recMerc > 0 || grandTotal.distMerc > 0) && (
+                                                                    <div className="flex flex-col">
+                                                                        <span className="text-[11px] font-bold text-[#007AFF] dark:text-[#00C2FF]">Mercadorias</span>
+                                                                        <span className="font-bold text-xs text-emerald-700 dark:text-emerald-300">
+                                                                            {grandTotal.distMerc.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                                                        </span>
+                                                                    </div>
+                                                                )}
+                                                                {(grandTotal.recServ > 0 || grandTotal.distServ > 0) && (
+                                                                    <div className="flex flex-col">
+                                                                        <span className="text-[11px] font-bold text-[#3D5AFE] dark:text-[#3D5AFE]">Serviços</span>
+                                                                        <span className="font-bold text-xs text-emerald-700 dark:text-emerald-300">
+                                                                            {grandTotal.distServ.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                                                        </span>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </TableCell>
+                                                        <TableCell className="py-3">
+                                                            <div className="flex flex-col gap-1">
+                                                                <span className="font-bold text-xs text-emerald-700 dark:text-emerald-300">
+                                                                    {(grandTotal.distMerc + grandTotal.distServ).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                                                </span>
+                                                            </div>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                </>
+                                            )
+                                        })()}
+                                    </TableBody>
+                                </Table>
+                            </CardContent>
+                        </Card>
+                    </div>
                 )}
 
                     {(!isPdfGen && !isConsolidated) && (
@@ -2607,6 +3082,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                 isOwner={isOwner}
                                 isPdfGen={isPdfGen}
                                 isEmbedded={isEmbedded}
+                                hideDistributionTable={true}
                                 shareId={dashboardCode ? (selectedFileIndex !== null ? `${dashboardCode}?view_file_index=${selectedFileIndex}` : dashboardCode) : undefined}
                             />
                         </>
@@ -2624,6 +3100,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                     isPdfGen={true}
                                     isEmbedded={isEmbedded}
                                     showContactCard={idx === sortedFiles.length - 1}
+                                    hideDistributionTable={true}
                                     shareId={dashboardCode ? (selectedFileIndex !== null ? `${dashboardCode}?view_file_index=${selectedFileIndex}` : dashboardCode) : undefined}
                                 />
                                     </div>

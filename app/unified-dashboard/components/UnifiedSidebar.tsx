@@ -1,7 +1,7 @@
 import { MonthlyFile } from '../types'
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { LayoutDashboard, Upload, FileText, ChevronRight, Building2, Calendar, DollarSign, AlertTriangle, Trash2, CheckCircle, X } from "lucide-react"
+import { LayoutDashboard, Upload, FileText, ChevronRight, Building2, Calendar, DollarSign, AlertTriangle, Trash2, CheckCircle, X, Grid } from "lucide-react"
 import { cn, formatPeriod } from "@/lib/utils"
 import { HeaderLogo } from "@/components/header-logo"
 import { useMemo } from 'react'
@@ -24,8 +24,8 @@ interface UnifiedSidebarProps {
     queuedFiles?: MonthlyFile[]
     onProcessQueue?: () => void
     onRemoveFromQueue?: (index: number) => void
-    activeTab?: 'resumo' | 'visao-geral'
-    onTabSelect?: (tab: 'resumo' | 'visao-geral') => void
+    activeTab?: 'resumo' | 'visao-geral' | 'distribuicao-resultados'
+    onTabSelect?: (tab: 'resumo' | 'visao-geral' | 'distribuicao-resultados') => void
 }
 
 export function UnifiedSidebar({
@@ -226,6 +226,36 @@ export function UnifiedSidebar({
                                 <p className="text-xs text-muted-foreground truncate">Anual ({group.items.length} meses)</p>
                             </div>
                             {(isConsolidatedView && activeCnpj === cnpj && activeTab === 'visao-geral') && <ChevronRight className="w-4 h-4 text-[#3A3A3A] dark:text-[#8A8A8A]" />}
+                        </button>
+                    )}
+
+                    {/* Distribuição de Resultados Button */}
+                    {group.items.length > 1 && (
+                        <button
+                            onClick={() => {
+                                onConsolidatedSelect(cnpj)
+                                if (onTabSelect) onTabSelect('distribuicao-resultados')
+                            }}
+                            className={cn(
+                                "w-full flex items-center gap-3 p-3 rounded-lg text-left transition-all group",
+                                (isConsolidatedView && activeCnpj === cnpj && activeTab === 'distribuicao-resultados')
+                                    ? "bg-[#3A3A3A]/10 dark:bg-[#3A3A3A]/40 border-[#5A5A5A]/30 dark:border-[#5A5A5A]/60 shadow-sm ring-1 ring-[#5A5A5A]/20 dark:ring-[#5A5A5A]/50"
+                                    : "hover:bg-muted/50 border-transparent"
+                            )}
+                        >
+                            <div className={cn(
+                                "w-10 h-10 rounded-full flex items-center justify-center transition-colors",
+                                (isConsolidatedView && activeCnpj === cnpj && activeTab === 'distribuicao-resultados') ? "bg-[#3A3A3A] text-white" : "bg-muted text-muted-foreground group-hover:bg-[#3A3A3A]/10"
+                            )}>
+                                <Grid className="w-4 h-4" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <p className={cn("font-medium text-sm truncate", (isConsolidatedView && activeCnpj === cnpj && activeTab === 'distribuicao-resultados') ? "text-[#3A3A3A] dark:text-[#8A8A8A]" : "text-foreground")}>
+                                    Distribuição de Resultados
+                                </p>
+                                <p className="text-xs text-muted-foreground truncate">Detalhamento</p>
+                            </div>
+                            {(isConsolidatedView && activeCnpj === cnpj && activeTab === 'distribuicao-resultados') && <ChevronRight className="w-4 h-4 text-[#3A3A3A] dark:text-[#8A8A8A]" />}
                         </button>
                     )}
                     

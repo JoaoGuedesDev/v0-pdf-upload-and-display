@@ -5,19 +5,19 @@
 
 :root {
   --background: #FFFFFF;
-  --foreground: #050B14; /* Azul profundo vibrante */
+  --foreground: #3A3A3A; /* Azul profundo vibrante */
   --card: #FFFFFF;
-  --card-foreground: #050B14;
+  --card-foreground: #3A3A3A;
   --popover: #FFFFFF;
-  --popover-foreground: #050B14;
+  --popover-foreground: #3A3A3A;
   --primary: #007AFF; /* Azul elétrico vibrante */
   --primary-foreground: #FFFFFF;
   --secondary: #F0F9FF; /* Azul gelo muito claro */
-  --secondary-foreground: #050B14;
+  --secondary-foreground: #3A3A3A;
   --muted: #F0F9FF;
   --muted-foreground: #007AFF;
   --accent: #F0F9FF;
-  --accent-foreground: #050B14;
+  --accent-foreground: #3A3A3A;
   --destructive: #EF4444;
   --destructive-foreground: #FFFFFF;
   --border: #E2E8F0;
@@ -27,20 +27,20 @@
   --chart-2: #00C2FF; /* Ciano vibrante */
   --chart-3: #3D5AFE; /* Índigo vibrante */
   --chart-4: #0F1C36; /* Azul marinho rico */
-  --chart-5: #050B14;
+  --chart-5: #3A3A3A;
   --radius: 0.75rem;
   --sidebar: #FFFFFF;
-  --sidebar-foreground: #050B14;
+  --sidebar-foreground: #3A3A3A;
   --sidebar-primary: #007AFF;
   --sidebar-primary-foreground: #FFFFFF;
   --sidebar-accent: #F0F9FF;
-  --sidebar-accent-foreground: #050B14;
+  --sidebar-accent-foreground: #3A3A3A;
   --sidebar-border: #E2E8F0;
   --sidebar-ring: #007AFF;
 }
 
 .dark {
-  --background: #050B14; /* Azul marinho profundo e vibrante */
+  --background: #3A3A3A;
   --foreground: #FFFFFF; /* Branco puro para contraste máximo */
   --card: #0F1C36; /* Azul petróleo rico e saturado */
   --card-foreground: #FFFFFF;
@@ -64,7 +64,7 @@
   --chart-3: #3D5AFE; /* Índigo elétrico */
   --chart-4: #1A2C4E; /* Azul médio */
   --chart-5: #FFFFFF; /* Branco */
-  --sidebar: #050B14;
+  --sidebar: #3A3A3A;
   --sidebar-foreground: #FFFFFF;
   --sidebar-primary: #007AFF;
   --sidebar-primary-foreground: #FFFFFF;

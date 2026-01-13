@@ -705,7 +705,7 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
     plugins: {
       legend: { display: false },
       datalabels: {
-        color: isDark ? '#FFFFFF' : '#050B14',
+        color: isDark ? '#FFFFFF' : '#3A3A3A',
         formatter: (val: number) => formatCurrency(val),
         anchor: 'end' as const,
         align: 'end' as const,
@@ -715,9 +715,9 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
         }
       },
       tooltip: {
-        backgroundColor: isDark ? 'rgba(5, 11, 20, 0.95)' : 'rgba(255,255,255,0.95)',
+        backgroundColor: isDark ? 'rgba(58, 58, 58, 0.95)' : 'rgba(255,255,255,0.95)',
         borderColor: isDark ? '#007AFF' : '#007AFF33',
-        titleColor: isDark ? '#FFFFFF' : '#050B14',
+        titleColor: isDark ? '#FFFFFF' : '#3A3A3A',
         bodyColor: isDark ? '#00C2FF' : '#007AFF',
         callbacks: {
           label: function (context: any) {
@@ -741,7 +741,7 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
       },
       y: {
         grid: { display: false },
-        ticks: { font: { weight: 'bold' as const, size: 12 }, color: isDark ? '#FFFFFF' : '#050B14' }
+        ticks: { font: { weight: 'bold' as const, size: 12 }, color: isDark ? '#FFFFFF' : '#3A3A3A' }
       }
     },
     layout: { padding: { right: 20 } }
