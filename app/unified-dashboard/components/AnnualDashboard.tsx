@@ -154,24 +154,42 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
     // We only want to show data for the ACTIVE company
     const companyFiles = useMemo(() => {
         if (!activeCnpj) return localFiles
-        let filtered = localFiles.filter(f => f.data.identificacao.cnpj === activeCnpj)
-        
-        if (urlFilteredPeriods) {
+        return localFiles.filter(f => f.data.identificacao.cnpj === activeCnpj)
+    }, [localFiles, activeCnpj])
+
+    // Filtered files for PDF Pages / Tables (respects user selection)
+    const filteredCompanyFiles = useMemo(() => {
+        let filtered = companyFiles
+        if (urlFilteredPeriods && urlFilteredPeriods.size > 0) {
             filtered = filtered.filter(f => urlFilteredPeriods.has(f.data.identificacao.periodoApuracao))
         }
-        
         return filtered
-    }, [localFiles, activeCnpj, urlFilteredPeriods])
+    }, [companyFiles, urlFilteredPeriods])
 
     // Sort company files for display/charts
+    // NOTE: sortedFiles is used for "Pages" and "Totals". It SHOULD be filtered.
     const sortedFiles = useMemo(() => {
-        return [...companyFiles].sort((a, b) => {
+        return [...filteredCompanyFiles].sort((a, b) => {
             const getMonthYear = (d: string) => {
                 if (!d) return 0
                 const parts = d.split(' ')[0].split('/')
                 // MM/YYYY
                 if (parts.length === 2) return parseInt(parts[1]) * 12 + parseInt(parts[0])
                 // DD/MM/YYYY
+                if (parts.length === 3) return parseInt(parts[2]) * 12 + parseInt(parts[1])
+                return 0
+            }
+            return getMonthYear(a.data?.identificacao?.periodoApuracao || '') - getMonthYear(b.data?.identificacao?.periodoApuracao || '')
+        })
+    }, [filteredCompanyFiles])
+    
+    // UNFILTERED sorted files for Charts (to show full year context)
+    const allSortedFiles = useMemo(() => {
+        return [...companyFiles].sort((a, b) => {
+            const getMonthYear = (d: string) => {
+                if (!d) return 0
+                const parts = d.split(' ')[0].split('/')
+                if (parts.length === 2) return parseInt(parts[1]) * 12 + parseInt(parts[0])
                 if (parts.length === 3) return parseInt(parts[2]) * 12 + parseInt(parts[1])
                 return 0
             }
@@ -288,6 +306,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
     const [targetFilename, setTargetFilename] = useState<string | null>(
         initialViewIndex !== undefined && files[initialViewIndex] ? files[initialViewIndex].filename : null
     )
+    const [isGeneratingPdf, setIsGeneratingPdf] = useState(false)
 
     // History State to remember selected file per Company
     const [viewHistory, setViewHistory] = useState<Record<string, string | null>>({})
@@ -504,33 +523,11 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
     }
 
     const handleExportPdf = async (selectedPeriods?: Set<string>) => {
+        setIsGeneratingPdf(true)
         const sorted = [...sortedFiles]
         const origin = typeof window !== 'undefined' ? window.location.origin : ''
         
         let currentCode = dashboardCode
-        let pdfWindow: Window | null = null
-
-        // Open window immediately to avoid popup blockers
-        try {
-            pdfWindow = window.open('', '_blank')
-            if (pdfWindow) {
-                pdfWindow.document.write(`
-                    <html>
-                        <head><title>Gerando PDF...</title></head>
-                        <body style="background:#0f172a;color:white;display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;">
-                            <div style="text-align:center">
-                                <div style="width:40px;height:40px;border:3px solid #3b82f6;border-top-color:transparent;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 20px;"></div>
-                                <h2>Gerando seu relatório...</h2>
-                                <p style="color:#94a3b8">Isso pode levar alguns segundos.</p>
-                            </div>
-                            <style>@keyframes spin { to { transform: rotate(360deg); } }</style>
-                        </body>
-                    </html>
-                `)
-            }
-        } catch (e) {
-            console.error("Popup blocked?", e)
-        }
 
         try {
             // If no dashboard code (local mode), create a temporary one
@@ -547,7 +544,6 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                 const data = await res.json()
                 if (data.code) {
                     currentCode = data.code
-                    setDashboardCode(currentCode)
                 } else {
                     throw new Error('Código de dashboard não retornado')
                 }
@@ -596,18 +592,25 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
 
             const url = `${origin}/api/pdf?path=${encodeURIComponent(path)}&type=screen&w=1600&scale=1&download=true&filename=${encodeURIComponent(filename)}`
 
-            if (pdfWindow) {
-                pdfWindow.location.href = url
-            } else {
-                window.location.assign(url)
-            }
+            const response = await fetch(url)
+            if (!response.ok) throw new Error('Falha na geração do PDF')
+            
+            const blob = await response.blob()
+            const downloadUrl = window.URL.createObjectURL(blob)
+            const a = document.createElement('a')
+            a.href = downloadUrl
+            a.download = filename
+            document.body.appendChild(a)
+            a.click()
+            window.URL.revokeObjectURL(downloadUrl)
+            document.body.removeChild(a)
 
         } catch (e: any) {
             console.error(e)
-            if (pdfWindow) pdfWindow.close()
             alert("Erro ao gerar PDF: " + (e.message || "Erro desconhecido"))
         } finally {
             setIsSaving(false)
+            setIsGeneratingPdf(false)
         }
     }
 
@@ -615,12 +618,12 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
     useEffect(() => {
         const handler = (event: MessageEvent) => {
             if (event.data?.type === 'EXPORT_PDF') {
-                handleExportPdf()
+                openPdfSelection()
             }
         }
         window.addEventListener('message', handler)
         return () => window.removeEventListener('message', handler)
-    }, [sortedFiles, activeCnpj, visibleCharts, dashboardCode])
+    }, [sortedFiles, activeCnpj, visibleCharts, dashboardCode, localFiles])
 
     const [isEmbedded, setIsEmbedded] = useState(propIsEmbedded || false)
     useEffect(() => {
@@ -695,7 +698,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
         }
 
         // 1. Populate from explicit files (Highest priority)
-        sortedFiles.forEach(f => {
+        allSortedFiles.forEach(f => {
             const { m, y } = parsePeriod(f.data.identificacao.periodoApuracao)
             if (m && y) {
                 const key = `${y}-${String(m).padStart(2, '0')}`
@@ -745,10 +748,10 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
 
         // Apply logic to first and last file as requested
         // We process both 'receitas_anteriores' (n8n) and 'historico' (das-parse)
-        if (sortedFiles.length > 0) {
-            const filesToProcess = [sortedFiles[0]]
-            if (sortedFiles.length > 1) {
-                filesToProcess.push(sortedFiles[sortedFiles.length - 1])
+        if (allSortedFiles.length > 0) {
+            const filesToProcess = [allSortedFiles[0]]
+            if (allSortedFiles.length > 1) {
+                filesToProcess.push(allSortedFiles[allSortedFiles.length - 1])
             }
             
             filesToProcess.forEach(f => {
@@ -772,28 +775,11 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
             if (receitas_anteriores.mercado_externo) processExternalData(receitas_anteriores.mercado_externo)
         }
 
-        // Strict filtering based on user selection
-        if (urlFilteredPeriods && urlFilteredPeriods.size > 0) {
-            const allowedKeys = new Set<string>()
-            urlFilteredPeriods.forEach(p => {
-                // p is MM/YYYY (e.g. 01/2024)
-                // parsePeriod expects MM/YYYY or DD/MM/YYYY
-                const { m, y } = parsePeriod(p)
-                if (m && y) {
-                    allowedKeys.add(`${y}-${String(m).padStart(2, '0')}`)
-                }
-            })
-            
-            // Remove keys not in allowed set
-            for (const key of map.keys()) {
-                if (!allowedKeys.has(key)) {
-                    map.delete(key)
-                }
-            }
-        }
-
+        // REMOVED: Strict filtering based on user selection
+        // We want charts to show FULL HISTORY even if we are generating PDF for specific months.
+        
         return map
-    }, [sortedFiles, receitas_anteriores, urlFilteredPeriods])
+    }, [allSortedFiles, receitas_anteriores])
 
     const years = useMemo(() => {
         const s = new Set<number>()
@@ -836,7 +822,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                 
                 // Taxes & Interest logic
                 // Attempt to find explicit file for taxes
-                const file = sortedFiles.find(f => {
+                const file = allSortedFiles.find(f => {
                     const p = parsePeriod(f.data.identificacao.periodoApuracao)
                     return p.y === y && p.m === m
                 })
@@ -861,7 +847,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
             }
         })
         return map
-    }, [years, consolidatedData, sortedFiles])
+    }, [years, consolidatedData, allSortedFiles])
 
     // Aggregated Data for Comparison (Multi-View)
     const allComparisonData = useMemo(() => {
@@ -2041,8 +2027,10 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                                                     backgroundColor: 'rgba(124, 58, 237, 0.1)',
                                                                     tension: 0.4,
                                                                     fill: true,
-                                                                    pointRadius: 0,
-                                                                    pointHoverRadius: 4
+                                                                    pointRadius: 3,
+                                                                    pointBackgroundColor: '#7c3aed',
+                                                                    pointHoverRadius: 5,
+                                                                    spanGaps: true
                                                                 },
                                                                 ...(yearData?.taxes?.some(v => v !== null && v > 0) ? [{
                                                                     label: 'Impostos',
@@ -2051,8 +2039,10 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                                                     backgroundColor: 'rgba(219, 39, 119, 0.1)',
                                                                     tension: 0.4,
                                                                     fill: true,
-                                                                    pointRadius: 0,
-                                                                    pointHoverRadius: 4
+                                                                    pointRadius: 3,
+                                                                    pointBackgroundColor: '#db2777',
+                                                                    pointHoverRadius: 5,
+                                                                    spanGaps: true
                                                                 }] : []),
                                                                 ...(yearData?.interest?.some(v => v !== null && v > 0) ? [{
                                                                     label: 'Juros/Multa',
@@ -2061,8 +2051,10 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                                                     backgroundColor: 'rgba(239, 68, 68, 0.1)',
                                                                     tension: 0.4,
                                                                     fill: true,
-                                                                    pointRadius: 0,
-                                                                    pointHoverRadius: 4
+                                                                    pointRadius: 3,
+                                                                    pointBackgroundColor: '#EF4444',
+                                                                    pointHoverRadius: 5,
+                                                                    spanGaps: true
                                                                 }] : [])
                                                             ]
                                                         }}
@@ -2499,6 +2491,17 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                     activeTab={activeTab}
                     onTabSelect={setActiveTab}
                 />
+            )}
+
+            {/* Loading Overlay */}
+            {isGeneratingPdf && (
+                <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-[#0f172a]/95 text-white">
+                    <div className="text-center">
+                        <div className="mx-auto mb-5 h-10 w-10 animate-spin rounded-full border-4 border-blue-500 border-t-transparent"></div>
+                        <h2 className="text-2xl font-bold mb-2">Gerando seu relatório...</h2>
+                        <p className="text-slate-400">Isso pode levar alguns segundos.</p>
+                    </div>
+                </div>
             )}
 
             {/* Error Modal */}
