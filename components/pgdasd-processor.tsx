@@ -284,7 +284,8 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
   const handleDownloadPDF = useCallback(() => {
     const origin = typeof window !== 'undefined' ? window.location.origin : ''
     const code = shareId || shareCode || ''
-    let path = code ? `/d/${code}` : `/dashboard-das`
+    // Use current pathname as fallback instead of hardcoded /dashboard-das which might not exist
+    let path = code ? `/d/${code}` : (typeof window !== 'undefined' ? window.location.pathname : '/dashboard-das')
     const sep = path.includes('?') ? '&' : '?'
     path = `${path}${sep}pdf_gen=true`
     // Fixa a largura em 1600px para garantir alta resolução no PDF, independente da janela do usuário
@@ -398,7 +399,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                  onClick={handleDownloadPDF}
               >
                 <Download className="h-4 w-4" />
-                Exportar Relatório PDF
+                Baixar PDF (Mês)
               </Button>
               <Button
                 variant="ghost"
@@ -736,6 +737,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                 Array.isArray((data as any)?.calculos?.analise_aliquota?.detalhe) ? (data as any).calculos.analise_aliquota.detalhe :
                 Array.isArray((data as any)?.calculos?.analiseAliquota?.detalhe) ? (data as any).calculos.analiseAliquota.detalhe : undefined
               }
+              isPdfGen={isPdfGen}
             />
           )
         })()}
@@ -1064,6 +1066,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                       <GraficoReceitaMensal
                         data={merged}
                         showGrid={showGrid}
+                        isPdfGen={isPdfGen}
                       />
                     )
                   }
@@ -1099,14 +1102,15 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                       <GraficoReceitaMensal
                         data={{ labels, values, externo }}
                         showGrid={showGrid}
+                        isPdfGen={isPdfGen}
                       />
                     )
                   }
                   if (serieA) {
-                    return <GraficoReceitaMensal data={serieA} showGrid={showGrid} />
+                    return <GraficoReceitaMensal data={serieA} showGrid={showGrid} isPdfGen={isPdfGen} />
                   }
                   if (serieMI) {
-                    return <GraficoReceitaMensal data={serieMI} showGrid={showGrid} />
+                    return <GraficoReceitaMensal data={serieMI} showGrid={showGrid} isPdfGen={isPdfGen} />
                   }
                   return null
                 })()}
@@ -1269,7 +1273,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
             datasets: [{
               data: items.map(i => i.value),
               backgroundColor: items.map(i => i.color),
-              borderColor: theme === 'dark' ? '#050B14' : '#ffffff',
+              borderColor: (!isPdfGen && theme === 'dark') ? '#050B14' : '#ffffff',
               borderWidth: 1,
               cutout: '68%',
               radius: '95%',
@@ -1294,13 +1298,14 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
           const centerText = {
             id: 'centerText',
             beforeDraw: (chart: any) => {
+              const isDark = !isPdfGen && theme === 'dark'
               const { ctx, chartArea } = chart
               if (!ctx || !chartArea) return
               const cx = (chartArea.left + chartArea.right) / 2
               const cy = (chartArea.top + chartArea.bottom) / 2
               ctx.save()
               ctx.textAlign = 'center'
-              ctx.fillStyle = theme === 'dark' ? '#FAF5FF' : '#050B14'
+              ctx.fillStyle = isDark ? '#FAF5FF' : '#050B14'
               ctx.font = '600 14px Inter, system-ui, -apple-system, Segoe UI'
               ctx.fillText('Total de Tributos', cx, cy - 10)
               ctx.font = '700 14px Inter, system-ui, -apple-system, Segoe UI'
@@ -1352,9 +1357,10 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
               }
               resolveSide('left')
               resolveSide('right')
+              const isDark = !isPdfGen && theme === 'dark'
               ctx.save()
               for (const n of nodes) {
-                ctx.strokeStyle = String(n.color || (theme === 'dark' ? '#94a3b8' : '#475569'))
+                ctx.strokeStyle = String(n.color || (isDark ? '#94a3b8' : '#475569'))
                 ctx.lineWidth = 1.25
                 ctx.beginPath()
                 ctx.moveTo(n.ax, n.ay)
@@ -1362,7 +1368,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                 ctx.lineTo(n.lx, n.ly)
                 ctx.stroke()
                 ctx.textAlign = n.right ? 'left' : 'right'
-                ctx.fillStyle = String(n.color || (theme === 'dark' ? '#FAF5FF' : '#050B14'))
+                ctx.fillStyle = String(n.color || (isDark ? '#FAF5FF' : '#050B14'))
                 ctx.font = '600 14px Inter, system-ui, -apple-system, Segoe UI'
                 const txt = `${n.label}: ${formatCurrency(Number(n.value || 0))} (${n.pct.toFixed(1)}%)`
                 ctx.fillText(txt, n.lx, n.ly - 2)

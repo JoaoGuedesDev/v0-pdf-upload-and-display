@@ -63,12 +63,13 @@ interface IndicadoresReceitaProps {
   receitas12Meses?: number[]
   periodoApuracao?: string
   porAnexoItems?: any[]
+  isPdfGen?: boolean
 }
 
-export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, calculos, className = "", servicosTotal = 0, mercadoriasTotal = 0, servicosBrutoPA = 0, mercadoriasBrutoPA = 0, receitas12Meses, periodoApuracao, porAnexoItems }: IndicadoresReceitaProps) {
+export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, calculos, className = "", servicosTotal = 0, mercadoriasTotal = 0, servicosBrutoPA = 0, mercadoriasBrutoPA = 0, receitas12Meses, periodoApuracao, porAnexoItems, isPdfGen }: IndicadoresReceitaProps) {
   const [showGrid, setShowGrid] = useState(false)
   const { theme } = useTheme()
-  const isDark = theme === 'dark'
+  const isDark = !isPdfGen && theme === 'dark'
   const receitaPA = useMemo(() => (receitas?.receitaPA || 0), [receitas])
   const totalDAS = useMemo(() => {
     const explicit = calculos?.totalDAS

@@ -11,16 +11,22 @@ interface ConfiguracaoProcessamentoProps {
   initialIsAnnual?: boolean
 }
 
+type FileItem = {
+  id: string
+  file: File
+  selected: boolean
+}
+
 export const ConfiguracaoProcessamento = memo(function ConfiguracaoProcessamento({ 
   onProcess, 
   loading = false, 
   className = "",
   initialIsAnnual = false
 }: ConfiguracaoProcessamentoProps) {
-  const [files, setFiles] = useState<File[]>([])
+  const [items, setItems] = useState<FileItem[]>([])
   const [isAnnual, setIsAnnual] = useState(initialIsAnnual)
   const [dragActive, setDragActive] = useState(false)
-  const [previewFile, setPreviewFile] = useState<{ url: string, index: number } | null>(null)
+  const [previewFile, setPreviewFile] = useState<{ url: string, id: string } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleDrag = useCallback((e: React.DragEvent) => {
@@ -33,6 +39,16 @@ export const ConfiguracaoProcessamento = memo(function ConfiguracaoProcessamento
     }
   }, [])
 
+  const addFiles = useCallback((newFiles: File[]) => {
+    const newItems = newFiles.map(file => ({
+      id: Math.random().toString(36).substring(7),
+      file,
+      selected: true
+    }))
+    setItems(prev => [...prev, ...newItems])
+    toast({ title: `${newFiles.length} PDF(s) adicionado(s)` })
+  }, [])
+
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
@@ -43,8 +59,7 @@ export const ConfiguracaoProcessamento = memo(function ConfiguracaoProcessamento
       const pdfFiles = droppedFiles.filter(f => f.type === "application/pdf")
       
       if (pdfFiles.length > 0) {
-        setFiles(prev => [...prev, ...pdfFiles])
-        toast({ title: `${pdfFiles.length} PDF(s) adicionado(s)` })
+        addFiles(pdfFiles)
       }
       
       if (droppedFiles.length !== pdfFiles.length) {
@@ -55,7 +70,7 @@ export const ConfiguracaoProcessamento = memo(function ConfiguracaoProcessamento
         })
       }
     }
-  }, [])
+  }, [addFiles])
 
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -63,8 +78,7 @@ export const ConfiguracaoProcessamento = memo(function ConfiguracaoProcessamento
       const pdfFiles = selectedFiles.filter(f => f.type === "application/pdf")
       
       if (pdfFiles.length > 0) {
-        setFiles(prev => [...prev, ...pdfFiles])
-        toast({ title: `${pdfFiles.length} PDF(s) adicionado(s)` })
+        addFiles(pdfFiles)
       }
 
       if (selectedFiles.length !== pdfFiles.length) {
@@ -76,18 +90,24 @@ export const ConfiguracaoProcessamento = memo(function ConfiguracaoProcessamento
       }
     }
     if (fileInputRef.current) fileInputRef.current.value = ''
-  }, [])
+  }, [addFiles])
 
-  const removeFile = useCallback((index: number) => {
-    setFiles(prev => prev.filter((_, i) => i !== index))
-    if (previewFile?.index === index) {
+  const removeFile = useCallback((id: string) => {
+    setItems(prev => prev.filter(item => item.id !== id))
+    if (previewFile?.id === id) {
       URL.revokeObjectURL(previewFile.url)
       setPreviewFile(null)
     }
   }, [previewFile])
 
-  const togglePreview = useCallback((file: File, index: number) => {
-    if (previewFile?.index === index) {
+  const toggleSelection = useCallback((id: string) => {
+    setItems(prev => prev.map(item => 
+      item.id === id ? { ...item, selected: !item.selected } : item
+    ))
+  }, [])
+
+  const togglePreview = useCallback((file: File, id: string) => {
+    if (previewFile?.id === id) {
       URL.revokeObjectURL(previewFile.url)
       setPreviewFile(null)
     } else {
@@ -95,15 +115,17 @@ export const ConfiguracaoProcessamento = memo(function ConfiguracaoProcessamento
         URL.revokeObjectURL(previewFile.url)
       }
       const url = URL.createObjectURL(file)
-      setPreviewFile({ url, index })
+      setPreviewFile({ url, id })
     }
   }, [previewFile])
 
   const handleProcess = useCallback(async () => {
-    if (files.length === 0) return
-    await onProcess(files, isAnnual)
-    setFiles([])
-  }, [files, isAnnual, onProcess])
+    const selectedItems = items.filter(item => item.selected)
+    if (selectedItems.length === 0) return
+    await onProcess(selectedItems.map(item => item.file), isAnnual)
+    setItems([])
+    setPreviewFile(null)
+  }, [items, isAnnual, onProcess])
 
   const handleSelectFile = useCallback(() => {
     fileInputRef.current?.click()
@@ -135,8 +157,8 @@ export const ConfiguracaoProcessamento = memo(function ConfiguracaoProcessamento
           <h3
             className={`text-base sm:text-lg font-semibold mb-1 text-center break-words max-w-full text-foreground`}
           >
-            {files.length > 0 
-              ? `${files.length} arquivo(s) selecionado(s)` 
+            {items.length > 0 
+              ? `${items.length} arquivo(s) adicionado(s)` 
               : "Arraste seus PDFs aqui"}
           </h3>
           <p className={`text-muted-foreground mb-2 text-sm`}>
@@ -168,10 +190,10 @@ export const ConfiguracaoProcessamento = memo(function ConfiguracaoProcessamento
                   Adicionar Arquivos
                 </Button>
 
-                {files.length > 0 && (
+                {items.length > 0 && (
                   <Button
                     onClick={handleProcess}
-                    disabled={loading}
+                    disabled={loading || items.filter(i => i.selected).length === 0}
                     size="sm"
                     className={`bg-[#007AFF] hover:bg-[#0056B3] text-[#FFFFFF] w-full sm:w-auto transition-colors`}
                   >
@@ -181,7 +203,7 @@ export const ConfiguracaoProcessamento = memo(function ConfiguracaoProcessamento
                         Processando...
                       </>
                     ) : (
-                      `Processar ${files.length} PDF(s)`
+                      `Processar ${items.filter(i => i.selected).length} PDF(s)`
                     )}
                   </Button>
                 )}
@@ -190,21 +212,29 @@ export const ConfiguracaoProcessamento = memo(function ConfiguracaoProcessamento
           </div>
         </div>
 
-        {files.length > 0 && (
+        {items.length > 0 && (
           <div className="mt-4 space-y-2 relative">
-            {files.map((file, index) => (
+            {items.map((item) => (
               <div 
-                key={index} 
+                key={item.id} 
                 className={`flex items-center justify-between p-2 bg-card rounded-lg border shadow-sm relative group cursor-pointer transition-colors ${
-                  previewFile?.index === index ? 'ring-2 ring-primary border-transparent' : 'border-border hover:border-primary/50'
+                  previewFile?.id === item.id ? 'ring-2 ring-primary border-transparent' : 'border-border hover:border-primary/50'
                 }`}
-                onClick={() => togglePreview(file, index)}
+                onClick={() => togglePreview(item.file, item.id)}
               >
                 <div className="flex items-center gap-3 overflow-hidden">
+                  <div onClick={(e) => e.stopPropagation()} className="flex items-center">
+                    <input 
+                      type="checkbox" 
+                      checked={item.selected} 
+                      onChange={() => toggleSelection(item.id)}
+                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer accent-primary"
+                    />
+                  </div>
                   <FileText className="h-4 w-4 text-primary flex-shrink-0" />
-                  <span className="text-sm font-medium truncate text-card-foreground">{file.name}</span>
+                  <span className="text-sm font-medium truncate text-card-foreground">{item.file.name}</span>
                   <span className="text-xs text-muted-foreground flex-shrink-0">
-                    {(file.size / 1024).toFixed(1)} KB
+                    {(item.file.size / 1024).toFixed(1)} KB
                   </span>
                 </div>
                 <Button
@@ -213,20 +243,20 @@ export const ConfiguracaoProcessamento = memo(function ConfiguracaoProcessamento
                   className="h-6 w-6 text-muted-foreground hover:text-destructive z-10"
                   onClick={(e) => {
                     e.stopPropagation()
-                    removeFile(index)
+                    removeFile(item.id)
                   }}
                   disabled={loading}
                 >
                   <X className="h-3 w-3" />
                 </Button>
                 
-                {previewFile?.index === index && (
+                {previewFile?.id === item.id && (
                   <>
                     <div 
                       className="fixed inset-0 z-[90] bg-background/80 backdrop-blur-sm"
                       onClick={(e) => {
                         e.stopPropagation()
-                        togglePreview(file, index)
+                        togglePreview(item.file, item.id)
                       }}
                     />
                     <div className="fixed z-[100] right-10 top-1/2 -translate-y-1/2 p-2 bg-card rounded-lg shadow-2xl border border-border w-[600px] h-[85vh] hidden lg:block" onClick={(e) => e.stopPropagation()}>
@@ -238,7 +268,7 @@ export const ConfiguracaoProcessamento = memo(function ConfiguracaoProcessamento
                           className="absolute top-2 right-2 z-10 h-8 w-8 bg-background/80 hover:bg-background shadow-sm"
                           onClick={(e) => {
                             e.stopPropagation()
-                            togglePreview(file, index)
+                            togglePreview(item.file, item.id)
                           }}
                         >
                           <X className="h-4 w-4" />
@@ -246,7 +276,7 @@ export const ConfiguracaoProcessamento = memo(function ConfiguracaoProcessamento
                         <iframe 
                           src={`${previewFile.url}#toolbar=0&navpanes=0&scrollbar=0`}
                           className="w-full h-full"
-                          title={`Preview de ${file.name}`}
+                          title={`Preview de ${item.file.name}`}
                         />
                       </div>
                       <div className="absolute bottom-2 right-2 bg-[#3A3A3A]/75 text-white text-xs px-2 py-1 rounded pointer-events-none">

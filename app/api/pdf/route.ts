@@ -121,6 +121,20 @@ export async function GET(req: NextRequest) {
 
   try {
     const page = await browser.newPage()
+
+    // Encaminhar cookies da requisição original para o Puppeteer
+    // Isso permite que o PDF acesse rotas protegidas (autenticadas)
+    const cookies = req.cookies.getAll().map(c => ({
+      name: c.name,
+      value: c.value,
+      domain: new URL(target).hostname,
+      path: '/',
+    }))
+    
+    if (cookies.length > 0) {
+      await page.setCookie(...cookies)
+    }
+
     await page.emulateMediaType((type === 'print' || type === 'screen') ? (type as any) : 'screen')
     await page.goto(target, { waitUntil: 'domcontentloaded', timeout: 120000 })
     try { await page.waitForSelector('main', { timeout: 10000 }) } catch {}

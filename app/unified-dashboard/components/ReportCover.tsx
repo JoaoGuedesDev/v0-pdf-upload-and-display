@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { HeaderLogo } from "@/components/header-logo"
 import { MonthlyFile } from '../types'
 import { formatCurrency, formatPeriod, computeTotalDAS, cn } from "@/lib/utils"
-import { Brain, TrendingUp, PieChart, FileText, ArrowRight, BarChart3, Percent, Lightbulb, AlertTriangle, CheckCircle2, Target } from 'lucide-react'
+import { Brain, TrendingUp, PieChart, FileText, ArrowRight, BarChart3, Percent, Lightbulb, AlertTriangle, CheckCircle2, Target, MessageCircle, Mail } from 'lucide-react'
 
 interface ReportCoverProps {
     files: MonthlyFile[]
@@ -33,6 +33,7 @@ export function ReportCover({ files, companyName, cnpj, isDark = false }: Report
         let maxRevenue = { amount: 0, period: '' }
         let minRevenue = { amount: Infinity, period: '' }
         let activityBreakdown = { mercadorias: 0, servicos: 0, industria: 0 }
+        let taxActivityBreakdown = { mercadorias: 0, servicos: 0, industria: 0 }
         
         // Detailed Tax Breakdown
         const taxesBreakdown = {
@@ -104,6 +105,15 @@ export function ReportCover({ files, companyName, cnpj, isDark = false }: Report
                     }
                 }
             }
+
+            // Aggregate Tax by Activity
+            const tServ = (dados.tributosServicosInterno?.Total || 0) + (dados.tributosServicosExterno?.Total || 0)
+            const tMerc = (dados.tributosMercadoriasInterno?.Total || 0) + (dados.tributosMercadoriasExterno?.Total || 0)
+            const tInd = (dados.tributosIndustriaInterno?.Total || 0) + (dados.tributosIndustriaExterno?.Total || 0)
+            
+            taxActivityBreakdown.servicos += tServ
+            taxActivityBreakdown.mercadorias += tMerc
+            taxActivityBreakdown.industria += tInd
 
             // Consistency Check: If revenue is 0 but breakdown exists, use breakdown sum
             const breakdownSum = mercadorias + servicos + industria
@@ -368,6 +378,7 @@ export function ReportCover({ files, companyName, cnpj, isDark = false }: Report
             mainActivity,
             fileCount: files.length,
             activityBreakdown,
+            taxActivityBreakdown,
             marketBreakdown,
             accumulatedRevenueCurrentYear,
             accumulatedRevenuePreviousYear,
@@ -388,7 +399,7 @@ export function ReportCover({ files, companyName, cnpj, isDark = false }: Report
     const textPrimary = isDark ? "text-slate-100" : "text-slate-900"
     const textSecondary = isDark ? "text-slate-300" : "text-slate-700"
     const textMuted = isDark ? "text-slate-400" : "text-slate-500"
-    const bgBadge = isDark ? "bg-blue-600 text-white" : "bg-slate-900 text-white"
+    const bgBadge = isDark ? "bg-blue-600 text-white [print-color-adjust:exact]" : "bg-slate-900 text-white [print-color-adjust:exact]"
     
     return (
         <div className={cn(
@@ -416,13 +427,63 @@ export function ReportCover({ files, companyName, cnpj, isDark = false }: Report
                 
                 {/* 1. Visão Geral */}
                 <section>
-                    <h2 className={cn("text-xl font-bold uppercase tracking-wide mb-3 flex items-center gap-2", textPrimary)}>
+                    <h2 className={cn("text-xl font-bold uppercase tracking-wide mb-6 flex items-center gap-2", textPrimary)}>
                         <span className={cn("w-6 h-6 rounded flex items-center justify-center text-xs", bgBadge)}>1</span>
                         Visão Geral
                     </h2>
-                    <p className={cn("text-justify leading-relaxed", textSecondary)}>
-                        No período de <strong>{summary.period}</strong>, a empresa registrou uma Receita Bruta Total de <strong>{formatCurrency(summary.totalRevenue)}</strong>. 
-                        A carga tributária total (DAS) foi de <strong>{formatCurrency(summary.totalTax)}</strong>, representando uma alíquota efetiva média de <strong>{summary.effectiveRate.toFixed(2)}%</strong> sobre o faturamento.
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-6 p-6 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800">
+                        {/* Revenue Section */}
+                        <div className="flex flex-col justify-between space-y-4">
+                            <div className="flex flex-col items-start gap-2">
+                                {summary.activityBreakdown.servicos > 0 && (
+                                    <div className="bg-[#0055FF] text-white px-4 py-1.5 rounded-full text-sm font-semibold shadow-sm tracking-wide">
+                                        Serviços: {formatCurrency(summary.activityBreakdown.servicos)}
+                                    </div>
+                                )}
+                                {summary.activityBreakdown.mercadorias > 0 && (
+                                    <div className="bg-[#0088FF] text-white px-4 py-1.5 rounded-full text-sm font-semibold shadow-sm tracking-wide">
+                                        Mercadorias: {formatCurrency(summary.activityBreakdown.mercadorias)}
+                                    </div>
+                                )}
+                            </div>
+                            <div className="pt-4">
+                                <div className="text-4xl font-bold text-emerald-500 tracking-tight">
+                                    {formatCurrency(summary.totalRevenue)}
+                                </div>
+                                <div className="text-sm font-medium text-cyan-500 mt-1 flex items-center gap-1">
+                                    Média: {formatCurrency(summary.averageRevenue)}/mês
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Tax Section */}
+                        <div className="flex flex-col justify-between space-y-4 md:border-l md:pl-8 border-slate-200 dark:border-slate-700">
+                            <div className="flex flex-col items-start gap-2">
+                                {summary.taxActivityBreakdown.servicos > 0 && (
+                                    <div className="bg-[#0055FF] text-white px-4 py-1.5 rounded-full text-sm font-semibold shadow-sm tracking-wide [print-color-adjust:exact]">
+                                        Serviços: {formatCurrency(summary.taxActivityBreakdown.servicos)}
+                                    </div>
+                                )}
+                                {summary.taxActivityBreakdown.mercadorias > 0 && (
+                                    <div className="bg-[#0088FF] text-white px-4 py-1.5 rounded-full text-sm font-semibold shadow-sm tracking-wide [print-color-adjust:exact]">
+                                        Mercadorias: {formatCurrency(summary.taxActivityBreakdown.mercadorias)}
+                                    </div>
+                                )}
+                            </div>
+                            <div className="pt-4">
+                                <div className="text-4xl font-bold text-red-500 tracking-tight">
+                                    {formatCurrency(summary.totalTax)}
+                                </div>
+                                <div className="text-sm font-medium text-cyan-500 mt-1 flex items-center gap-1">
+                                    Média: {formatCurrency(summary.averageTax)}/mês
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <p className={cn("text-justify leading-relaxed text-sm opacity-80", textSecondary)}>
+                        Referente ao período de <strong>{summary.period}</strong>. A carga tributária efetiva média foi de <strong>{summary.effectiveRate.toFixed(2)}%</strong>.
                         {summary.rbt12Oscillation.message && ` ${summary.rbt12Oscillation.message}`}
                         {summary.accumulatedRevenuePreviousYear > 0 && (
                             <> Comparado ao acumulado do ano anterior, observamos uma {summary.accumulatedRevenueCurrentYear > summary.accumulatedRevenuePreviousYear ? 'evolução' : 'retração'} de {Math.abs(((summary.accumulatedRevenueCurrentYear - summary.accumulatedRevenuePreviousYear) / summary.accumulatedRevenuePreviousYear) * 100).toFixed(1)}%.</>
@@ -503,21 +564,23 @@ export function ReportCover({ files, companyName, cnpj, isDark = false }: Report
                             <>
                                 <br/>
                                 No último mês apurado, a tributação foi segregada nos seguintes Anexos:
-                                <ul className="list-disc list-inside mt-2 ml-4">
-                                    {summary.lastMonthAnexos.map((a, idx) => (
-                                        <li key={idx}>Anexo {a.anexo}: Alíquota de {a.aliquota.toFixed(2)}% sobre {formatCurrency(a.receita)}</li>
-                                    ))}
-                                </ul>
                             </>
                         )}
                     </p>
+                    {summary.lastMonthAnexos.length > 0 && (
+                        <ul className="list-disc list-inside mt-2 ml-4 text-justify leading-relaxed text-slate-700 dark:text-slate-300">
+                            {summary.lastMonthAnexos.map((a, idx) => (
+                                <li key={idx}>Anexo {a.anexo}: Alíquota de {a.aliquota.toFixed(2)}% sobre {formatCurrency(a.receita)}</li>
+                            ))}
+                        </ul>
+                    )}
                 </section>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     {/* 6. Oportunidades */}
                     <section>
                         <h2 className={cn("text-xl font-bold uppercase tracking-wide mb-3 flex items-center gap-2", isDark ? "text-emerald-400" : "text-emerald-700")}>
-                            <span className={cn("w-6 h-6 rounded flex items-center justify-center text-xs", isDark ? "bg-emerald-900 text-emerald-100" : "bg-emerald-700 text-white")}>6</span>
+                            <span className={cn("w-6 h-6 rounded flex items-center justify-center text-xs", isDark ? "bg-emerald-900 text-emerald-100 [print-color-adjust:exact]" : "bg-emerald-700 text-white [print-color-adjust:exact]")}>6</span>
                             Oportunidades
                         </h2>
                         <ul className="space-y-3">
@@ -536,7 +599,7 @@ export function ReportCover({ files, companyName, cnpj, isDark = false }: Report
                     {/* 7. Alertas */}
                     <section>
                         <h2 className={cn("text-xl font-bold uppercase tracking-wide mb-3 flex items-center gap-2", isDark ? "text-amber-400" : "text-amber-700")}>
-                            <span className={cn("w-6 h-6 rounded flex items-center justify-center text-xs", isDark ? "bg-amber-900 text-amber-100" : "bg-amber-700 text-white")}>7</span>
+                            <span className={cn("w-6 h-6 rounded flex items-center justify-center text-xs", isDark ? "bg-amber-900 text-amber-100 [print-color-adjust:exact]" : "bg-amber-700 text-white [print-color-adjust:exact]")}>7</span>
                             Alertas
                         </h2>
                         <ul className="space-y-3">
@@ -565,6 +628,51 @@ export function ReportCover({ files, companyName, cnpj, isDark = false }: Report
                         Recomenda-se {summary.mainActivity === 'Mercadorias' ? 'atenção especial à segregação de produtos monofásicos para redução legal de impostos' : 'monitoramento do Fator R para garantir a melhor alíquota nos serviços'}.
                         A gestão fiscal proativa será determinante para a manutenção da saúde financeira e competitividade nos próximos ciclos.
                     </p>
+                </section>
+
+                {/* 9. Contato e Ações */}
+                <section className={cn("p-6 rounded-lg border", isDark ? "bg-slate-900 border-slate-800" : "bg-slate-50 border-slate-200")}>
+                     <div className="grid md:grid-cols-2 gap-8 items-center">
+                        <div>
+                             <h2 className={cn("text-xl font-bold uppercase tracking-wide mb-3 flex items-center gap-2", textPrimary)}>
+                                <span className={cn("w-6 h-6 rounded flex items-center justify-center text-xs", bgBadge)}>9</span>
+                                Próximos Passos
+                            </h2>
+                            <p className={cn("text-justify leading-relaxed mb-4", textSecondary)}>
+                                Para maximizar seus resultados, nossa equipe de especialistas preparou recomendações personalizadas baseadas nos dados deste relatório.
+                            </p>
+                            <ul className="space-y-2 text-sm">
+                                <li className="flex items-center gap-2">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                                    <span className={textSecondary}>Simulação de economia tributária</span>
+                                </li>
+                                <li className="flex items-center gap-2">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                                    <span className={textSecondary}>Análise detalhada de produtos monofásicos</span>
+                                </li>
+                            </ul>
+                        </div>
+                        <div className={cn("p-6 rounded-xl", isDark ? "bg-slate-800" : "bg-white border border-slate-200 shadow-sm")}>
+                             <h3 className={cn("font-bold mb-4 flex items-center gap-2", textPrimary)}>
+                                <MessageCircle className="w-5 h-5 text-blue-500" />
+                                Fale com a Integra
+                            </h3>
+                             <div className="space-y-3">
+                                <a className="flex items-center gap-3 text-sm font-medium hover:text-blue-500 transition-colors" href="https://wa.me/559481264638" target="_blank" rel="noreferrer">
+                                    <div className="w-8 h-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center">
+                                        <MessageCircle className="w-4 h-4" />
+                                    </div>
+                                    <span className={textSecondary}>WhatsApp: (94) 8126-4638</span>
+                                </a>
+                                <a className="flex items-center gap-3 text-sm font-medium hover:text-blue-500 transition-colors" href="mailto:atendimento@integratecnologia.inf.br">
+                                    <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center">
+                                        <Mail className="w-4 h-4" />
+                                    </div>
+                                    <span className={textSecondary}>atendimento@integratecnologia.inf.br</span>
+                                </a>
+                             </div>
+                        </div>
+                     </div>
                 </section>
 
                 <div className="pt-12 text-center">

@@ -72,6 +72,12 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
     // Determine active CNPJ for filtering dashboard data
     // If no initialTargetCnpj is provided, try to infer from initialViewIndex or first file
     const [activeCnpj, setActiveCnpj] = useState<string | undefined>(() => {
+        if (typeof window !== 'undefined') {
+            const params = new URLSearchParams(window.location.search)
+            const urlCnpj = params.get('target_cnpj')
+            if (urlCnpj) return decodeURIComponent(urlCnpj)
+        }
+
         if (initialTargetCnpj) return initialTargetCnpj
         if (initialViewIndex !== undefined && files[initialViewIndex]) {
             return files[initialViewIndex].data.identificacao.cnpj
@@ -87,6 +93,19 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
     
     // Queue State
     const [queuedFiles, setQueuedFiles] = useState<MonthlyFile[]>([])
+
+    // PDF Selection State
+    const [showPdfSelectionModal, setShowPdfSelectionModal] = useState(false)
+    const [pdfSelectedPeriodIds, setPdfSelectedPeriodIds] = useState<Set<string>>(new Set())
+
+    const [urlFilteredPeriods, setUrlFilteredPeriods] = useState<Set<string> | null>(() => {
+        if (typeof window !== 'undefined') {
+            const params = new URLSearchParams(window.location.search)
+            const p = params.get('periods')
+            if (p) return new Set(decodeURIComponent(p).split(',').map(s => s.trim()))
+        }
+        return null
+    })
 
     useEffect(() => {
         if (invalidFiles && invalidFiles.length > 0) {
@@ -135,8 +154,14 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
     // We only want to show data for the ACTIVE company
     const companyFiles = useMemo(() => {
         if (!activeCnpj) return localFiles
-        return localFiles.filter(f => f.data.identificacao.cnpj === activeCnpj)
-    }, [localFiles, activeCnpj])
+        let filtered = localFiles.filter(f => f.data.identificacao.cnpj === activeCnpj)
+        
+        if (urlFilteredPeriods) {
+            filtered = filtered.filter(f => urlFilteredPeriods.has(f.data.identificacao.periodoApuracao))
+        }
+        
+        return filtered
+    }, [localFiles, activeCnpj, urlFilteredPeriods])
 
     // Sort company files for display/charts
     const sortedFiles = useMemo(() => {
@@ -449,7 +474,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
     }
 
     // Unified DataLabels Configuration
-    const datalabelsConfig = {
+    const datalabelsConfig = useMemo(() => ({
         align: 'end' as const,
         anchor: 'end' as const,
         clamp: true,
@@ -465,45 +490,124 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
         textStrokeWidth: 0,
         font: { weight: 'bold' as const, size: 10 },
         formatter: (value: number | null) => {
-            if (value === null || value === undefined || value === 0) return ''
+            if (value === null || value === undefined || value === 0 || value < 0) return ''
             return value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
         }
+    }), [])
+
+    const openPdfSelection = () => {
+        // Initialize with all files for the current company
+        const relevantFiles = localFiles.filter(f => f.data.identificacao.cnpj === activeCnpj)
+        const allIds = new Set(relevantFiles.map(f => f.data.identificacao.periodoApuracao))
+        setPdfSelectedPeriodIds(allIds)
+        setShowPdfSelectionModal(true)
     }
 
-    const handleExportPdf = () => {
-        const sorted = [...sortedFiles] // Use company-filtered sorted files
-
+    const handleExportPdf = async (selectedPeriods?: Set<string>) => {
+        const sorted = [...sortedFiles]
         const origin = typeof window !== 'undefined' ? window.location.origin : ''
-        let path = dashboardCode ? `/d/${dashboardCode}` : (window.location.pathname + window.location.search)
+        
+        let currentCode = dashboardCode
+        let pdfWindow: Window | null = null
 
-        const sep = path.includes('?') ? '&' : '?'
-        path = path + sep + 'pdf_gen=true'
-
-        // Pass activeCnpj to ensure PDF renders the correct company
-        if (activeCnpj) {
-            path += `&target_cnpj=${encodeURIComponent(activeCnpj)}`
+        // Open window immediately to avoid popup blockers
+        try {
+            pdfWindow = window.open('', '_blank')
+            if (pdfWindow) {
+                pdfWindow.document.write(`
+                    <html>
+                        <head><title>Gerando PDF...</title></head>
+                        <body style="background:#0f172a;color:white;display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;">
+                            <div style="text-align:center">
+                                <div style="width:40px;height:40px;border:3px solid #3b82f6;border-top-color:transparent;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 20px;"></div>
+                                <h2>Gerando seu relatório...</h2>
+                                <p style="color:#94a3b8">Isso pode levar alguns segundos.</p>
+                            </div>
+                            <style>@keyframes spin { to { transform: rotate(360deg); } }</style>
+                        </body>
+                    </html>
+                `)
+            }
+        } catch (e) {
+            console.error("Popup blocked?", e)
         }
-
-        // Append visibility settings
-        const visibleParts = []
-        if (visibleCharts.quarterly) visibleParts.push('quarterly')
-        if (visibleCharts.semiannual) visibleParts.push('semiannual')
-        if (visibleCharts.annual) visibleParts.push('annual')
-
-        if (visibleParts.length > 0) {
-            path += `&visible=${visibleParts.join(',')}`
-        }
-
-        const rs = sorted[0]?.data?.identificacao?.razaoSocial || 'Empresa'
-        const safeName = rs.replace(/[^a-z0-9à-ú .-]/gi, '_')
-        const filename = `Relatorio_Anual_${safeName}.pdf`
-
-        const url = `${origin}/api/pdf?path=${encodeURIComponent(path)}&type=screen&w=1600&scale=1&download=true&filename=${encodeURIComponent(filename)}`
 
         try {
-            window.open(url, '_blank')
-        } catch {
-            window.location.assign(url)
+            // If no dashboard code (local mode), create a temporary one
+            if (!currentCode) {
+                setIsSaving(true)
+                const res = await fetch('/api/dashboard/create', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ files: localFiles })
+                })
+                
+                if (!res.ok) throw new Error('Falha ao salvar dados temporários')
+                
+                const data = await res.json()
+                if (data.code) {
+                    currentCode = data.code
+                    setDashboardCode(currentCode)
+                } else {
+                    throw new Error('Código de dashboard não retornado')
+                }
+            }
+
+            // Construct base path with the code
+            let basePath = `/d/${currentCode}`
+            
+            // Get existing params
+            const params = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '')
+            
+            // Force PDF generation param
+            params.set('pdf_gen', 'true')
+            
+            // Update target_cnpj
+            if (activeCnpj) {
+                params.set('target_cnpj', activeCnpj)
+            }
+            
+            // Update periods
+            if (selectedPeriods && selectedPeriods.size > 0) {
+                params.set('periods', Array.from(selectedPeriods).join(','))
+            } else if (urlFilteredPeriods && urlFilteredPeriods.size > 0) {
+                params.set('periods', Array.from(urlFilteredPeriods).join(','))
+            } else {
+                params.delete('periods')
+            }
+
+            // Update visible charts
+            const visibleParts = []
+            if (visibleCharts.quarterly) visibleParts.push('quarterly')
+            if (visibleCharts.semiannual) visibleParts.push('semiannual')
+            if (visibleCharts.annual) visibleParts.push('annual')
+            
+            if (visibleParts.length > 0) {
+                params.set('visible', visibleParts.join(','))
+            } else {
+                params.delete('visible')
+            }
+
+            const path = `${basePath}?${params.toString()}`
+
+            const rs = sorted[0]?.data?.identificacao?.razaoSocial || 'Empresa'
+            const safeName = rs.replace(/[^a-z0-9à-ú .-]/gi, '_')
+            const filename = `Relatorio_Anual_${safeName}.pdf`
+
+            const url = `${origin}/api/pdf?path=${encodeURIComponent(path)}&type=screen&w=1600&scale=1&download=true&filename=${encodeURIComponent(filename)}`
+
+            if (pdfWindow) {
+                pdfWindow.location.href = url
+            } else {
+                window.location.assign(url)
+            }
+
+        } catch (e: any) {
+            console.error(e)
+            if (pdfWindow) pdfWindow.close()
+            alert("Erro ao gerar PDF: " + (e.message || "Erro desconhecido"))
+        } finally {
+            setIsSaving(false)
         }
     }
 
@@ -668,8 +772,28 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
             if (receitas_anteriores.mercado_externo) processExternalData(receitas_anteriores.mercado_externo)
         }
 
+        // Strict filtering based on user selection
+        if (urlFilteredPeriods && urlFilteredPeriods.size > 0) {
+            const allowedKeys = new Set<string>()
+            urlFilteredPeriods.forEach(p => {
+                // p is MM/YYYY (e.g. 01/2024)
+                // parsePeriod expects MM/YYYY or DD/MM/YYYY
+                const { m, y } = parsePeriod(p)
+                if (m && y) {
+                    allowedKeys.add(`${y}-${String(m).padStart(2, '0')}`)
+                }
+            })
+            
+            // Remove keys not in allowed set
+            for (const key of map.keys()) {
+                if (!allowedKeys.has(key)) {
+                    map.delete(key)
+                }
+            }
+        }
+
         return map
-    }, [sortedFiles, receitas_anteriores])
+    }, [sortedFiles, receitas_anteriores, urlFilteredPeriods])
 
     const years = useMemo(() => {
         const s = new Set<number>()
@@ -703,11 +827,11 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                 const val = consolidatedData.get(key)
                 
                 // Revenue
-                // If val is undefined or 0, we push null to show "nothing"
-                if (val !== undefined && val >= 0.01) {
+                // If val is undefined, we push 0 (was null)
+                if (val !== undefined) {
                     revenue.push(val)
                 } else {
-                    revenue.push(null)
+                    revenue.push(0)
                 }
                 
                 // Taxes & Interest logic
@@ -718,7 +842,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                 })
                 
                 const tVal = file?.data.tributos.Total || 0
-                taxes.push(tVal < 0.01 ? null : tVal)
+                taxes.push(tVal)
 
                 let interestVal = 0
                 if (file) {
@@ -728,11 +852,11 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                         interestVal = totalToPay - totalTaxesVal
                     }
                 }
-                interest.push(interestVal < 0.01 ? null : interestVal)
+                interest.push(interestVal)
             }
 
             // Only add year if there is at least some revenue data
-            if (revenue.some(v => v !== null)) {
+            if (revenue.some(v => v !== null && v > 0)) {
                  map.set(y, { labels, revenue, taxes, interest })
             }
         })
@@ -854,7 +978,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                 for(let m=1; m<=12; m++) {
                     sum += consolidatedData.get(`${y}-${String(m).padStart(2, '0')}`) || 0
                 }
-                return sum > 0.01 ? sum : null // Return null if 0
+                return sum // Return sum (even if 0)
             })
             
             return {
@@ -938,7 +1062,8 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
     const [showGrid, setShowGrid] = useState(false)
 
     // Chart Options Boilerplate
-    const chartOptions = {
+    const chartOptions = useMemo(() => ({
+        animation: isPdfGen ? { duration: 0 } : {},
         layout: {
             padding: {
                 top: 40,
@@ -953,7 +1078,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
             legend: {
                 position: 'bottom' as const,
                 labels: { 
-                    color: theme === 'dark' ? '#FFFFFF' : chartTheme.text, // Legenda branca no modo noturno
+                    color: isDark ? '#FFFFFF' : chartTheme.text, // Legenda branca no modo noturno
                     padding: 10,
                     boxWidth: 10,
                     usePointStyle: true,
@@ -1000,7 +1125,10 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                 border: { display: true, color: chartTheme.grid }, // Ensure Y axis line is visible
                 ticks: { 
                     color: chartTheme.text, 
-                    callback: (v: any) => new Intl.NumberFormat('pt-BR', { notation: 'compact' }).format(v),
+                    callback: (v: any) => {
+                        if (v < 0) return ''
+                        return new Intl.NumberFormat('pt-BR', { notation: 'compact' }).format(v)
+                    },
                     padding: 25, // Increased padding from 15 to 25
                 }
             },
@@ -1016,7 +1144,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                 ticks: { color: chartTheme.text }
             }
         }
-    }
+    }), [theme, chartTheme, showGrid, datalabelsConfig, isPdfGen])
 
 
     const monthlyRevenueBreakdown = useMemo(() => {
@@ -1504,19 +1632,123 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                         </div>
                     )}
 
+                    {/* Modal de Seleção para PDF */}
+                    {showPdfSelectionModal && !isPdfGen && (
+                        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                            <Card className="w-full max-w-lg shadow-2xl border-border/50 bg-background/95 backdrop-blur">
+                                <CardHeader className="border-b pb-4">
+                                    <div className="flex items-center justify-between">
+                                        <CardTitle className="text-lg font-bold">Selecionar Períodos para Relatório</CardTitle>
+                                        <Button variant="ghost" size="icon" onClick={() => setShowPdfSelectionModal(false)}>
+                                            <X className="w-4 h-4" />
+                                        </Button>
+                                    </div>
+                                    <p className="text-sm text-muted-foreground mt-1">
+                                        Escolha quais meses deseja incluir no PDF gerado.
+                                    </p>
+                                </CardHeader>
+                                <CardContent className="pt-4">
+                                    <div className="flex justify-end mb-2">
+                                        <Button 
+                                            variant="ghost" 
+                                            size="sm" 
+                                            className="text-xs h-7"
+                                            onClick={() => {
+                                                const relevantFiles = localFiles.filter(f => f.data.identificacao.cnpj === activeCnpj)
+                                                if (pdfSelectedPeriodIds.size === relevantFiles.length) {
+                                                    setPdfSelectedPeriodIds(new Set())
+                                                } else {
+                                                    setPdfSelectedPeriodIds(new Set(relevantFiles.map(f => f.data.identificacao.periodoApuracao)))
+                                                }
+                                            }}
+                                        >
+                                            {pdfSelectedPeriodIds.size === localFiles.filter(f => f.data.identificacao.cnpj === activeCnpj).length ? "Desmarcar Todos" : "Selecionar Todos"}
+                                        </Button>
+                                    </div>
+                                    <div className="space-y-1 max-h-[50vh] overflow-y-auto pr-2">
+                                        {localFiles
+                                            .filter(f => f.data.identificacao.cnpj === activeCnpj)
+                                            .sort((a, b) => {
+                                                // Sort by period
+                                                const getVal = (d: string) => {
+                                                    const parts = d.split('/')
+                                                    if (parts.length === 2) return parseInt(parts[1]) * 100 + parseInt(parts[0])
+                                                    if (parts.length === 3) return parseInt(parts[2]) * 100 + parseInt(parts[1])
+                                                    return 0
+                                                }
+                                                return getVal(b.data.identificacao.periodoApuracao) - getVal(a.data.identificacao.periodoApuracao)
+                                            })
+                                            .map((file, i) => {
+                                                const period = file.data.identificacao.periodoApuracao
+                                                const isSelected = pdfSelectedPeriodIds.has(period)
+                                                return (
+                                                    <div 
+                                                        key={i} 
+                                                        className={cn(
+                                                            "flex items-center gap-3 p-3 rounded-lg border transition-all cursor-pointer",
+                                                            isSelected ? "bg-primary/5 border-primary/30" : "bg-card border-border hover:bg-muted/50"
+                                                        )}
+                                                        onClick={() => {
+                                                            setPdfSelectedPeriodIds(prev => {
+                                                                const next = new Set(prev)
+                                                                if (next.has(period)) next.delete(period)
+                                                                else next.add(period)
+                                                                return next
+                                                            })
+                                                        }}
+                                                    >
+                                                        <div className={cn(
+                                                            "w-5 h-5 rounded border flex items-center justify-center transition-colors",
+                                                            isSelected ? "bg-primary border-primary text-primary-foreground" : "border-muted-foreground/30"
+                                                        )}>
+                                                            {isSelected && <CheckCircle className="w-3.5 h-3.5" />}
+                                                        </div>
+                                                        <div className="flex-1">
+                                                            <div className="flex items-center justify-between">
+                                                                <span className="font-medium text-sm capitalize">{formatPeriod(period)}</span>
+                                                                <span className="text-xs text-muted-foreground font-mono">
+                                                                    {file.data.receitas.receitaPA.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )
+                                            })}
+                                    </div>
+                                    <div className="flex justify-end gap-3 pt-6">
+                                        <Button variant="outline" onClick={() => setShowPdfSelectionModal(false)}>
+                                            Cancelar
+                                        </Button>
+                                        <Button 
+                                            className="bg-[#007AFF] hover:bg-[#005bb5] text-white"
+                                            disabled={pdfSelectedPeriodIds.size === 0}
+                                            onClick={() => {
+                                                setShowPdfSelectionModal(false)
+                                                handleExportPdf(pdfSelectedPeriodIds)
+                                            }}
+                                        >
+                                            Gerar PDF ({pdfSelectedPeriodIds.size})
+                                        </Button>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </div>
+                    )}
+
+                    {/* Common Actions (Visible on both Consolidated and Single File views) */}
+                    {!isPdfGen && !isEmbedded && (
+                        <div className="flex justify-end mb-6 px-6 pt-4 mx-6 mt-4">
+                            <DashboardActions 
+                                onUpload={handleFileUpload} 
+                                isUploading={isUploading} 
+                                onExportPdf={openPdfSelection}
+                                isSaving={isSaving}
+                            />
+                        </div>
+                    )}
+
                     {(isConsolidated || isPdfGen) && (
                         <>
-                            {/* Navigation Tabs (Hidden in PDF) */}
-                            {!isPdfGen && !isEmbedded && (
-                                <div className="flex justify-end mb-6 px-6 pt-4 mx-6 mt-4">
-                                    <DashboardActions 
-                                        onUpload={handleFileUpload} 
-                                        isUploading={isUploading} 
-                                        onExportPdf={handleExportPdf}
-                                        isSaving={isSaving}
-                                    />
-                                </div>
-                            )}
 
                             {/* Report Cover (Resumo Geral) */}
                             {(activeTab === 'resumo' || isPdfGen) && sortedFiles.length > 0 && (
@@ -1576,14 +1808,16 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                 <Card>
                                     <CardHeader className="pb-2">
                                         <CardTitle className="text-sm font-medium text-muted-foreground">Total de Impostos</CardTitle>
-                                        <div className="flex flex-col gap-1 mt-1">
+                                    </CardHeader>
+                                    <CardContent>
+                                        <div className="flex flex-col gap-1 mb-2">
                                             {taxesBreakdown.servicos > 0 && (
                                                 <span className="inline-flex items-center rounded-full bg-[#007AFF]/20 text-[#007AFF] dark:bg-[#007AFF]/40 dark:text-[#FFFFFF] px-2 py-0.5 text-[10px] font-semibold w-fit">
                                                     Serviços: {taxesBreakdown.servicos.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                                                 </span>
                                             )}
                                             {taxesBreakdown.mercadorias > 0 && (
-                                                <span className="inline-flex items-center rounded-full bg-[#00C2FF]/20 text-[#00C2FF] dark:bg-[#00C2FF]/40 dark:text-[#FFFFFF] px-2 py-0.5 text-[10px] font-semibold w-fit">
+                                                <span className="inline-flex items-center rounded-full bg-[#3D5AFE]/20 text-[#3D5AFE] dark:bg-[#3D5AFE]/40 dark:text-[#FFFFFF] px-2 py-0.5 text-[10px] font-semibold w-fit">
                                                     Mercadorias: {taxesBreakdown.mercadorias.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                                                 </span>
                                             )}
@@ -1593,8 +1827,6 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                                 </span>
                                             )}
                                         </div>
-                                    </CardHeader>
-                                    <CardContent>
                                         <div className="flex flex-row items-baseline gap-2">
                                             <div className="text-lg font-bold text-red-600 dark:text-red-400">
                                                 {totalTaxes.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
@@ -1610,8 +1842,25 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                         <CardTitle className="text-sm font-medium text-muted-foreground">Alíquota Efetiva Média</CardTitle>
                                     </CardHeader>
                                     <CardContent>
+                                        <div className="flex flex-col gap-1 mb-2">
+                                            {revenueBreakdown.servicos > 0 && (
+                                                <span className="inline-flex items-center rounded-full bg-[#007AFF]/20 text-[#007AFF] dark:bg-[#007AFF]/40 dark:text-[#FFFFFF] px-2 py-0.5 text-[10px] font-semibold w-fit">
+                                                    Serviços: {((taxesBreakdown.servicos / revenueBreakdown.servicos) * 100).toLocaleString('pt-BR', { minimumFractionDigits: 4, maximumFractionDigits: 4 })}%
+                                                </span>
+                                            )}
+                                            {revenueBreakdown.mercadorias > 0 && (
+                                                <span className="inline-flex items-center rounded-full bg-[#3D5AFE]/20 text-[#3D5AFE] dark:bg-[#3D5AFE]/40 dark:text-[#FFFFFF] px-2 py-0.5 text-[10px] font-semibold w-fit">
+                                                    Mercadorias: {((taxesBreakdown.mercadorias / revenueBreakdown.mercadorias) * 100).toLocaleString('pt-BR', { minimumFractionDigits: 4, maximumFractionDigits: 4 })}%
+                                                </span>
+                                            )}
+                                            {revenueBreakdown.industrializacao > 0 && (
+                                                <span className="inline-flex items-center rounded-full bg-[#00C2FF]/20 text-[#00C2FF] dark:bg-[#00C2FF]/40 dark:text-[#FFFFFF] px-2 py-0.5 text-[10px] font-semibold w-fit">
+                                                    Indústria: {((taxesBreakdown.industrializacao / revenueBreakdown.industrializacao) * 100).toLocaleString('pt-BR', { minimumFractionDigits: 4, maximumFractionDigits: 4 })}%
+                                                </span>
+                                            )}
+                                        </div>
                                         <div className="text-lg font-bold text-[#93A5AF]">
-                                            {averageTaxRate.toFixed(2)}%
+                                            {averageTaxRate.toLocaleString('pt-BR', { minimumFractionDigits: 4, maximumFractionDigits: 4 })}%
                                         </div>
                                     </CardContent>
                                 </Card>
@@ -1628,17 +1877,17 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                             const prevYearData = monthlyDataByYear.get(year - 1)
 
                                             return (
-                                                <div key={year} className="h-[400px]">
+                                                <div key={year} className="h-[420px]">
                                                     <h3 className="text-sm font-semibold mb-2 text-center text-muted-foreground">Receita e Impostos - {year}</h3>
                                                     <Line
                                                         options={{
                                                             ...chartOptions,
                                                             layout: {
                                                                 padding: {
-                                                                    top: 100,
-                                                                    right: 40,
-                                                                    left: 30,
-                                                                    bottom: 60
+                                                                    top: 20,
+                                                                    right: 20,
+                                                                    left: 10,
+                                                                    bottom: 10
                                                                 }
                                                             },
                                                             plugins: {
@@ -1678,7 +1927,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                                                             borderRadius: 4,
                                                                             padding: 2,
                                                                             formatter: (val: any) => {
-                                                                                if (val === null) return '';
+                                                                                if (val === null || val < 0.01) return '';
                                                                                 return new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val);
                                                                             }
                                                                         },
@@ -1688,7 +1937,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                                                             offset: (ctx: any) => {
                                                                                 if (ctx.datasetIndex === 1) return 12; // Imposto: Diferença acima da linha
                                                                                 
-                                                                                const base = 48; // Receita: acima do valor
+                                                                                const base = 32; // Receita: acima do valor (Reduzido de 48 para 32 para aproximar)
                                                                                 
                                                                                 const chart = ctx.chart;
                                                                                 const yAxis = chart.scales.y;
@@ -1709,7 +1958,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                                                                 if (dist < 100) return base + (100 - dist);
                                                                                 return base;
                                                                             },
-                                                                            backgroundColor: (ctx: any) => ctx.dataset.backgroundColor,
+                                                                            backgroundColor: isDark ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.8)',
                                                                             borderRadius: 4,
                                                                             color: (ctx: any) => {
                                                                                 const idx = ctx.dataIndex
@@ -1740,6 +1989,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                                                                 }
 
                                                                                 if (curr === null || prev == null) return ''
+                                                                                if (curr < 0.01 || prev < 0.01) return ''
                                                                                 
                                                                                 const diff = curr - prev
                                                                                 const pct = prev !== 0 ? (diff / prev) * 100 : 0
@@ -1755,7 +2005,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                                                 ...chartOptions.scales,
                                                                 y: {
                                                                     ...chartOptions.scales?.y,
-                                                                    min: 0,
+                                                                    // min: 0, 
                                                                     border: { display: false },
                                                                     grid: {
                                                                         ...chartOptions.scales?.y?.grid,
@@ -1786,27 +2036,33 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                                             datasets: [
                                                                 {
                                                                     label: 'Receita Bruta',
-                                                                    data: yearData?.revenue || [],
+                                                                    data: (yearData?.revenue || []).map(v => v === 0 ? null : v),
                                                                     borderColor: '#7c3aed',
                                                                     backgroundColor: 'rgba(124, 58, 237, 0.1)',
                                                                     tension: 0.4,
-                                                                    fill: true
+                                                                    fill: true,
+                                                                    pointRadius: 0,
+                                                                    pointHoverRadius: 4
                                                                 },
                                                                 ...(yearData?.taxes?.some(v => v !== null && v > 0) ? [{
                                                                     label: 'Impostos',
-                                                                    data: yearData?.taxes || [],
+                                                                    data: (yearData?.taxes || []).map(v => v === 0 ? null : v),
                                                                     borderColor: '#db2777',
                                                                     backgroundColor: 'rgba(219, 39, 119, 0.1)',
                                                                     tension: 0.4,
-                                                                    fill: true
+                                                                    fill: true,
+                                                                    pointRadius: 0,
+                                                                    pointHoverRadius: 4
                                                                 }] : []),
                                                                 ...(yearData?.interest?.some(v => v !== null && v > 0) ? [{
                                                                     label: 'Juros/Multa',
-                                                                    data: yearData?.interest || [],
+                                                                    data: (yearData?.interest || []).map(v => v === 0 ? null : v),
                                                                     borderColor: '#EF4444',
                                                                     backgroundColor: 'rgba(239, 68, 68, 0.1)',
                                                                     tension: 0.4,
-                                                                    fill: true
+                                                                    fill: true,
+                                                                    pointRadius: 0,
+                                                                    pointHoverRadius: 4
                                                                 }] : [])
                                                             ]
                                                         }}
@@ -1877,7 +2133,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                             <CardHeader className="py-2 px-4">
                                                 <CardTitle className="text-sm font-medium">Comparativo Trimestral</CardTitle>
                                             </CardHeader>
-                                            <CardContent className="px-2 pb-2 h-[180px]">
+                                            <CardContent className="px-2 pb-2 h-[170px]">
                                                 <Bar
                                                     options={chartOptions}
                                                     data={allComparisonData.quarterly}
@@ -1922,7 +2178,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                         <CardHeader className="py-2 px-4">
                                             <CardTitle className="text-base font-semibold">Composição do Faturamento Mensal</CardTitle>
                                         </CardHeader>
-                                        <CardContent className="px-2 pb-2 h-[350px]">
+                                        <CardContent className="px-2 pb-2 h-[340px]">
                                             <Bar
                                                 options={{
                                                     ...chartOptions,

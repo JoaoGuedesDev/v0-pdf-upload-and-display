@@ -48,10 +48,11 @@ export const GraficoReceitaMensal = memo(function GraficoReceitaMensal({
   title = '',
   description = 'Evolução de Receitas',
   height = 370,
-  showGrid = false
-}: GraficoReceitaMensalProps & { showGrid?: boolean }) {
+  showGrid = false,
+  isPdfGen = false
+}: GraficoReceitaMensalProps & { showGrid?: boolean, isPdfGen?: boolean }) {
   const { theme, resolvedTheme } = useTheme()
-  const isDark = theme === 'dark' || resolvedTheme === 'dark'
+  const isDark = !isPdfGen && (theme === 'dark' || resolvedTheme === 'dark')
   const chartData = (() => {
     if (!data || !data.labels || !data.values) {
       return { labels: [], datasets: [] };
