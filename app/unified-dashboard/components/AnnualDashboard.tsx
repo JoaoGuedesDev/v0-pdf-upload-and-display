@@ -687,44 +687,52 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
     // Monthly Data By Year (Updated to use consolidatedData)
     const monthlyDataByYear = useMemo(() => {
         const map = new Map<number, { labels: string[], revenue: (number | null)[], taxes: (number | null)[], interest: (number | null)[] }>()
+        const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+
         years.forEach(y => {
             const labels: string[] = []
             const revenue: (number | null)[] = []
             const taxes: (number | null)[] = []
             const interest: (number | null)[] = []
 
-            // We iterate 1-12
+            // We iterate 1-12 to ensure all months are present (fixed axis)
             for (let m = 1; m <= 12; m++) {
+                labels.push(monthNames[m - 1])
+                
                 const key = `${y}-${String(m).padStart(2, '0')}`
                 const val = consolidatedData.get(key)
-                if (val !== undefined) {
-                    const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
-                    labels.push(monthNames[m - 1])
-                    
-                    // Use null for 0 values to hide them in charts
-                    revenue.push(val < 0.01 ? null : val)
-                    
-                    // Taxes only available for explicit files, difficult to get from history if not stored
-                    // Attempt to find explicit file for taxes
-                    const file = sortedFiles.find(f => {
-                        const p = parsePeriod(f.data.identificacao.periodoApuracao)
-                        return p.y === y && p.m === m
-                    })
-                    const tVal = file?.data.tributos.Total || 0
-                    taxes.push(tVal < 0.01 ? null : tVal)
-
-                    let interestVal = 0
-                    if (file) {
-                        const totalToPay = Number((file.data as any).valorTotalDAS || 0)
-                        const totalTaxesVal = Number(tVal)
-                        if (totalToPay > totalTaxesVal + 0.05) {
-                            interestVal = totalToPay - totalTaxesVal
-                        }
-                    }
-                    interest.push(interestVal < 0.01 ? null : interestVal)
+                
+                // Revenue
+                // If val is undefined or 0, we push null to show "nothing"
+                if (val !== undefined && val >= 0.01) {
+                    revenue.push(val)
+                } else {
+                    revenue.push(null)
                 }
+                
+                // Taxes & Interest logic
+                // Attempt to find explicit file for taxes
+                const file = sortedFiles.find(f => {
+                    const p = parsePeriod(f.data.identificacao.periodoApuracao)
+                    return p.y === y && p.m === m
+                })
+                
+                const tVal = file?.data.tributos.Total || 0
+                taxes.push(tVal < 0.01 ? null : tVal)
+
+                let interestVal = 0
+                if (file) {
+                    const totalToPay = Number((file.data as any).valorTotalDAS || 0)
+                    const totalTaxesVal = Number(tVal)
+                    if (totalToPay > totalTaxesVal + 0.05) {
+                        interestVal = totalToPay - totalTaxesVal
+                    }
+                }
+                interest.push(interestVal < 0.01 ? null : interestVal)
             }
-            if (labels.length > 0) {
+
+            // Only add year if there is at least some revenue data
+            if (revenue.some(v => v !== null)) {
                  map.set(y, { labels, revenue, taxes, interest })
             }
         })
@@ -825,7 +833,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                     const pct = (diff / prev) * 100
                                     const symbol = diff >= 0 ? '▲' : '▼'
                                     
-                                    return `${symbol} ${Math.abs(pct).toFixed(1)}%\n${diff > 0 ? '+' : ''}${diff.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
+                                    return `${symbol} ${Math.abs(pct).toFixed(2)}%\n${diff > 0 ? '+' : ''}${diff.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
                                 }
                             }
                         }
@@ -902,7 +910,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                     const pct = (diff / prev) * 100
                                     const symbol = diff >= 0 ? '▲' : '▼'
                                     
-                                    return `${symbol} ${Math.abs(pct).toFixed(1)}%\n${diff > 0 ? '+' : ''}${diff.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
+                                    return `${symbol} ${Math.abs(pct).toFixed(2)}%\n${diff > 0 ? '+' : ''}${diff.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
                                 }
                             }
                         }
@@ -982,7 +990,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
         },
         scales: {
             y: {
-                grace: '5%',
+                grace: '20%',
                 grid: { 
                     display: showGrid,
                     color: showGrid ? chartTheme.grid : 'transparent',
@@ -1617,17 +1625,137 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                     <CardContent className="p-4 space-y-6">
                                         {years.map(year => {
                                             const yearData = monthlyDataByYear.get(year)
+                                            const prevYearData = monthlyDataByYear.get(year - 1)
 
                                             return (
-                                                <div key={year} className="h-[200px]">
+                                                <div key={year} className="h-[400px]">
                                                     <h3 className="text-sm font-semibold mb-2 text-center text-muted-foreground">Receita e Impostos - {year}</h3>
                                                     <Line
                                                         options={{
                                                             ...chartOptions,
+                                                            layout: {
+                                                                padding: {
+                                                                    top: 100,
+                                                                    right: 40,
+                                                                    left: 30,
+                                                                    bottom: 60
+                                                                }
+                                                            },
+                                                            plugins: {
+                                                                ...chartOptions.plugins,
+                                                                datalabels: {
+                                                                    display: true,
+                                                                    labels: {
+                                                                        value: {
+                                                                            align: (ctx: any) => ctx.datasetIndex === 1 ? 'bottom' : 'top', // Imposto (1) abaixo, Receita (0) acima
+                                                                            anchor: 'center',
+                                                                            offset: (ctx: any) => {
+                                                                                const base = 12;
+                                                                                if (ctx.datasetIndex === 1) return 12; // Imposto: Valor abaixo da linha
+                                                                                if (ctx.datasetIndex !== 0) return base; 
+                                                                                
+                                                                                const chart = ctx.chart;
+                                                                                const yAxis = chart.scales.y;
+                                                                                if (!yAxis) return base;
+                                                                                
+                                                                                const idx = ctx.dataIndex;
+                                                                                const revVal = ctx.dataset.data[idx];
+                                                                                const taxDataset = chart.data.datasets[1];
+                                                                                if (!taxDataset) return base;
+                                                                                
+                                                                                const taxVal = taxDataset.data[idx];
+                                                                                if (revVal == null || taxVal == null) return base;
+                                                                                
+                                                                                const revY = yAxis.getPixelForValue(revVal);
+                                                                                const taxY = yAxis.getPixelForValue(taxVal);
+                                                                                const dist = taxY - revY;
+                                                                                
+                                                                                if (dist < 100) return base + (100 - dist); // Aumentado trigger para compensar variação do imposto subindo
+                                                                                return base;
+                                                                            },
+                                                                            color: chartTheme.text,
+                                                                            backgroundColor: isDark ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.8)',
+                                                                            borderRadius: 4,
+                                                                            padding: 2,
+                                                                            formatter: (val: any) => {
+                                                                                if (val === null) return '';
+                                                                                return new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val);
+                                                                            }
+                                                                        },
+                                                                        variation: {
+                                                                            align: 'top', // Todos alinhados acima (Imposto sobe, Receita sobe)
+                                                                            anchor: 'center',
+                                                                            offset: (ctx: any) => {
+                                                                                if (ctx.datasetIndex === 1) return 12; // Imposto: Diferença acima da linha
+                                                                                
+                                                                                const base = 48; // Receita: acima do valor
+                                                                                
+                                                                                const chart = ctx.chart;
+                                                                                const yAxis = chart.scales.y;
+                                                                                if (!yAxis) return base;
+                                                                                
+                                                                                const idx = ctx.dataIndex;
+                                                                                const revVal = ctx.dataset.data[idx];
+                                                                                const taxDataset = chart.data.datasets[1];
+                                                                                if (!taxDataset) return base;
+                                                                                
+                                                                                const taxVal = taxDataset.data[idx];
+                                                                                if (revVal == null || taxVal == null) return base;
+                                                                                
+                                                                                const revY = yAxis.getPixelForValue(revVal);
+                                                                                const taxY = yAxis.getPixelForValue(taxVal);
+                                                                                const dist = taxY - revY;
+                                                                                
+                                                                                if (dist < 100) return base + (100 - dist);
+                                                                                return base;
+                                                                            },
+                                                                            backgroundColor: (ctx: any) => ctx.dataset.backgroundColor,
+                                                                            borderRadius: 4,
+                                                                            color: (ctx: any) => {
+                                                                                const idx = ctx.dataIndex
+                                                                                const curr = ctx.dataset.data[idx] as number
+                                                                                let prev = null;
+                                                                                
+                                                                                if (idx === 0) {
+                                                                                     if (ctx.datasetIndex === 0) prev = prevYearData?.revenue?.[11];
+                                                                                     else if (ctx.datasetIndex === 1) prev = prevYearData?.taxes?.[11];
+                                                                                } else {
+                                                                                     prev = ctx.dataset.data[idx - 1] as number;
+                                                                                }
+
+                                                                                if (curr === null || prev == null) return 'transparent'
+                                                                                return curr >= prev ? '#10B981' : '#EF4444'
+                                                                            },
+                                                                            font: { weight: 'bold', size: 10 },
+                                                                            formatter: (val: any, ctx: any) => {
+                                                                                const idx = ctx.dataIndex
+                                                                                const curr = ctx.dataset.data[idx] as number
+                                                                                let prev = null;
+
+                                                                                if (idx === 0) {
+                                                                                     if (ctx.datasetIndex === 0) prev = prevYearData?.revenue?.[11];
+                                                                                     else if (ctx.datasetIndex === 1) prev = prevYearData?.taxes?.[11];
+                                                                                } else {
+                                                                                     prev = ctx.dataset.data[idx - 1] as number;
+                                                                                }
+
+                                                                                if (curr === null || prev == null) return ''
+                                                                                
+                                                                                const diff = curr - prev
+                                                                                const pct = prev !== 0 ? (diff / prev) * 100 : 0
+                                                                                const symbol = diff >= 0 ? '▲' : '▼'
+                                                                                
+                                                                                return `${symbol} ${Math.abs(pct).toFixed(2)}%\n${diff > 0 ? '+' : ''}${diff.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                }
+                                                            },
                                                             scales: {
                                                                 ...chartOptions.scales,
                                                                 y: {
                                                                     ...chartOptions.scales?.y,
+                                                                    min: 0,
                                                                     border: { display: false },
                                                                     grid: {
                                                                         ...chartOptions.scales?.y?.grid,
@@ -1638,6 +1766,9 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                                                 x: {
                                                                     ...chartOptions.scales?.x,
                                                                     offset: false,
+                                                                    ticks: {
+                                                                        padding: 20 // Reduzido padding para aproximar labels do eixo X
+                                                                    },
                                                                     grid: {
                                                                         ...chartOptions.scales?.x?.grid,
                                                                         drawBorder: false,
@@ -1791,7 +1922,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                         <CardHeader className="py-2 px-4">
                                             <CardTitle className="text-base font-semibold">Composição do Faturamento Mensal</CardTitle>
                                         </CardHeader>
-                                        <CardContent className="px-2 pb-2 h-[210px]">
+                                        <CardContent className="px-2 pb-2 h-[350px]">
                                             <Bar
                                                 options={{
                                                     ...chartOptions,

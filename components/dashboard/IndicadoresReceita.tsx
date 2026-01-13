@@ -1,5 +1,5 @@
 import { memo, useMemo, useState } from "react"
-import { DollarSign, FileText, TrendingUp } from "lucide-react"
+import { DollarSign, FileText, TrendingUp, Grid } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { formatCurrency } from "@/lib/utils"
 import { useTheme } from "next-themes"

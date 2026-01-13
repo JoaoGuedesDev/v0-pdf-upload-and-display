@@ -465,8 +465,7 @@ export const AnaliseAliquotaParcelas = memo(function AnaliseAliquotaParcelas({ d
                                 v: val, 
                                 act: actName, 
                                 aO: aOrigAdj, 
-                                aA: aAtualAdj,
-                                rawAA: round4(p?.aliquota_efetiva_atual)
+                                aA: aAtualAdj
                               })
                             }
 

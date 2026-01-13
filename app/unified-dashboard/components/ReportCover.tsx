@@ -217,7 +217,7 @@ export function ReportCover({ files, companyName, cnpj, isDark = false }: Report
         const accumulatedRevenuePreviousYear = lastFile.data.receitas.rbaa || 0 
 
         // Extract Anexo info from last file for "Alíquotas por Anexo" section
-        const lastMonthAnexos = []
+        const lastMonthAnexos: { anexo: any; aliquota: number; receita: number }[] = []
         const lastMonthDetalhe = lastFile.data.calculos?.analise_aliquota?.detalhe || []
         if (Array.isArray(lastMonthDetalhe)) {
             lastMonthDetalhe.forEach((d: any) => {
@@ -349,7 +349,7 @@ export function ReportCover({ files, companyName, cnpj, isDark = false }: Report
         let recentTrend = 'stable'
         if (files.length >= 3) {
             const last3Files = sortedFiles.slice(-3)
-            const last3Avg = last3Files.reduce((acc, f) => acc + (parseFloat(f.data.receitaBrutaTotal) || 0), 0) / 3
+            const last3Avg = last3Files.reduce((acc, f) => acc + (parseFloat(f.data.receitas?.receitaPA) || 0), 0) / 3
             if (last3Avg > averageRevenue * 1.1) recentTrend = 'up'
             else if (last3Avg < averageRevenue * 0.9) recentTrend = 'down'
         }

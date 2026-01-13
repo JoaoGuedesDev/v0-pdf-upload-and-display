@@ -67,12 +67,12 @@ export default function Home() {
     localStorage.removeItem('pgdas_history')
   }
 
-  const onProcess = async (files: File[], isAnnual: boolean) => {
+  const onProcess = async (files: File[], isAnnual: boolean, force: boolean = false) => {
     // isAnnual param is ignored, we always use the unified annual/multi-file process
     setLoading(true)
     setResults([])
     setCorrectionMode(false)
-    const force = false // Can add UI for force later if needed, or rely on wizard
+     // Can add UI for force later if needed, or rely on wizard
 
     // 1. Validate files locally (Name pattern & Duplicates)
     const validFiles: File[] = []
