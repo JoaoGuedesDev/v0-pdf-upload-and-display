@@ -6,7 +6,7 @@ import { MonthlyFile, ReceitasAnteriores } from '../types'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { ArrowLeft, AlertTriangle, ChevronRight, ChevronLeft, BarChart3, LayoutDashboard, Upload, X, CheckCircle, ArrowUpRight, ArrowDownRight, Minus, FileText, Building2, Grid, Trash2 } from "lucide-react"
+import { ArrowLeft, AlertTriangle, ChevronRight, ChevronLeft, BarChart3, LayoutDashboard, Upload, X, CheckCircle, ArrowUpRight, ArrowDownRight, Minus, FileText, Building2, Grid, Trash2, Download } from "lucide-react"
 import { cn, formatPeriod } from "@/lib/utils"
 import { UnifiedSidebar } from './UnifiedSidebar'
 import { ReportCover } from './ReportCover'
@@ -107,6 +107,8 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
         return null
     })
 
+    const onlyConsolidated = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('only_consolidated') === 'true' : false
+
     useEffect(() => {
         if (invalidFiles && invalidFiles.length > 0) {
             setShowInvalidFilesModal(true)
@@ -136,7 +138,14 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
 
 
     // Tab State for Consolidated View
-    const [activeTab, setActiveTab] = useState<'resumo' | 'visao-geral'>('resumo')
+    const [activeTab, setActiveTab] = useState<'resumo' | 'visao-geral'>(() => {
+        if (typeof window !== 'undefined') {
+            const params = new URLSearchParams(window.location.search)
+            const tab = params.get('active_tab')
+            if (tab === 'resumo' || tab === 'visao-geral') return tab
+        }
+        return 'resumo'
+    })
 
     const fileInputRef = useRef<HTMLInputElement>(null)
     const { theme } = useTheme()
@@ -520,6 +529,161 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
         const allIds = new Set(relevantFiles.map(f => f.data.identificacao.periodoApuracao))
         setPdfSelectedPeriodIds(allIds)
         setShowPdfSelectionModal(true)
+    }
+
+    const handleSingleFileDownload = async (file: MonthlyFile) => {
+        setIsGeneratingPdf(true)
+        const origin = typeof window !== 'undefined' ? window.location.origin : ''
+        
+        let currentCode = dashboardCode
+
+        try {
+            // If no dashboard code (local mode), create a temporary one
+            if (!currentCode) {
+                setIsSaving(true)
+                const res = await fetch('/api/dashboard/create', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ files: localFiles })
+                })
+                
+                if (!res.ok) throw new Error('Falha ao salvar dados temporários')
+                
+                const data = await res.json()
+                if (data.code) {
+                    currentCode = data.code
+                } else {
+                    throw new Error('Código de dashboard não retornado')
+                }
+            }
+
+            // Construct base path with the code
+            let basePath = `/d/${currentCode}`
+            
+            // Get existing params
+            const params = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '')
+            
+            // Force PDF generation param
+            params.set('pdf_gen', 'true')
+            
+            // Set specific period
+            const period = file.data.identificacao.periodoApuracao
+            params.set('periods', period)
+            
+            // Update target_cnpj
+            if (activeCnpj) {
+                params.set('target_cnpj', activeCnpj)
+            }
+            
+            // Remove visible params as Single View handles its own visibility
+            params.delete('visible')
+
+            const path = `${basePath}?${params.toString()}`
+
+            const rs = file.data.identificacao.razaoSocial || 'Empresa'
+            const safeName = rs.replace(/[^a-z0-9à-ú .-]/gi, '_')
+            const filename = `${safeName} - ${period}.pdf`.replace(/[^a-z0-9à-ú .-]/gi, '_')
+
+            const url = `${origin}/api/pdf?path=${encodeURIComponent(path)}&type=screen&w=1600&scale=1&download=true&filename=${encodeURIComponent(filename)}`
+
+            const response = await fetch(url)
+            if (!response.ok) throw new Error('Falha na geração do PDF')
+            
+            const blob = await response.blob()
+            const downloadUrl = window.URL.createObjectURL(blob)
+            const a = document.createElement('a')
+            a.href = downloadUrl
+            a.download = filename
+            document.body.appendChild(a)
+            a.click()
+            window.URL.revokeObjectURL(downloadUrl)
+            document.body.removeChild(a)
+
+        } catch (e: any) {
+            console.error(e)
+            alert("Erro ao gerar PDF: " + (e.message || "Erro desconhecido"))
+        } finally {
+            setIsSaving(false)
+            setIsGeneratingPdf(false)
+        }
+    }
+
+    const handleConsolidatedDownload = async () => {
+        setIsGeneratingPdf(true)
+        const origin = typeof window !== 'undefined' ? window.location.origin : ''
+        
+        let currentCode = dashboardCode
+
+        try {
+            // If no dashboard code (local mode), create a temporary one
+            if (!currentCode) {
+                setIsSaving(true)
+                const res = await fetch('/api/dashboard/create', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ files: localFiles })
+                })
+                
+                if (!res.ok) throw new Error('Falha ao salvar dados temporários')
+                
+                const data = await res.json()
+                if (data.code) {
+                    currentCode = data.code
+                } else {
+                    throw new Error('Código de dashboard não retornado')
+                }
+            }
+
+            // Construct base path with the code
+            let basePath = `/d/${currentCode}`
+            
+            // Get existing params
+            const params = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '')
+            
+            // Force PDF generation param
+            params.set('pdf_gen', 'true')
+            params.set('only_consolidated', 'true')
+            params.set('active_tab', activeTab)
+            
+            // Clear periods to ensure we get the full consolidated view data
+            params.delete('periods')
+            
+            // Update target_cnpj
+            if (activeCnpj) {
+                params.set('target_cnpj', activeCnpj)
+            }
+            
+            // Ensure annual view is visible
+            params.set('visible', 'annual')
+
+            const path = `${basePath}?${params.toString()}`
+
+            const rs = sortedFiles[0]?.data?.identificacao?.razaoSocial || 'Empresa'
+            const safeName = rs.replace(/[^a-z0-9à-ú .-]/gi, '_')
+            const filename = `Relatorio_Consolidado_${safeName}.pdf`
+
+            const url = `${origin}/api/pdf?path=${encodeURIComponent(path)}&type=screen&w=1600&scale=1&download=true&filename=${encodeURIComponent(filename)}`
+
+            const response = await fetch(url)
+            if (!response.ok) throw new Error('Falha na geração do PDF')
+            
+            const blob = await response.blob()
+            const downloadUrl = window.URL.createObjectURL(blob)
+            const a = document.createElement('a')
+            a.href = downloadUrl
+            a.download = filename
+            document.body.appendChild(a)
+            a.click()
+            window.URL.revokeObjectURL(downloadUrl)
+            document.body.removeChild(a)
+
+        } catch (e: any) {
+            console.error(e)
+            alert("Erro ao gerar PDF: " + (e.message || "Erro desconhecido"))
+        } finally {
+            setIsSaving(false)
+            setIsGeneratingPdf(false)
+        }
     }
 
     const handleExportPdf = async (selectedPeriods?: Set<string>) => {
@@ -1722,13 +1886,17 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                     )}
 
                     {/* Common Actions (Visible on both Consolidated and Single File views) */}
-                    {!isPdfGen && !isEmbedded && (
+                    {!isPdfGen && (
                         <div className="flex justify-end mb-6 px-6 pt-4 mx-6 mt-4">
                             <DashboardActions 
                                 onUpload={handleFileUpload} 
                                 isUploading={isUploading} 
                                 onExportPdf={openPdfSelection}
                                 isSaving={isSaving}
+                                onDownloadSingle={currentFile ? () => handleSingleFileDownload(currentFile) : undefined}
+                                onDownloadConsolidated={isConsolidated ? handleConsolidatedDownload : undefined}
+                                hideExportButton={isEmbedded}
+                                hideUploadButton={isEmbedded}
                             />
                         </div>
                     )}
@@ -1737,7 +1905,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                         <>
 
                             {/* Report Cover (Resumo Geral) */}
-                            {(activeTab === 'resumo' || isPdfGen) && sortedFiles.length > 0 && (
+                            {((activeTab === 'resumo' && !isPdfGen) || (isPdfGen && !onlyConsolidated) || (isPdfGen && onlyConsolidated && activeTab === 'resumo')) && sortedFiles.length > 0 && (
                                 <div style={isPdfGen ? { pageBreakAfter: 'always' } : undefined} className={isPdfGen ? "print-section" : undefined}>
                                     <ReportCover 
                                         files={sortedFiles}
@@ -1749,7 +1917,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                             )}
                             
                             {/* Consolidated Charts (Visão Geral) */}
-                            {(activeTab === 'visao-geral' || isPdfGen) && (
+                            {((activeTab === 'visao-geral' && !isPdfGen) || (isPdfGen && !onlyConsolidated) || (isPdfGen && onlyConsolidated && activeTab === 'visao-geral')) && (
                                 <div className={`p-6 space-y-6 ${isPdfGen ? 'print-section' : ''}`} style={isPdfGen ? { height: 'auto', pageBreakAfter: 'always' } : undefined}>
                                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                                         <div>
@@ -2246,6 +2414,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                                 <TableHead className="py-1 h-8">IRPJ</TableHead>
                                                 <TableHead className="py-1 h-8">Alíquota</TableHead>
                                                 <TableHead className="py-1 h-8">Distribuição</TableHead>
+                                                <TableHead className="py-1 h-8">Ações</TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
@@ -2330,6 +2499,11 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                                                 )}
                                                             </div>
                                                         </TableCell>
+                                                        <TableCell className="py-1">
+                                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-500 hover:text-blue-700" onClick={() => handleSingleFileDownload(file)}>
+                                                                <Download className="w-4 h-4" />
+                                                            </Button>
+                                                        </TableCell>
                                                     </TableRow>
                                                 )
                                             })}
@@ -2411,6 +2585,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                                                 )}
                                                             </div>
                                                         </TableCell>
+                                                        <TableCell className="py-1"></TableCell>
                                                     </TableRow>
                                                 )
                                             })()}
@@ -2428,7 +2603,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                             <PGDASDProcessor
                                 key={currentFile?.filename || selectedFileIndex}
                                 initialData={currentFile?.data}
-                                hideDownloadButton={false}
+                                hideDownloadButton={true}
                                 isOwner={isOwner}
                                 isPdfGen={isPdfGen}
                                 isEmbedded={isEmbedded}
@@ -2437,7 +2612,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                         </>
                     )}
 
-                    {isPdfGen && (
+                    {isPdfGen && !onlyConsolidated && (
                         <div className="print-container">
                             {sortedFiles.map((file, idx) => (
                                 <div key={idx} className="pdf-page-wrapper">

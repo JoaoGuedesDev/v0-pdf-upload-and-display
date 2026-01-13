@@ -53,7 +53,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
       }
     } catch { }
   }, [owner, shareId])
-  const hideDownloadEffective = owner ? false : !!hideDownloadButton
+  const hideDownloadEffective = !!hideDownloadButton
   const [data, setData] = useState<DASData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -391,7 +391,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
         <div className="flex justify-between items-center">
           <div className="space-y-1">
           </div>
-          {!isPdfGen && !isEmbedded && (
+          {!isPdfGen && !isEmbedded && !hideDownloadEffective && (
             <div className="print:hidden flex items-center gap-2">
               <Button
                  variant="ghost" 

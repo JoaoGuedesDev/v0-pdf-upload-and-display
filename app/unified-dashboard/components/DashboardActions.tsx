@@ -10,26 +10,54 @@ interface DashboardActionsProps {
   onExportPdf: () => void
   className?: string
   isSaving?: boolean
+  onDownloadSingle?: () => void
+  onDownloadConsolidated?: () => void
+  hideExportButton?: boolean
+  hideUploadButton?: boolean
 }
 
-export function DashboardActions({ onUpload, isUploading, onExportPdf, className, isSaving }: DashboardActionsProps) {
+export function DashboardActions({ onUpload, isUploading, onExportPdf, className, isSaving, onDownloadSingle, onDownloadConsolidated, hideExportButton, hideUploadButton }: DashboardActionsProps) {
   const { theme, setTheme } = useTheme()
 
   return (
     <div className={`flex items-center gap-2 ${className}`}>
-      <Button 
-        variant="ghost" 
-        className="bg-[#007AFF]/20 text-[#007AFF] hover:bg-[#007AFF]/30 dark:bg-[#007AFF]/40 dark:text-[#FFFFFF] gap-2" 
-        onClick={onExportPdf}
-        disabled={isSaving}
-      >
-        {isSaving ? (
-          <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-        ) : (
+      {onDownloadConsolidated && (
+        <Button 
+          variant="ghost" 
+          className="bg-[#007AFF]/10 text-[#007AFF] hover:bg-[#007AFF]/20 dark:bg-[#007AFF]/20 dark:text-[#00C2FF] gap-2 mr-2" 
+          onClick={onDownloadConsolidated}
+          disabled={isSaving}
+        >
           <Download className="h-4 w-4" />
-        )}
-        {isSaving ? 'Salvando...' : 'Exportar Relatório PDF'}
-      </Button>
+          Baixar PDF (Consolidado)
+        </Button>
+      )}
+      {onDownloadSingle && (
+        <Button 
+          variant="ghost" 
+          className="bg-[#007AFF]/10 text-[#007AFF] hover:bg-[#007AFF]/20 dark:bg-[#007AFF]/20 dark:text-[#00C2FF] gap-2" 
+          onClick={onDownloadSingle}
+          disabled={isSaving}
+        >
+          <Download className="h-4 w-4" />
+          Baixar PDF (Mês)
+        </Button>
+      )}
+      {!hideExportButton && (
+        <Button 
+          variant="ghost" 
+          className="bg-[#007AFF]/20 text-[#007AFF] hover:bg-[#007AFF]/30 dark:bg-[#007AFF]/40 dark:text-[#FFFFFF] gap-2" 
+          onClick={onExportPdf}
+          disabled={isSaving}
+        >
+          {isSaving ? (
+            <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+          ) : (
+            <Download className="h-4 w-4" />
+          )}
+          {isSaving ? 'Salvando...' : 'Exportar Relatório PDF'}
+        </Button>
+      )}
       <Button
         variant="ghost"
         size="icon"
