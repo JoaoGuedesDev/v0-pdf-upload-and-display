@@ -1271,28 +1271,25 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                 grid: { 
                     display: showGrid,
                     color: showGrid ? chartTheme.grid : 'transparent',
-                    borderColor: chartTheme.grid, // Keep axis line
-                    drawBorder: true
+                    borderColor: chartTheme.grid
                 },
-                border: { display: true, color: chartTheme.grid }, // Ensure Y axis line is visible
+                border: { display: true, color: chartTheme.grid },
                 ticks: { 
                     color: chartTheme.text, 
                     callback: (v: any) => {
                         if (v < 0) return ''
                         return new Intl.NumberFormat('pt-BR', { notation: 'compact' }).format(v)
                     },
-                    padding: 25, // Increased padding from 15 to 25
+                    padding: 25,
                 }
             },
             x: {
-                // offset removed to fix "isolated" look
                 grid: { 
                     display: showGrid,
                     color: showGrid ? chartTheme.grid : 'transparent',
-                    borderColor: chartTheme.grid, // Keep axis line
-                    drawBorder: true
+                    borderColor: chartTheme.grid
                 },
-                border: { display: true, color: chartTheme.grid }, // Ensure X axis line is visible
+                border: { display: true, color: chartTheme.grid },
                 ticks: { color: chartTheme.text }
             }
         }
@@ -2258,7 +2255,10 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                         <div className="flex flex-col gap-1 mb-2">
                                             {years.map(year => {
                                                 const yearData = monthlyDataByYear.get(year)
-                                                const yearTotal = (yearData?.revenue || []).reduce((sum, val) => sum + (val || 0), 0)
+                                                const yearTotal: number = (yearData?.revenue || []).reduce(
+                                                    (sum: number, val) => sum + (val || 0),
+                                                    0
+                                                )
                                                 return (
                                                     <span key={year} className="inline-flex items-center rounded-full bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300 px-2 py-0.5 text-[10px] font-semibold w-fit">
                                                         {year}: {yearTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
@@ -2267,9 +2267,13 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                             })}
                                         </div>
                                         {(() => {
-                                            const grandTotalRevenue = years.reduce((acc, year) => {
+                                            const grandTotalRevenue = years.reduce((acc: number, year) => {
                                                 const yearData = monthlyDataByYear.get(year)
-                                                return acc + (yearData?.revenue || []).reduce((sum, val) => sum + (val || 0), 0)
+                                                const yearTotal: number = (yearData?.revenue || []).reduce(
+                                                    (sum: number, val) => sum + (val || 0),
+                                                    0
+                                                )
+                                                return acc + yearTotal
                                             }, 0)
                                             const averagePerYear = years.length > 0 ? grandTotalRevenue / years.length : 0
 
@@ -2489,24 +2493,19 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                                                 ...chartOptions.scales,
                                                                 y: {
                                                                     ...chartOptions.scales?.y,
-                                                                    // min: 0, 
                                                                     border: { display: false },
                                                                     grid: {
-                                                                        ...chartOptions.scales?.y?.grid,
-                                                                        drawBorder: false,
-                                                                        borderColor: 'transparent'
+                                                                        ...chartOptions.scales?.y?.grid
                                                                     }
                                                                 },
                                                                 x: {
                                                                     ...chartOptions.scales?.x,
                                                                     offset: false,
                                                                     ticks: {
-                                                                        padding: 20 // Reduzido padding para aproximar labels do eixo X
+                                                                        padding: 20
                                                                     },
                                                                     grid: {
                                                                         ...chartOptions.scales?.x?.grid,
-                                                                        drawBorder: false,
-                                                                        borderColor: 'transparent',
                                                                         color: (ctx: any) => {
                                                                             if (ctx.index === 0) return 'transparent';
                                                                             return showGrid ? chartTheme.grid : 'transparent';

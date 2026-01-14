@@ -359,7 +359,7 @@ export function ReportCover({ files, companyName, cnpj, isDark = false }: Report
         let recentTrend = 'stable'
         if (files.length >= 3) {
             const last3Files = sortedFiles.slice(-3)
-            const last3Avg = last3Files.reduce((acc, f) => acc + (parseFloat(f.data.receitas?.receitaPA) || 0), 0) / 3
+            const last3Avg = last3Files.reduce((acc, f) => acc + (Number(f.data.receitas?.receitaPA) || 0), 0) / 3
             if (last3Avg > averageRevenue * 1.1) recentTrend = 'up'
             else if (last3Avg < averageRevenue * 0.9) recentTrend = 'down'
         }
