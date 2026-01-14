@@ -140,13 +140,13 @@ export async function GET(req: NextRequest) {
     try { await page.waitForSelector('main', { timeout: 10000 }) } catch {}
     try { await page.waitForNetworkIdle({ idleTime: 500, timeout: 5000 }) } catch {}
 
+    const isPaginated = pathQ.includes('pdf_gen=true')
+    const isOnlyConsolidated = pathQ.includes('only_consolidated=true')
+
     const size = await page.evaluate(() => ({
       w: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth, window.innerWidth),
       h: Math.max(document.documentElement.scrollHeight, document.body.scrollHeight),
     }))
-
-    // Detecta se é um relatório paginado (Annual Dashboard)
-    const isPaginated = pathQ.includes('pdf_gen=true')
 
     let pdfOptions: any = {
       printBackground: true,
@@ -154,23 +154,19 @@ export async function GET(req: NextRequest) {
       timeout: 120000,
     }
 
-    if (isPaginated) {
-      // Modo Relatório: Página ajustada com escala para caber mais conteúdo verticalmente sem ficar gigante
-      // Reduzindo escala para 0.75 para garantir margem lateral (1600px * 0.75 = 1200px < 1280px)
+    if (isPaginated && !isOnlyConsolidated) {
       pdfOptions = {
         ...pdfOptions,
-        width: '1280px', 
-        height: '2600px', 
+        width: '1280px',
+        height: '2600px',
         scale: 0.75,
         margin: { top: 20, right: 20, bottom: 20, left: 20 },
       }
     } else {
-      // Modo Screenshot: Página única com tamanho exato do conteúdo
       pdfOptions = {
         ...pdfOptions,
         width: `${Math.max(size.w, w)}px`,
         height: `${Math.max(size.h, h)}px`,
-        pageRanges: '1',
         margin: { top: 0, right: 0, bottom: 0, left: 0 },
       }
     }

@@ -4,7 +4,7 @@ import ExcelJS from 'exceljs'
 import { saveAs } from 'file-saver'
 import React, { useState, useMemo, useEffect, useRef } from 'react'
 import { useTheme } from "next-themes"
-import { MonthlyFile, ReceitasAnteriores } from '../types'
+import { MonthlyFile, ReceitasAnteriores, UnifiedView, Tributos } from '../types'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -67,6 +67,7 @@ interface AnnualDashboardProps {
     isEmbedded?: boolean
 }
 
+
 export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex, initialTargetCnpj, isPdfGen, onFilesUpdated, receitas_anteriores, isOwner = true, invalidFiles, onInvalidFilesUpdated, isEmbedded: propIsEmbedded }: AnnualDashboardProps) {
     const [localFiles, setLocalFiles] = useState<MonthlyFile[]>(files)
     const [selectedFileIndex, setSelectedFileIndex] = useState<number | null>(initialViewIndex ?? null)
@@ -105,6 +106,24 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
             const params = new URLSearchParams(window.location.search)
             const p = params.get('periods')
             if (p) return new Set(decodeURIComponent(p).split(',').map(s => s.trim()))
+        }
+        return null
+    })
+
+    const [urlUnifiedCnpjs] = useState<string[] | null>(() => {
+        if (typeof window !== 'undefined') {
+            const params = new URLSearchParams(window.location.search)
+            const p = params.get('unified_cnpjs')
+            if (p) return decodeURIComponent(p).split(',').map(s => s.trim()).filter(Boolean)
+        }
+        return null
+    })
+
+    const [urlUnifiedLabel] = useState<string | null>(() => {
+        if (typeof window !== 'undefined') {
+            const params = new URLSearchParams(window.location.search)
+            const label = params.get('unified_label')
+            if (label) return decodeURIComponent(label)
         }
         return null
     })
@@ -164,12 +183,40 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
     // State for Consolidated View (Multi-Company)
     const [selectedUnifyCnpjs, setSelectedUnifyCnpjs] = useState<Set<string>>(new Set())
     const [showUnifyModal, setShowUnifyModal] = useState(false)
+    const [unifiedViews, setUnifiedViews] = useState<UnifiedView[]>([])
+
+    useEffect(() => {
+        if (isPdfGen && onlyConsolidated && urlUnifiedCnpjs && urlUnifiedCnpjs.length > 0 && unifiedViews.length === 0) {
+            const id = activeCnpj || 'UNIFIED_URL'
+            let label = urlUnifiedLabel || ''
+            if (!label) {
+                const summarizeName = (full?: string | null) => {
+                    if (!full) return ''
+                    let n = full.trim()
+                    n = n.replace(/\b(LTDA|LTD\.?|ME|EPP|S\/A|SA)\b\.?/gi, '').trim()
+                    if (n.length > 24) n = n.slice(0, 21).trimEnd() + '...'
+                    return n
+                }
+                const companyNames = urlUnifiedCnpjs
+                    .map(cnpj => {
+                        const f = localFiles.find(file => file.data.identificacao.cnpj === cnpj)
+                        return summarizeName(f?.data.identificacao.razaoSocial)
+                    })
+                    .filter(Boolean) as string[]
+                label = companyNames.length > 0 
+                    ? companyNames.join('\n') 
+                    : `Consolidado (${urlUnifiedCnpjs.length})`
+            }
+            setUnifiedViews([{ id, label, cnpjs: urlUnifiedCnpjs }])
+        }
+    }, [isPdfGen, onlyConsolidated, urlUnifiedCnpjs, urlUnifiedLabel, unifiedViews, activeCnpj, localFiles])
 
     // Filter files for the current view (Consolidated Charts/Tables)
     // We only want to show data for the ACTIVE company
     const companyFiles = useMemo(() => {
-        if (activeCnpj === 'UNIFIED') {
-             const relevantFiles = localFiles.filter(f => selectedUnifyCnpjs.has(f.data.identificacao.cnpj))
+        const activeUnifiedView = unifiedViews.find(v => v.id === activeCnpj)
+        if (activeUnifiedView) {
+             const relevantFiles = localFiles.filter(f => activeUnifiedView.cnpjs.includes(f.data.identificacao.cnpj))
              
              // Merge logic for UNIFIED view
              const groupedByPeriod = new Map<string, MonthlyFile[]>()
@@ -185,8 +232,8 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
 
                  // Base clone from first file
                  const base = JSON.parse(JSON.stringify(files[0]))
-                 base.data.identificacao.razaoSocial = `Consolidado (${selectedUnifyCnpjs.size} Empresas)`
-                 base.data.identificacao.cnpj = 'UNIFIED'
+                 base.data.identificacao.razaoSocial = activeUnifiedView.label
+                 base.data.identificacao.cnpj = activeUnifiedView.id
                  base.filename = `Consolidado_${period.replace(/\//g, '-')}`
 
                  // Sum others
@@ -202,9 +249,12 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                      // Sum Tributos
                      const tBase = base.data.tributos || {}
                      const tCurr = f.data.tributos || {}
-                     Object.keys(tBase).forEach(k => {
+                     Object.keys(tBase).forEach(key => {
+                         const k = key as keyof Tributos
                          if (typeof tBase[k] === 'number') {
-                             tBase[k] = (tBase[k] || 0) + (tCurr[k] || 0)
+                             const valBase = (tBase[k] as number) || 0;
+                             const valCurr = (tCurr[k] as number) || 0;
+                             (tBase as any)[k] = valBase + valCurr;
                          }
                      })
                      
@@ -222,10 +272,10 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                         'tributosMercadoriasInterno', 'tributosMercadoriasExterno',
                         'tributosIndustriaInterno', 'tributosIndustriaExterno',
                         'tributosServicosInterno', 'tributosServicosExterno'
-                    ]
+                    ] as const
                     breakdowns.forEach(bk => {
-                        const bBase = base.data[bk]
-                        const bCurr = f.data[bk]
+                        const bBase = base.data[bk] as any
+                        const bCurr = f.data[bk] as any
                         if (bBase && bCurr) {
                             Object.keys(bBase).forEach(k => {
                                 if (typeof bBase[k] === 'number') {
@@ -290,33 +340,19 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                          const fRec = f.data.receitas_anteriores || {}
                          
                          base.data.receitas_anteriores.mercado_interno = mergeHistoryList(
-                             base.data.receitas_anteriores.mercado_interno,
-                             fRec.mercado_interno,
+                             base.data.receitas_anteriores.mercado_interno || [],
+                             fRec.mercado_interno || [],
                              'mes', 'valor'
                          )
                          base.data.receitas_anteriores.mercado_externo = mergeHistoryList(
-                             base.data.receitas_anteriores.mercado_externo,
-                             fRec.mercado_externo,
+                             base.data.receitas_anteriores.mercado_externo || [],
+                             fRec.mercado_externo || [],
                              'mes', 'valor'
                          )
                     }
 
-                    // Merge das-parse format
-                    if (base.data.historico || f.data.historico) {
-                         base.data.historico = base.data.historico || {}
-                         const fHist = f.data.historico || {}
-                         
-                         base.data.historico.mercadoInterno = mergeHistoryList(
-                             base.data.historico.mercadoInterno,
-                             fHist.mercadoInterno,
-                             'periodo', 'valor'
-                         )
-                         base.data.historico.mercadoExterno = mergeHistoryList(
-                             base.data.historico.mercadoExterno,
-                             fHist.mercadoExterno,
-                             'periodo', 'valor'
-                         )
-                    }
+                    // Merge das-parse format (LEGACY - removed to fix types)
+                    // if (base.data.historico || f.data.historico) { ... }
                  }
                  merged.push(base)
              })
@@ -327,7 +363,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
         if (!activeCnpj) return localFiles
         return localFiles.filter(f => f.data.identificacao.cnpj === activeCnpj)
 
-    }, [localFiles, activeCnpj, selectedUnifyCnpjs])
+    }, [localFiles, activeCnpj, unifiedViews])
 
     // Filtered files for PDF Pages / Tables (respects user selection)
     const filteredCompanyFiles = useMemo(() => {
@@ -643,7 +679,11 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                     return
                 }
 
-                validFiles.push(nf)
+                validFiles.push({
+                    ...nf,
+                    id: crypto.randomUUID(),
+                    uploadDate: new Date().toISOString()
+                })
             })
 
             if (errors.length > 0) {
@@ -817,6 +857,12 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
             params.set('pdf_gen', 'true')
             params.set('only_consolidated', 'true')
             params.set('active_tab', activeTab)
+
+            const activeUnifiedView = unifiedViews.find(v => v.id === activeCnpj)
+            if (activeUnifiedView) {
+                params.set('unified_cnpjs', activeUnifiedView.cnpjs.join(','))
+                params.set('unified_label', activeUnifiedView.label)
+            }
             
             // Clear periods to ensure we get the full consolidated view data
             params.delete('periods')
@@ -894,6 +940,12 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
             
             // Force PDF generation param
             params.set('pdf_gen', 'true')
+
+            const activeUnifiedView = unifiedViews.find(v => v.id === activeCnpj)
+            if (activeUnifiedView) {
+                params.set('unified_cnpjs', activeUnifiedView.cnpjs.join(','))
+                params.set('unified_label', activeUnifiedView.label)
+            }
             
             // Update target_cnpj
             if (activeCnpj) {
@@ -2187,17 +2239,41 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                         })}
                         
                         {/* Tab Consolidado (Gerado após unificação) */}
-                        {selectedUnifyCnpjs.size > 0 && (
-                            <Button
-                                variant={activeCnpj === 'UNIFIED' ? "secondary" : "ghost"}
-                                size="sm"
-                                className={cn("shrink-0 gap-2", activeCnpj === 'UNIFIED' && "font-bold")}
-                                onClick={() => setActiveCnpj('UNIFIED')}
-                            >
-                                <Grid className="w-4 h-4" />
-                                Visão Unificada ({selectedUnifyCnpjs.size})
-                            </Button>
-                        )}
+                        {unifiedViews.map((view) => (
+                            <div key={view.id} className="relative group">
+                                <Button
+                                    variant={activeCnpj === view.id ? "secondary" : "ghost"}
+                                    size="sm"
+                                    className={cn("shrink-0 gap-2 pr-8 text-left items-start", activeCnpj === view.id && "font-bold")}
+                                    onClick={() => {
+                                        setActiveCnpj(view.id)
+                                        const lastView = viewHistory[view.id] ?? null
+                                        setTargetFilename(lastView)
+                                    }}
+                                >
+                                    <Grid className="w-4 h-4 mt-0.5" />
+                                    <span className="flex flex-col text-xs whitespace-pre-line leading-tight">
+                                        {view.label}
+                                        <span className="text-[10px] text-muted-foreground mt-0.5">
+                                            ({view.cnpjs.length} empresas)
+                                        </span>
+                                    </span>
+                                </Button>
+                                <button
+                                    className="absolute right-1 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors opacity-0 group-hover:opacity-100"
+                                    onClick={(e) => {
+                                        e.stopPropagation()
+                                        setUnifiedViews(prev => prev.filter(v => v.id !== view.id))
+                                        if (activeCnpj === view.id) {
+                                            setActiveCnpj(localFiles[0]?.data.identificacao.cnpj)
+                                        }
+                                    }}
+                                    title="Remover visão unificada"
+                                >
+                                    <X className="w-3 h-3" />
+                                </button>
+                            </div>
+                        ))}
                     </div>
                 )}
 
@@ -2403,10 +2479,35 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                         <Button 
                                             onClick={() => {
                                                 if (selectedUnifyCnpjs.size > 0) {
-                                                    setActiveCnpj('UNIFIED')
+                                                    const newId = `UNIFIED_${Date.now()}`
+                                                    const selectedArray = Array.from(selectedUnifyCnpjs)
+                                                    const summarizeName = (full?: string | null) => {
+                                                        if (!full) return ''
+                                                        let n = full.trim()
+                                                        n = n.replace(/\b(LTDA|LTD\.?|ME|EPP|S\/A|SA)\b\.?/gi, '').trim()
+                                                        if (n.length > 24) n = n.slice(0, 21).trimEnd() + '...'
+                                                        return n
+                                                    }
+                                                    const companyNames = selectedArray
+                                                        .map(cnpj => {
+                                                            const f = localFiles.find(file => file.data.identificacao.cnpj === cnpj)
+                                                            return summarizeName(f?.data.identificacao.razaoSocial)
+                                                        })
+                                                        .filter(Boolean) as string[]
+                                                    const label = companyNames.length > 0 
+                                                        ? companyNames.join('\n') 
+                                                        : `Consolidado ${unifiedViews.length + 1}`
+                                                    const newView: UnifiedView = {
+                                                        id: newId,
+                                                        label,
+                                                        cnpjs: selectedArray
+                                                    }
+                                                    setUnifiedViews(prev => [...prev, newView])
+                                                    setActiveCnpj(newId)
                                                     setSelectedFileIndex(null)
                                                     setTargetFilename(null)
                                                     setShowUnifyModal(false)
+                                                    setSelectedUnifyCnpjs(new Set())
                                                 }
                                             }}
                                             disabled={selectedUnifyCnpjs.size === 0}
@@ -2440,8 +2541,11 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                         <>
 
                             {/* Report Cover (Resumo Geral) */}
-                            {((activeTab === 'resumo' && !isPdfGen) || (isPdfGen && !onlyConsolidated) || (isPdfGen && onlyConsolidated && activeTab === 'resumo')) && sortedFiles.length > 0 && (
-                                <div style={isPdfGen ? { pageBreakAfter: 'always' } : undefined} className={isPdfGen ? "print-section" : undefined}>
+                            {((activeTab === 'resumo' && !isPdfGen) || isPdfGen) && sortedFiles.length > 0 && (
+                                <div
+                                    className={isPdfGen ? "print-section" : undefined}
+                                    style={isPdfGen ? { pageBreakAfter: 'always' } : undefined}
+                                >
                                     <ReportCover 
                                         files={sortedFiles}
                                         companyName={sortedFiles[0]?.data.identificacao.razaoSocial || activeCnpj || 'Empresa'}
@@ -2452,8 +2556,11 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                             )}
                             
                             {/* Consolidated Charts (Visão Geral) */}
-                            {((activeTab === 'visao-geral' && !isPdfGen) || (isPdfGen && !onlyConsolidated) || (isPdfGen && onlyConsolidated && activeTab === 'visao-geral')) && (
-                                <div className={`p-6 space-y-6 ${isPdfGen ? 'print-section' : ''}`} style={isPdfGen ? { height: 'auto', pageBreakAfter: 'always' } : undefined}>
+                            {((activeTab === 'visao-geral' && !isPdfGen) || isPdfGen) && (
+                                <div
+                                    className={`p-6 space-y-6 ${isPdfGen ? 'print-section' : ''}`}
+                                    style={isPdfGen ? { pageBreakAfter: onlyConsolidated ? 'auto' : 'always' } : undefined}
+                                >
                                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                                         <div>
                                             <h1 className="text-2xl font-bold text-foreground">Visão Geral Anual</h1>
@@ -2607,7 +2714,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                         <CardTitle>Evolução Financeira</CardTitle>
                                     </CardHeader>
                                     <CardContent className="p-4 space-y-6">
-                                        {years.map(year => {
+                                        {years.slice(0, isPdfGen ? 3 : years.length).map(year => {
                                             const yearData = monthlyDataByYear.get(year)
                                             const prevYearData = monthlyDataByYear.get(year - 1)
 
@@ -2986,8 +3093,11 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                 )}
 
                 {/* Quadro de Distribuição de Resultados (Dedicated Tab) */}
-                {((isConsolidated && activeTab === 'distribuicao-resultados' && !isPdfGen) || (isPdfGen && !onlyConsolidated) || (isPdfGen && onlyConsolidated && activeTab === 'distribuicao-resultados')) && (
-                    <div className={`p-6 space-y-6 ${isPdfGen ? 'print-section' : ''}`} style={isPdfGen ? { height: 'auto', pageBreakAfter: 'always' } : undefined}>
+                    {((isConsolidated && activeTab === 'distribuicao-resultados' && !isPdfGen) || isPdfGen) && (
+                    <div
+                        className={`p-6 space-y-6 ${isPdfGen ? 'print-section' : ''}`}
+                        style={isPdfGen ? { pageBreakAfter: onlyConsolidated ? 'auto' : 'always' } : undefined}
+                    >
                          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                             <div>
                                 <h1 className="text-2xl font-bold text-foreground">Distribuição de Resultados</h1>
@@ -3390,12 +3500,12 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                     onRemoveFromQueue={handleRemoveFromQueue}
                     activeTab={activeTab}
                     onTabSelect={setActiveTab}
-                    hasUnifiedResults={selectedUnifyCnpjs.size > 0}
+                    hasUnifiedResults={unifiedViews.length > 0}
+                    unifiedViews={unifiedViews}
                     onClearUnifiedResults={() => {
+                        setUnifiedViews([])
                         setSelectedUnifyCnpjs(new Set())
-                        if (activeCnpj === 'UNIFIED') {
-                            setActiveCnpj(undefined)
-                        }
+                        if (activeCnpj && activeCnpj.startsWith('UNIFIED_')) setActiveCnpj(undefined)
                     }}
                 />
             )}

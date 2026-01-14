@@ -620,11 +620,10 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
     return 6
   }, [rbt12Projetado])
 
-  const nextByAnexo = useMemo(() => {
+  const nextByAnexo = (() => {
     const anexos = [1, 2, 3, 4, 5]
 
     return anexos.map(an => {
-      // Para projeção futura, calculamos sempre com base no RBT12 projetado
       const calc = calculateSimplesRate(rbt12Projetado, an)
       if (calc) {
         return { anexo: an, value: calc.value, faixa: calc.faixa }
@@ -632,7 +631,7 @@ export const IndicadoresReceita = memo(function IndicadoresReceita({ receitas, c
 
       return { anexo: an, value: undefined, faixa: undefined }
     })
-  }, [rbt12Projetado])
+  })()
 
   const nextPeriodoLabel = useMemo(() => {
     const s = String(periodoApuracao || '').trim()

@@ -19,10 +19,11 @@ import { MessageCircle, Mail, Download, Moon, Sun, Grid, FileText } from 'lucide
 import { useTheme } from "next-themes"
 
 ChartJS.register(ArcElement, Tooltip, Legend, Title, ChartDataLabels)
-import { DASData } from "@/app/unified-dashboard/types"
+import { DashboardData } from "@/app/unified-dashboard/types"
+import { DashboardFooter } from "@/components/dashboard-footer"
 
 interface PGDASDProcessorProps {
-  initialData?: DASData
+  initialData?: DashboardData
   shareId?: string
   hideDownloadButton?: boolean
   isOwner?: boolean
@@ -56,7 +57,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
     } catch { }
   }, [owner, shareId])
   const hideDownloadEffective = !!hideDownloadButton
-  const [data, setData] = useState<DASData | null>(null)
+  const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [shareCode, setShareCode] = useState<string | null>(null)
@@ -194,7 +195,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
         ? ((receitaPA - totalDAS) / receitaPA) * 100
         : Number((dados?.calculos as any)?.margemLiquida || 0)
 
-      const processedData: DASData = {
+      const processedData: DashboardData = {
         identificacao: dados?.identificacao || {},
         receitas: dados?.receitas || {},
         tributos: dados?.tributos || {},
@@ -1670,13 +1671,13 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                 </div>
               )}
 
-              {data?.insights?.pontosAtencao?.length > 0 && (
+              {(data?.insights?.pontosAtencao?.length || 0) > 0 && (
                 <div>
                   <h4 className="font-semibold text-orange-600 dark:text-orange-400 mb-2">
                     Pontos de Atenção
                   </h4>
                   <ul className="list-disc list-inside space-y-1">
-                    {data.insights.pontosAtencao.map((ponto: string, index: number) => (
+                    {data.insights?.pontosAtencao?.map((ponto: string, index: number) => (
                       <li key={index} className="text-sm text-orange-700 dark:text-orange-300">
                         {ponto}
                       </li>
@@ -1685,13 +1686,13 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                 </div>
               )}
 
-              {data?.insights?.oportunidades?.length > 0 && (
+              {(data?.insights?.oportunidades?.length || 0) > 0 && (
                 <div>
                   <h4 className="font-semibold text-[#007AFF] dark:text-[#00C2FF] mb-2">
                     Oportunidades
                   </h4>
                   <ul className="list-disc list-inside space-y-1">
-                    {data.insights.oportunidades.map((oportunidade: string, index: number) => (
+                    {data.insights?.oportunidades?.map((oportunidade: string, index: number) => (
                       <li key={index} className="text-sm text-[#007AFF] dark:text-[#00C2FF]">
                         {oportunidade}
                       </li>
@@ -1700,13 +1701,13 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
                 </div>
               )}
 
-              {data?.insights?.recomendacoes?.length > 0 && (
+              {(data?.insights?.recomendacoes?.length || 0) > 0 && (
                 <div>
                   <h4 className="font-semibold text-[#007AFF] dark:text-[#00C2FF] mb-2">
                     Recomendações
                   </h4>
                   <ul className="list-disc list-inside space-y-1">
-                    {data.insights.recomendacoes.map((recomendacao: string, index: number) => (
+                    {data.insights?.recomendacoes?.map((recomendacao: string, index: number) => (
                       <li key={index} className="text-sm text-[#007AFF] dark:text-[#00C2FF]">
                         {recomendacao}
                       </li>
@@ -1719,35 +1720,7 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
         )}
 
         {isPdfGen && showContactCard && (
-          <Card className="bg-card border-border rounded-2xl" style={{ breakInside: 'avoid' }}>
-            <CardHeader className="py-2">
-              <CardTitle className="text-card-foreground tracking-tight">Contato e Ações</CardTitle>
-              <CardDescription className="leading-relaxed">Caso queira uma análise mais completa e personalizada</CardDescription>
-            </CardHeader>
-            <CardContent className="py-2">
-              <div className="grid md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <div className="rounded-xl p-3 bg-muted/50 dark:bg-[#3A3A3A]/50">
-                    <ul className="space-y-2 text-[#007AFF] dark:text-[#00C2FF]">
-                      <li className="flex items-start gap-2"><span className="mt-1 inline-block w-1.5 h-1.5 rounded-full bg-[#007AFF]" />Cenários comparativos entre regimes tributários</li>
-                      <li className="flex items-start gap-2"><span className="mt-1 inline-block w-1.5 h-1.5 rounded-full bg-[#007AFF]" />Simulações de economia fiscal</li>
-                      <li className="flex items-start gap-2"><span className="mt-1 inline-block w-1.5 h-1.5 rounded-full bg-[#007AFF]" />Recomendações exclusivas para o seu ramo</li>
-                    </ul>
-                  </div>
-                </div>
-                <div>
-                  <div className={`rounded-xl p-4 bg-muted/70 dark:bg-[#3A3A3A]/70 text-[#3A3A3A] dark:text-[#FFFFFF] border border-border dark:border-[#007AFF]/30`}>
-                    <p className="font-semibold text-[#3A3A3A] dark:text-[#FFFFFF] mb-2">Fale com a Integra</p>
-                    <div className="space-y-2">
-                      <a className="flex items-center gap-2 hover:text-[#007AFF] dark:hover:text-[#00C2FF]" href="https://wa.me/559481264638" target="_blank" rel="noreferrer"><MessageCircle className="h-4 w-4 text-[#007AFF]" />WhatsApp: 94 8126-4638</a>
-                      <a className="flex items-center gap-2 hover:text-[#007AFF] dark:hover:text-[#00C2FF]" href="mailto:atendimento@integratecnologia.inf.br"><Mail className="h-4 w-4 text-[#007AFF]" />E-mail: atendimento@integratecnologia.inf.br</a>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-            </CardContent>
-          </Card>
+          <DashboardFooter />
         )}
         </div>
       </div>

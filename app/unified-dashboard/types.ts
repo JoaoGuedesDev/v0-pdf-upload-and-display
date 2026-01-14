@@ -75,6 +75,13 @@ export interface DashboardData {
     analise_aliquota?: any;
     [key: string]: any;
   };
+  insights?: {
+    comparativoSetorial?: string;
+    pontosAtencao?: string[];
+    oportunidades?: string[];
+    recomendacoes?: string[];
+    [key: string]: any;
+  };
   graficos?: {
     tributosBar?: {
       labels: string[];
@@ -100,17 +107,18 @@ export interface DashboardData {
       labels: string[];
       values: number[];
     };
-    atividadesComparativo?: any;
-    [key: string]: any;
   };
-  insights?: any;
-  debug?: any;
 }
 
-// Alias for compatibility if needed
-export type DASData = DashboardData;
-
 export interface MonthlyFile {
+  id: string;
   filename: string;
+  uploadDate: string;
   data: DashboardData;
+}
+
+export interface UnifiedView {
+    id: string
+    label: string
+    cnpjs: string[]
 }

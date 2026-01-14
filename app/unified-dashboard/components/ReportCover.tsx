@@ -403,7 +403,7 @@ export function ReportCover({ files, companyName, cnpj, isDark = false }: Report
     
     return (
         <div className={cn(
-            "w-full min-h-[800px] flex flex-col items-center p-12 print:break-after-page relative overflow-hidden mb-8 border rounded-xl print:border-none shadow-sm print:shadow-none font-serif transition-colors duration-200",
+            "w-full min-h-[800px] print:min-h-0 flex flex-col items-center p-12 relative overflow-hidden mb-8 border rounded-xl print:border-none shadow-sm print:shadow-none font-serif transition-colors duration-200",
             isDark ? "bg-slate-950 border-slate-800" : "bg-white border-slate-200"
         )}>
             

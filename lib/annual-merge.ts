@@ -1,8 +1,8 @@
-import { MonthlyFile, DASData } from "@/app/unified-dashboard/types";
+import { MonthlyFile, DashboardData } from "@/app/unified-dashboard/types";
 
-export function mergeAnnualData(files: MonthlyFile[]): DASData {
+export function mergeAnnualData(files: MonthlyFile[]): DashboardData {
   if (!files || files.length === 0) {
-    return {} as DASData;
+    return {} as DashboardData;
   }
 
   // Sort files by period
@@ -85,5 +85,5 @@ export function mergeAnnualData(files: MonthlyFile[]): DASData {
     },
     // Pass insights from last file or clear them?
     insights: lastFile.data['insights' as keyof typeof lastFile.data] as any,
-  } as DASData;
+  } as DashboardData;
 }

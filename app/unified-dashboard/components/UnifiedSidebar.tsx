@@ -1,4 +1,4 @@
-import { MonthlyFile } from '../types'
+import { MonthlyFile, UnifiedView } from '../types'
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { LayoutDashboard, Upload, FileText, ChevronRight, Building2, Calendar, DollarSign, AlertTriangle, Trash2, CheckCircle, X, Grid } from "lucide-react"
@@ -27,6 +27,7 @@ interface UnifiedSidebarProps {
     activeTab?: 'resumo' | 'visao-geral' | 'distribuicao-resultados'
     onTabSelect?: (tab: 'resumo' | 'visao-geral' | 'distribuicao-resultados') => void
     hasUnifiedResults?: boolean
+    unifiedViews?: UnifiedView[]
     onClearUnifiedResults?: () => void
 }
 
@@ -51,6 +52,7 @@ export function UnifiedSidebar({
     activeTab = 'resumo',
     onTabSelect,
     hasUnifiedResults,
+    unifiedViews = [],
     onClearUnifiedResults
 }: UnifiedSidebarProps) {
   const groupedFiles = useMemo(() => {
@@ -162,16 +164,18 @@ export function UnifiedSidebar({
       
       <div className="p-4 space-y-2 flex-1 overflow-y-auto">
         <div className="space-y-6">
-            {hasUnifiedResults && (
-                <div className="space-y-2">
+            {unifiedViews.find(v => v.id === activeCnpj) && unifiedViews
+              .filter(view => view.id === activeCnpj)
+              .map((view) => (
+                <div key={view.id} className="space-y-2">
                     <div className="flex items-center justify-between px-2 py-1 bg-muted/30 rounded-md sticky top-0 z-10 backdrop-blur-sm group/header">
                         <div className="flex items-center gap-2">
                             <Grid className="w-3 h-3 text-muted-foreground" />
-                            <h3 className="text-xs font-semibold text-muted-foreground truncate">
-                                Visão Unificada
+                            <h3 className="text-xs font-semibold text-muted-foreground whitespace-pre-line leading-tight" title={view.label}>
+                                {view.label}
                             </h3>
                         </div>
-                        {onClearUnifiedResults && (
+                        {onClearUnifiedResults && unifiedViews.length === 1 && (
                             <button
                                 onClick={(e) => {
                                     e.stopPropagation()
@@ -187,86 +191,86 @@ export function UnifiedSidebar({
 
                     <button
                         onClick={() => {
-                            if (activeCnpj !== 'UNIFIED') onConsolidatedSelect('UNIFIED')
+                            if (activeCnpj !== view.id) onConsolidatedSelect(view.id)
                             if (onTabSelect) onTabSelect('resumo')
                         }}
                         className={cn(
                             "w-full flex items-center gap-3 p-3 rounded-lg text-left transition-all group",
-                            activeCnpj === 'UNIFIED' && activeTab === 'resumo'
+                            activeCnpj === view.id && activeTab === 'resumo'
                                 ? "bg-[#3A3A3A]/10 dark:bg-[#3A3A3A]/40 border-[#5A5A5A]/30 dark:border-[#5A5A5A]/60 shadow-sm ring-1 ring-[#5A5A5A]/20 dark:ring-[#5A5A5A]/50"
                                 : "hover:bg-muted/50 border-transparent"
                         )}
                     >
                         <div className={cn(
                             "w-10 h-10 rounded-full flex items-center justify-center transition-colors",
-                            activeCnpj === 'UNIFIED' && activeTab === 'resumo' ? "bg-[#3A3A3A] text-white" : "bg-muted text-muted-foreground group-hover:bg-[#3A3A3A]/10"
+                            activeCnpj === view.id && activeTab === 'resumo' ? "bg-[#3A3A3A] text-white" : "bg-muted text-muted-foreground group-hover:bg-[#3A3A3A]/10"
                         )}>
                             <FileText className="w-4 h-4" />
                         </div>
                         <div className="flex-1 min-w-0">
-                            <p className={cn("font-medium text-sm truncate", activeCnpj === 'UNIFIED' && activeTab === 'resumo' ? "text-[#3A3A3A] dark:text-[#8A8A8A]" : "text-foreground")}>
+                            <p className={cn("font-medium text-sm truncate", activeCnpj === view.id && activeTab === 'resumo' ? "text-[#3A3A3A] dark:text-[#8A8A8A]" : "text-foreground")}>
                                 Resumo Geral
                             </p>
                             <p className="text-xs text-muted-foreground truncate">Capa do Relatório</p>
                         </div>
-                        {activeCnpj === 'UNIFIED' && activeTab === 'resumo' && <ChevronRight className="w-4 h-4 text-[#3A3A3A] dark:text-[#8A8A8A]" />}
+                        {activeCnpj === view.id && activeTab === 'resumo' && <ChevronRight className="w-4 h-4 text-[#3A3A3A] dark:text-[#8A8A8A]" />}
                     </button>
 
                     <button
                         onClick={() => {
-                            if (activeCnpj !== 'UNIFIED') onConsolidatedSelect('UNIFIED')
+                            if (activeCnpj !== view.id) onConsolidatedSelect(view.id)
                             if (onTabSelect) onTabSelect('visao-geral')
                         }}
                         className={cn(
                             "w-full flex items-center gap-3 p-3 rounded-lg text-left transition-all group",
-                            activeCnpj === 'UNIFIED' && activeTab === 'visao-geral'
+                            activeCnpj === view.id && activeTab === 'visao-geral'
                                 ? "bg-[#3A3A3A]/10 dark:bg-[#3A3A3A]/40 border-[#5A5A5A]/30 dark:border-[#5A5A5A]/60 shadow-sm ring-1 ring-[#5A5A5A]/20 dark:ring-[#5A5A5A]/50"
                                 : "hover:bg-muted/50 border-transparent"
                         )}
                     >
                         <div className={cn(
                             "w-10 h-10 rounded-full flex items-center justify-center transition-colors",
-                            activeCnpj === 'UNIFIED' && activeTab === 'visao-geral' ? "bg-[#3A3A3A] text-white" : "bg-muted text-muted-foreground group-hover:bg-[#3A3A3A]/10"
+                            activeCnpj === view.id && activeTab === 'visao-geral' ? "bg-[#3A3A3A] text-white" : "bg-muted text-muted-foreground group-hover:bg-[#3A3A3A]/10"
                         )}>
                             <LayoutDashboard className="w-4 h-4" />
                         </div>
                         <div className="flex-1 min-w-0">
-                            <p className={cn("font-medium text-sm truncate", activeCnpj === 'UNIFIED' && activeTab === 'visao-geral' ? "text-[#3A3A3A] dark:text-[#8A8A8A]" : "text-foreground")}>
+                            <p className={cn("font-medium text-sm truncate", activeCnpj === view.id && activeTab === 'visao-geral' ? "text-[#3A3A3A] dark:text-[#8A8A8A]" : "text-foreground")}>
                                 Visão Consolidada
                             </p>
                             <p className="text-xs text-muted-foreground truncate">Anual</p>
                         </div>
-                        {activeCnpj === 'UNIFIED' && activeTab === 'visao-geral' && <ChevronRight className="w-4 h-4 text-[#3A3A3A] dark:text-[#8A8A8A]" />}
+                        {activeCnpj === view.id && activeTab === 'visao-geral' && <ChevronRight className="w-4 h-4 text-[#3A3A3A] dark:text-[#8A8A8A]" />}
                     </button>
 
                     <button
                         onClick={() => {
-                            if (activeCnpj !== 'UNIFIED') onConsolidatedSelect('UNIFIED')
+                            if (activeCnpj !== view.id) onConsolidatedSelect(view.id)
                             if (onTabSelect) onTabSelect('distribuicao-resultados')
                         }}
                         className={cn(
                             "w-full flex items-center gap-3 p-3 rounded-lg text-left transition-all group",
-                            activeCnpj === 'UNIFIED' && activeTab === 'distribuicao-resultados'
+                            activeCnpj === view.id && activeTab === 'distribuicao-resultados'
                                 ? "bg-[#3A3A3A]/10 dark:bg-[#3A3A3A]/40 border-[#5A5A5A]/30 dark:border-[#5A5A5A]/60 shadow-sm ring-1 ring-[#5A5A5A]/20 dark:ring-[#5A5A5A]/50"
                                 : "hover:bg-muted/50 border-transparent"
                         )}
                     >
                         <div className={cn(
                             "w-10 h-10 rounded-full flex items-center justify-center transition-colors",
-                            activeCnpj === 'UNIFIED' && activeTab === 'distribuicao-resultados' ? "bg-[#3A3A3A] text-white" : "bg-muted text-muted-foreground group-hover:bg-[#3A3A3A]/10"
+                            activeCnpj === view.id && activeTab === 'distribuicao-resultados' ? "bg-[#3A3A3A] text-white" : "bg-muted text-muted-foreground group-hover:bg-[#3A3A3A]/10"
                         )}>
                             <Grid className="w-4 h-4" />
                         </div>
                         <div className="flex-1 min-w-0">
-                            <p className={cn("font-medium text-sm truncate", activeCnpj === 'UNIFIED' && activeTab === 'distribuicao-resultados' ? "text-[#3A3A3A] dark:text-[#8A8A8A]" : "text-foreground")}>
+                            <p className={cn("font-medium text-sm truncate", activeCnpj === view.id && activeTab === 'distribuicao-resultados' ? "text-[#3A3A3A] dark:text-[#8A8A8A]" : "text-foreground")}>
                                 Distribuição de Resultados
                             </p>
                             <p className="text-xs text-muted-foreground truncate">Detalhamento</p>
                         </div>
-                        {activeCnpj === 'UNIFIED' && activeTab === 'distribuicao-resultados' && <ChevronRight className="w-4 h-4 text-[#3A3A3A] dark:text-[#8A8A8A]" />}
+                        {activeCnpj === view.id && activeTab === 'distribuicao-resultados' && <ChevronRight className="w-4 h-4 text-[#3A3A3A] dark:text-[#8A8A8A]" />}
                     </button>
                 </div>
-            )}
+            ))}
             {groupedFiles.map(([cnpj, group]) => (
                 <div key={cnpj} className="space-y-2">
                     {groupedFiles.length > 0 && (
