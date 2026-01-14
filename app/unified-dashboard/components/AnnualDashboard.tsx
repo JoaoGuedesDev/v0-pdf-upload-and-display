@@ -2208,7 +2208,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
     }, [selectedFileIndex, hasNext, hasPrev])
 
     return (
-        <div className={`flex flex-col lg:flex-row min-h-screen bg-background ${isPdfGen ? 'w-[1600px] mx-auto' : ''}`}>
+        <div className="flex flex-col lg:flex-row min-h-screen bg-background">
 
             {/* Main Content Area */}
             <div className="flex-1 order-2 lg:order-1 min-w-0 flex flex-col">
@@ -2558,44 +2558,44 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                             {/* Consolidated Charts (Visão Geral) */}
                             {((activeTab === 'visao-geral' && !isPdfGen) || isPdfGen) && (
                                 <div
-                                    className={`p-6 space-y-6 ${isPdfGen ? 'print-section' : ''}`}
+                                    className={`${isPdfGen ? 'p-0 space-y-1 print:p-0 print:space-y-1' : 'p-6 space-y-6'} ${isPdfGen ? 'print-section' : ''}`}
                                     style={isPdfGen ? { pageBreakAfter: onlyConsolidated ? 'auto' : 'always' } : undefined}
                                 >
-                                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
                                         <div>
-                                            <h1 className="text-2xl font-bold text-foreground">Visão Geral Anual</h1>
-                                            <p className="text-muted-foreground">Consolidado de {sortedFiles.length} períodos apurados</p>
+                                            <h1 className={cn("text-2xl font-bold text-foreground", isPdfGen && "print-title-main text-lg mb-0")}>Visão Geral Anual</h1>
+                                            <p className={cn("text-muted-foreground", isPdfGen && "print-text-muted text-[10px]")}>Consolidado de {sortedFiles.length} períodos apurados</p>
                                         </div>
                                     </div>
 
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                                <Card className="flex flex-col h-full">
-                                    <CardHeader className="pb-2">
-                                        <CardTitle className="text-sm font-medium text-muted-foreground">Receita Bruta Total</CardTitle>
+                                    <div className={cn("grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4", isPdfGen && "gap-1 print:gap-1")}>
+                                <Card className={cn("flex flex-col h-full", isPdfGen && "shadow-none")}>
+                                    <CardHeader className={cn("pb-2", isPdfGen && "p-2 pb-1")}>
+                                        <CardTitle className={cn("text-sm font-medium text-muted-foreground", isPdfGen && "text-[10px]")}>Receita Bruta Total</CardTitle>
                                     </CardHeader>
-                                    <CardContent className="flex flex-col justify-between flex-1">
+                                    <CardContent className={cn("flex flex-col justify-between flex-1", isPdfGen && "p-2 pt-0")}>
                                         <div className="flex flex-col gap-1 mb-2">
                                             {revenueBreakdown.servicos > 0 && (
-                                                <span className="inline-flex items-center rounded-full bg-[#007AFF]/20 text-[#007AFF] dark:bg-[#007AFF]/40 dark:text-[#FFFFFF] px-2 py-0.5 text-[10px] font-semibold w-fit">
+                                                <span className={cn("inline-flex items-center rounded-full bg-[#007AFF]/20 text-[#007AFF] dark:bg-[#007AFF]/40 dark:text-[#FFFFFF] px-2 py-0.5 text-[10px] font-semibold w-fit", isPdfGen && "text-[8px] px-1 py-0")}>
                                                     Serviços: {revenueBreakdown.servicos.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                                                 </span>
                                             )}
                                             {revenueBreakdown.mercadorias > 0 && (
-                                                <span className="inline-flex items-center rounded-full bg-[#3D5AFE]/20 text-[#3D5AFE] dark:bg-[#3D5AFE]/40 dark:text-[#FFFFFF] px-2 py-0.5 text-[10px] font-semibold w-fit">
+                                                <span className={cn("inline-flex items-center rounded-full bg-[#3D5AFE]/20 text-[#3D5AFE] dark:bg-[#3D5AFE]/40 dark:text-[#FFFFFF] px-2 py-0.5 text-[10px] font-semibold w-fit", isPdfGen && "text-[8px] px-1 py-0")}>
                                                     Mercadorias: {revenueBreakdown.mercadorias.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                                                 </span>
                                             )}
                                             {revenueBreakdown.industrializacao > 0 && (
-                                                <span className="inline-flex items-center rounded-full bg-[#00C2FF]/20 text-[#00C2FF] dark:bg-[#00C2FF]/40 dark:text-[#FFFFFF] px-2 py-0.5 text-[10px] font-semibold w-fit">
+                                                <span className={cn("inline-flex items-center rounded-full bg-[#00C2FF]/20 text-[#00C2FF] dark:bg-[#00C2FF]/40 dark:text-[#FFFFFF] px-2 py-0.5 text-[10px] font-semibold w-fit", isPdfGen && "text-[8px] px-1 py-0")}>
                                                     Indústria: {revenueBreakdown.industrializacao.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                                                 </span>
                                             )}
                                         </div>
                                         <div className="flex flex-row items-baseline gap-2">
-                                            <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
+                                            <div className={cn("text-lg font-bold text-emerald-600 dark:text-emerald-400", isPdfGen && "text-base")}>
                                                 {totalRevenue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                                             </div>
-                                            <p className="text-[11px] text-muted-foreground whitespace-nowrap">
+                                            <p className={cn("text-[11px] text-muted-foreground whitespace-nowrap", isPdfGen && "text-[9px]")}>
                                                 Média: {averageRevenue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}/mês
                                             </p>
                                         </div>
@@ -2603,11 +2603,11 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                 </Card>
 
                                 {/* New Card: Resumo por Ano */}
-                                <Card className="flex flex-col h-full">
-                                    <CardHeader className="pb-2">
-                                        <CardTitle className="text-sm font-medium text-muted-foreground">Resumo por Ano</CardTitle>
+                                <Card className={cn("flex flex-col h-full", isPdfGen && "shadow-none")}>
+                                    <CardHeader className={cn("pb-2", isPdfGen && "p-2 pb-1")}>
+                                        <CardTitle className={cn("text-sm font-medium text-muted-foreground", isPdfGen && "text-[10px]")}>Resumo por Ano</CardTitle>
                                     </CardHeader>
-                                    <CardContent className="flex flex-col justify-between flex-1">
+                                    <CardContent className={cn("flex flex-col justify-between flex-1", isPdfGen && "p-2 pt-0")}>
                                         <div className="flex flex-col gap-1 mb-2">
                                             {years.map(year => {
                                                 const yearData = monthlyDataByYear.get(year)
@@ -2616,7 +2616,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                                     0
                                                 )
                                                 return (
-                                                    <span key={year} className="inline-flex items-center rounded-full bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300 px-2 py-0.5 text-[10px] font-semibold w-fit">
+                                                    <span key={year} className={cn("inline-flex items-center rounded-full bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300 px-2 py-0.5 text-[10px] font-semibold w-fit", isPdfGen && "text-[8px] px-1 py-0")}>
                                                         {year}: {yearTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                                                     </span>
                                                 )
@@ -2635,10 +2635,10 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
 
                                             return (
                                                 <div className="flex flex-row items-baseline gap-2">
-                                                    <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
+                                                    <div className={cn("text-lg font-bold text-emerald-600 dark:text-emerald-400", isPdfGen && "text-base")}>
                                                         {grandTotalRevenue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                                                     </div>
-                                                    <p className="text-[11px] text-muted-foreground whitespace-nowrap">
+                                                    <p className={cn("text-[11px] text-muted-foreground whitespace-nowrap", isPdfGen && "text-[9px]")}>
                                                         Média: {averagePerYear.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}/ano
                                                     </p>
                                                 </div>
@@ -2647,91 +2647,92 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                     </CardContent>
                                 </Card>
 
-                                <Card className="flex flex-col h-full">
-                                    <CardHeader className="pb-2">
-                                        <CardTitle className="text-sm font-medium text-muted-foreground">Total de Impostos</CardTitle>
+                                <Card className={cn("flex flex-col h-full", isPdfGen && "shadow-none")}>
+                                    <CardHeader className={cn("pb-2", isPdfGen && "p-2 pb-1")}>
+                                        <CardTitle className={cn("text-sm font-medium text-muted-foreground", isPdfGen && "text-[10px]")}>Total de Impostos</CardTitle>
                                     </CardHeader>
-                                    <CardContent className="flex flex-col justify-between flex-1">
+                                    <CardContent className={cn("flex flex-col justify-between flex-1", isPdfGen && "p-2 pt-0")}>
                                         <div className="flex flex-col gap-1 mb-2">
                                             {taxesBreakdown.servicos > 0 && (
-                                                <span className="inline-flex items-center rounded-full bg-[#007AFF]/20 text-[#007AFF] dark:bg-[#007AFF]/40 dark:text-[#FFFFFF] px-2 py-0.5 text-[10px] font-semibold w-fit">
+                                                <span className={cn("inline-flex items-center rounded-full bg-[#007AFF]/20 text-[#007AFF] dark:bg-[#007AFF]/40 dark:text-[#FFFFFF] px-2 py-0.5 text-[10px] font-semibold w-fit", isPdfGen && "text-[8px] px-1 py-0")}>
                                                     Serviços: {taxesBreakdown.servicos.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                                                 </span>
                                             )}
                                             {taxesBreakdown.mercadorias > 0 && (
-                                                <span className="inline-flex items-center rounded-full bg-[#3D5AFE]/20 text-[#3D5AFE] dark:bg-[#3D5AFE]/40 dark:text-[#FFFFFF] px-2 py-0.5 text-[10px] font-semibold w-fit">
+                                                <span className={cn("inline-flex items-center rounded-full bg-[#3D5AFE]/20 text-[#3D5AFE] dark:bg-[#3D5AFE]/40 dark:text-[#FFFFFF] px-2 py-0.5 text-[10px] font-semibold w-fit", isPdfGen && "text-[8px] px-1 py-0")}>
                                                     Mercadorias: {taxesBreakdown.mercadorias.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                                                 </span>
                                             )}
                                             {taxesBreakdown.industrializacao > 0 && (
-                                                <span className="inline-flex items-center rounded-full bg-[#00C2FF]/20 text-[#00C2FF] dark:bg-[#00C2FF]/40 dark:text-[#FFFFFF] px-2 py-0.5 text-[10px] font-semibold w-fit">
+                                                <span className={cn("inline-flex items-center rounded-full bg-[#00C2FF]/20 text-[#00C2FF] dark:bg-[#00C2FF]/40 dark:text-[#FFFFFF] px-2 py-0.5 text-[10px] font-semibold w-fit", isPdfGen && "text-[8px] px-1 py-0")}>
                                                     Indústria: {taxesBreakdown.industrializacao.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                                                 </span>
                                             )}
                                         </div>
                                         <div className="flex flex-row items-baseline gap-2">
-                                            <div className="text-lg font-bold text-red-600 dark:text-red-400">
+                                            <div className={cn("text-lg font-bold text-red-600 dark:text-red-400", isPdfGen && "text-base")}>
                                                 {totalTaxes.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                                             </div>
-                                            <p className="text-[11px] text-muted-foreground whitespace-nowrap">
+                                            <p className={cn("text-[11px] text-muted-foreground whitespace-nowrap", isPdfGen && "text-[9px]")}>
                                                 Média: {averageTaxes.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}/mês
                                             </p>
                                         </div>
                                     </CardContent>
                                 </Card>
-                                <Card className="flex flex-col h-full">
-                                    <CardHeader className="pb-2">
-                                        <CardTitle className="text-sm font-medium text-muted-foreground">Alíquota Efetiva Média</CardTitle>
+                                <Card className={cn("flex flex-col h-full", isPdfGen && "shadow-none")}>
+                                    <CardHeader className={cn("pb-2", isPdfGen && "p-2 pb-1")}>
+                                        <CardTitle className={cn("text-sm font-medium text-muted-foreground", isPdfGen && "text-[10px]")}>Alíquota Efetiva Média</CardTitle>
                                     </CardHeader>
-                                    <CardContent className="flex flex-col justify-between flex-1">
+                                    <CardContent className={cn("flex flex-col justify-between flex-1", isPdfGen && "p-2 pt-0")}>
                                         <div className="flex flex-col gap-1 mb-2">
                                             {revenueBreakdown.servicos > 0 && (
-                                                <span className="inline-flex items-center rounded-full bg-[#007AFF]/20 text-[#007AFF] dark:bg-[#007AFF]/40 dark:text-[#FFFFFF] px-2 py-0.5 text-[10px] font-semibold w-fit">
+                                                <span className={cn("inline-flex items-center rounded-full bg-[#007AFF]/20 text-[#007AFF] dark:bg-[#007AFF]/40 dark:text-[#FFFFFF] px-2 py-0.5 text-[10px] font-semibold w-fit", isPdfGen && "text-[8px] px-1 py-0")}>
                                                     Serviços: {((taxesBreakdown.servicos / revenueBreakdown.servicos) * 100).toLocaleString('pt-BR', { minimumFractionDigits: 4, maximumFractionDigits: 4 })}%
                                                 </span>
                                             )}
                                             {revenueBreakdown.mercadorias > 0 && (
-                                                <span className="inline-flex items-center rounded-full bg-[#3D5AFE]/20 text-[#3D5AFE] dark:bg-[#3D5AFE]/40 dark:text-[#FFFFFF] px-2 py-0.5 text-[10px] font-semibold w-fit">
+                                                <span className={cn("inline-flex items-center rounded-full bg-[#3D5AFE]/20 text-[#3D5AFE] dark:bg-[#3D5AFE]/40 dark:text-[#FFFFFF] px-2 py-0.5 text-[10px] font-semibold w-fit", isPdfGen && "text-[8px] px-1 py-0")}>
                                                     Mercadorias: {((taxesBreakdown.mercadorias / revenueBreakdown.mercadorias) * 100).toLocaleString('pt-BR', { minimumFractionDigits: 4, maximumFractionDigits: 4 })}%
                                                 </span>
                                             )}
                                             {revenueBreakdown.industrializacao > 0 && (
-                                                <span className="inline-flex items-center rounded-full bg-[#00C2FF]/20 text-[#00C2FF] dark:bg-[#00C2FF]/40 dark:text-[#FFFFFF] px-2 py-0.5 text-[10px] font-semibold w-fit">
+                                                <span className={cn("inline-flex items-center rounded-full bg-[#00C2FF]/20 text-[#00C2FF] dark:bg-[#00C2FF]/40 dark:text-[#FFFFFF] px-2 py-0.5 text-[10px] font-semibold w-fit", isPdfGen && "text-[8px] px-1 py-0")}>
                                                     Indústria: {((taxesBreakdown.industrializacao / revenueBreakdown.industrializacao) * 100).toLocaleString('pt-BR', { minimumFractionDigits: 4, maximumFractionDigits: 4 })}%
                                                 </span>
                                             )}
                                         </div>
-                                        <div className="text-lg font-bold text-[#93A5AF]">
+                                        <div className={cn("text-lg font-bold text-[#93A5AF]", isPdfGen && "text-base")}>
                                             {averageTaxRate.toLocaleString('pt-BR', { minimumFractionDigits: 4, maximumFractionDigits: 4 })}%
                                         </div>
                                     </CardContent>
                                 </Card>
                             </div>
 
-                            <div className="space-y-6">
-                                <Card style={{ breakInside: 'avoid' }}>
-                                    <CardHeader className="flex flex-row items-center justify-between pb-2">
-                                        <CardTitle>Evolução Financeira</CardTitle>
+                            <div className={cn("space-y-6", isPdfGen && "space-y-2 print:space-y-2")}>
+                                <Card style={{ breakInside: 'avoid' }} className={cn(isPdfGen && "border-none shadow-none")}>
+                                    <CardHeader className={cn("flex flex-row items-center justify-between pb-2", isPdfGen && "p-0 pb-2")}>
+                                        <CardTitle className={cn(isPdfGen && "text-sm")}>Evolução Financeira</CardTitle>
                                     </CardHeader>
-                                    <CardContent className="p-4 space-y-6">
+                                    <CardContent className={cn("p-4 space-y-6", isPdfGen && "p-0 space-y-2")}>
                                         {years.slice(0, isPdfGen ? 3 : years.length).map(year => {
                                             const yearData = monthlyDataByYear.get(year)
                                             const prevYearData = monthlyDataByYear.get(year - 1)
 
                                             return (
-                                                <div key={year} className="h-[420px]">
+                                                <div key={year} className={cn("h-[420px]", isPdfGen && "h-[260px] print:h-[260px]")}>
                                                     <div className="flex flex-col items-center mb-2">
                                                         <h3 className="text-sm font-semibold text-muted-foreground">Receita e Impostos - {year}</h3>
                                                     </div>
                                                     <Line
                                                         options={{
                                                             ...chartOptions,
+                                                            maintainAspectRatio: false,
                                                             layout: {
                                                                 padding: {
-                                                                    top: 20,
-                                                                    right: 20,
-                                                                    left: 10,
-                                                                    bottom: 10
+                                                                    top: isPdfGen ? 5 : 20,
+                                                                    right: isPdfGen ? 10 : 20,
+                                                                    left: 5,
+                                                                    bottom: isPdfGen ? 2 : 5
                                                                 }
                                                             },
                                                             plugins: {
@@ -2972,13 +2973,13 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                     </div>
                                 </div>
 
-                                <div className="space-y-6">
+                                <div className={cn("space-y-6", isPdfGen && "space-y-2 print:space-y-2")}>
                                     {visibleCharts.quarterly && (
-                                        <Card style={{ breakInside: 'avoid' }}>
-                                            <CardHeader className="py-2 px-4">
-                                                <CardTitle className="text-sm font-medium">Comparativo Trimestral</CardTitle>
+                                        <Card style={{ breakInside: 'avoid' }} className={cn(isPdfGen && "border-none shadow-none")}>
+                                            <CardHeader className={cn("py-2 px-4", isPdfGen && "p-0 pb-1")}>
+                                                <CardTitle className={cn("text-sm font-medium", isPdfGen && "text-xs")}>Comparativo Trimestral</CardTitle>
                                             </CardHeader>
-                                            <CardContent className="px-2 pb-2 h-[170px]">
+                                            <CardContent className={cn("px-2 pb-2 h-[170px]", isPdfGen && "p-0 h-[150px]")}>
                                                 <Bar
                                                     options={chartOptions}
                                                     data={allComparisonData.quarterly}
@@ -2987,13 +2988,13 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                         </Card>
                                     )}
 
-                                    <div className="grid gap-6 grid-cols-1 md:grid-cols-2 print:block print:space-y-6">
+                                    <div className={cn("grid gap-6 grid-cols-1 md:grid-cols-2 print:block print:space-y-6", isPdfGen && "gap-2 print:space-y-2")}>
                                         {visibleCharts.semiannual && (
-                                            <Card className={visibleCharts.annual ? "" : "md:col-span-2"} style={{ breakInside: 'avoid' }}>
-                                                <CardHeader className="py-2 px-4">
-                                                    <CardTitle className="text-sm font-medium">Comparativo Semestral</CardTitle>
+                                            <Card className={cn(visibleCharts.annual ? "" : "md:col-span-2", isPdfGen && "border-none shadow-none")} style={{ breakInside: 'avoid' }}>
+                                                <CardHeader className={cn("py-2 px-4", isPdfGen && "p-0 pb-1")}>
+                                                    <CardTitle className={cn("text-sm font-medium", isPdfGen && "text-xs")}>Comparativo Semestral</CardTitle>
                                                 </CardHeader>
-                                                <CardContent className="px-2 pb-2 h-[180px]">
+                                                <CardContent className={cn("px-2 pb-2 h-[180px]", isPdfGen && "p-0 h-[150px]")}>
                                                     <Bar
                                                         options={chartOptions}
                                                         data={allComparisonData.semiannual}
@@ -3003,11 +3004,11 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                         )}
 
                                         {visibleCharts.annual && (
-                                            <Card className={visibleCharts.semiannual ? "" : "md:col-span-2"} style={{ breakInside: 'avoid' }}>
-                                                <CardHeader className="py-2 px-4">
-                                                    <CardTitle className="text-sm font-medium">Comparativo Anual</CardTitle>
+                                            <Card className={cn(visibleCharts.semiannual ? "" : "md:col-span-2", isPdfGen && "border-none shadow-none")} style={{ breakInside: 'avoid' }}>
+                                                <CardHeader className={cn("py-2 px-4", isPdfGen && "p-0 pb-1")}>
+                                                    <CardTitle className={cn("text-sm font-medium", isPdfGen && "text-xs")}>Comparativo Anual</CardTitle>
                                                 </CardHeader>
-                                                <CardContent className="px-2 pb-2 h-[180px]">
+                                                <CardContent className={cn("px-2 pb-2 h-[180px]", isPdfGen && "p-0 h-[150px]")}>
                                                     <Bar
                                                         options={chartOptions}
                                                         data={allComparisonData.annual}
@@ -3019,20 +3020,20 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                 </div>
 
                                 {hasMultipleSources && stackedBarChartData && (
-                                    <Card style={{ breakInside: 'avoid' }}>
-                                        <CardHeader className="py-2 px-4">
-                                            <CardTitle className="text-base font-semibold">Composição do Faturamento Mensal</CardTitle>
+                                    <Card style={{ breakInside: 'avoid' }} className={cn(isPdfGen && "border-none shadow-none")}>
+                                        <CardHeader className={cn("py-2 px-4", isPdfGen && "p-0 pb-2")}>
+                                            <CardTitle className={cn("text-base font-semibold", isPdfGen && "text-sm")}>Composição do Faturamento Mensal</CardTitle>
                                         </CardHeader>
-                                        <CardContent className="px-2 pb-2 h-[340px]">
+                                        <CardContent className={cn("px-2 pb-2 h-[340px]", isPdfGen && "p-0 h-[220px]")}>
                                             <Bar
                                                 options={{
                                                     ...chartOptions,
                                                     layout: {
                                                         padding: {
-                                                            top: 50,
-                                                            right: 20,
-                                                            left: 20,
-                                                            bottom: 10
+                                                            top: isPdfGen ? 20 : 50,
+                                                            right: isPdfGen ? 10 : 20,
+                                                            left: isPdfGen ? 5 : 20,
+                                                            bottom: 5
                                                         }
                                                     },
                                                     maintainAspectRatio: false,
@@ -3095,18 +3096,18 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                 {/* Quadro de Distribuição de Resultados (Dedicated Tab) */}
                     {((isConsolidated && activeTab === 'distribuicao-resultados' && !isPdfGen) || isPdfGen) && (
                     <div
-                        className={`p-6 space-y-6 ${isPdfGen ? 'print-section' : ''}`}
+                        className={`${isPdfGen ? 'p-2 space-y-2 print:p-0 print:space-y-2' : 'p-6 space-y-6'} ${isPdfGen ? 'print-section' : ''}`}
                         style={isPdfGen ? { pageBreakAfter: onlyConsolidated ? 'auto' : 'always' } : undefined}
                     >
-                         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
                             <div>
-                                <h1 className="text-2xl font-bold text-foreground">Distribuição de Resultados</h1>
-                                <p className="text-muted-foreground">Detalhamento da composição de receitas e distribuição de lucros</p>
+                                <h1 className={cn("text-2xl font-bold text-foreground", isPdfGen && "print-title-main text-xl mb-1")}>Distribuição de Resultados</h1>
+                                <p className={cn("text-muted-foreground", isPdfGen && "print-text-muted text-xs")}>Detalhamento da composição de receitas e distribuição de lucros</p>
                             </div>
                         </div>
                         <Card style={{ breakInside: 'avoid' }}>
                             <CardHeader className="py-2 flex flex-row items-center justify-between">
-                                <CardTitle className="text-base font-semibold">Quadro de Distribuição de Resultados</CardTitle>
+                                <CardTitle className={cn("text-base font-semibold", isPdfGen && "print-title-section")}>Quadro de Distribuição de Resultados</CardTitle>
                                 {!isPdfGen && (
                                     <Button variant="outline" size="sm" className="h-8 gap-2" onClick={handleExportExcel}>
                                         <FileText className="h-4 w-4" />
@@ -3115,7 +3116,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                 )}
                             </CardHeader>
                             <CardContent className="pb-2">
-                                <Table>
+                                <Table className={cn(isPdfGen && "print-table")}>
                                     <TableHeader>
                                         <TableRow>
                                             <TableHead className="py-1 h-8 text-[#007AFF] dark:text-[#00C2FF]">Período</TableHead>

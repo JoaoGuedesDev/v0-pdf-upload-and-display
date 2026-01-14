@@ -403,86 +403,77 @@ export function ReportCover({ files, companyName, cnpj, isDark = false }: Report
     
     return (
         <div className={cn(
-            "w-full min-h-[800px] print:min-h-0 flex flex-col items-center p-12 relative overflow-hidden mb-8 border rounded-xl print:border-none shadow-sm print:shadow-none font-serif transition-colors duration-200",
+            "w-full min-h-[800px] print:min-h-0 flex flex-col items-center p-8 print:p-4 relative overflow-hidden mb-6 print:mb-0 border rounded-xl print:border-none shadow-sm print:shadow-none font-serif transition-colors duration-200",
             isDark ? "bg-slate-950 border-slate-800" : "bg-white border-slate-200"
         )}>
             
             {/* Minimal Header */}
-            <div className={cn("w-full max-w-4xl border-b-2 pb-6 mb-10 flex justify-between items-end", isDark ? "border-slate-800" : "border-slate-800")}>
+            <div className={cn("w-full max-w-4xl border-b-2 pb-4 mb-6 print:mb-2 flex justify-between items-end", isDark ? "border-slate-800" : "border-slate-800")}>
                 <div>
-                    <h1 className={cn("text-4xl font-bold tracking-tight mb-2", textPrimary)}>
+                    <h1 className={cn("text-4xl font-bold tracking-tight mb-2 print:text-2xl print:mb-1", textPrimary, "print-title-main")}>
                         Relatório Executivo
                     </h1>
-                    <p className={cn("text-lg italic", isDark ? "text-slate-400" : "text-slate-600")}>
+                    <p className={cn("text-lg italic print:text-sm", isDark ? "text-slate-400" : "text-slate-600", "print-text-muted")}>
                         Análise de Performance e Inteligência Tributária
                     </p>
                 </div>
                 <div className="text-right">
-                    <p className={cn("text-sm font-bold uppercase tracking-widest", textMuted)}>{companyName}</p>
-                    <p className="text-xs text-slate-400 font-mono">{cnpj}</p>
+                    <p className={cn("text-sm font-bold uppercase tracking-widest print:text-xs", textMuted)}>{companyName}</p>
+                    <p className="text-xs text-slate-400 font-mono print:text-[10px]">{cnpj}</p>
                 </div>
             </div>
 
-            <div className="w-full max-w-4xl space-y-10">
+            <div className="w-full max-w-4xl space-y-6 print:space-y-2">
                 
                 {/* 1. Visão Geral */}
                 <section>
-                    <h2 className={cn("text-xl font-bold uppercase tracking-wide mb-6 flex items-center gap-2", textPrimary)}>
+                    <h2 className={cn("text-xl font-bold uppercase tracking-wide mb-6 print:mb-2 flex items-center gap-2 print:text-base", textPrimary, "print-title-section")}>
                         <span className={cn("w-6 h-6 rounded flex items-center justify-center text-xs", bgBadge)}>1</span>
                         Visão Geral
                     </h2>
                     
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-6 p-6 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800">
-                        {/* Revenue Section */}
-                        <div className="flex flex-col justify-between space-y-4">
-                            <div className="flex flex-col items-start gap-2">
-                                {summary.activityBreakdown.servicos > 0 && (
-                                    <div className="bg-[#0055FF] text-white px-4 py-1.5 rounded-full text-sm font-semibold shadow-sm tracking-wide">
-                                        Serviços: {formatCurrency(summary.activityBreakdown.servicos)}
-                                    </div>
-                                )}
-                                {summary.activityBreakdown.mercadorias > 0 && (
-                                    <div className="bg-[#0088FF] text-white px-4 py-1.5 rounded-full text-sm font-semibold shadow-sm tracking-wide">
-                                        Mercadorias: {formatCurrency(summary.activityBreakdown.mercadorias)}
-                                    </div>
-                                )}
-                            </div>
-                            <div className="pt-4">
-                                <div className="text-4xl font-bold text-emerald-500 tracking-tight">
-                                    {formatCurrency(summary.totalRevenue)}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800">
+                        <div className="space-y-3">
+                            <h2 className={cn("text-lg font-semibold flex items-center gap-2", textPrimary)}>
+                                <BarChart3 className="w-5 h-5 text-blue-600" />
+                                Visão Geral
+                            </h2>
+                            <div className="space-y-2">
+                                <div className="flex justify-between items-baseline">
+                                    <span className="text-sm text-slate-500">Faturamento Total</span>
+                                    <span className="text-xl font-bold text-slate-900 dark:text-white">
+                                        {formatCurrency(summary.totalRevenue)}
+                                    </span>
                                 </div>
-                                <div className="text-sm font-medium text-cyan-500 mt-1 flex items-center gap-1">
-                                    Média: {formatCurrency(summary.averageRevenue)}/mês
+                                <div className="flex justify-between items-baseline">
+                                    <span className="text-sm text-slate-500">Média Mensal</span>
+                                    <span className="text-base font-medium text-slate-700 dark:text-slate-300">
+                                        {formatCurrency(summary.averageRevenue)}
+                                    </span>
                                 </div>
                             </div>
                         </div>
 
-                        {/* Tax Section */}
-                        <div className="flex flex-col justify-between space-y-4 md:border-l md:pl-8 border-slate-200 dark:border-slate-700">
-                            <div className="flex flex-col items-start gap-2">
-                                {summary.taxActivityBreakdown.servicos > 0 && (
-                                    <div className="bg-[#0055FF] text-white px-4 py-1.5 rounded-full text-sm font-semibold shadow-sm tracking-wide [print-color-adjust:exact]">
-                                        Serviços: {formatCurrency(summary.taxActivityBreakdown.servicos)}
+                        <div className="space-y-3 border-t md:border-t-0 md:border-l border-slate-200 dark:border-slate-700 pt-3 md:pt-0 md:pl-4">
+                            <h2 className={cn("text-lg font-semibold flex items-center gap-2", textPrimary)}>
+                                <TrendingUp className="w-5 h-5 text-emerald-600" />
+                                Performance
+                            </h2>
+                            <div className="space-y-2">
+                                <div className="flex justify-between items-baseline">
+                                    <span className="text-sm text-slate-500">Melhor Mês</span>
+                                    <div className="text-right">
+                                        <span className="block text-base font-medium text-emerald-600">
+                                            {formatCurrency(summary.maxRevenue.amount)}
+                                        </span>
+                                        <span className="text-xs text-slate-400">{summary.maxRevenue.period}</span>
                                     </div>
-                                )}
-                                {summary.taxActivityBreakdown.mercadorias > 0 && (
-                                    <div className="bg-[#0088FF] text-white px-4 py-1.5 rounded-full text-sm font-semibold shadow-sm tracking-wide [print-color-adjust:exact]">
-                                        Mercadorias: {formatCurrency(summary.taxActivityBreakdown.mercadorias)}
-                                    </div>
-                                )}
-                            </div>
-                            <div className="pt-4">
-                                <div className="text-4xl font-bold text-red-500 tracking-tight">
-                                    {formatCurrency(summary.totalTax)}
-                                </div>
-                                <div className="text-sm font-medium text-cyan-500 mt-1 flex items-center gap-1">
-                                    Média: {formatCurrency(summary.averageTax)}/mês
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <p className={cn("text-justify leading-relaxed text-sm opacity-80", textSecondary)}>
+                    <p className={cn("text-justify leading-relaxed text-sm opacity-80", textSecondary, "print-text-body")}>
                         Referente ao período de <strong>{summary.period}</strong>. A carga tributária efetiva média foi de <strong>{summary.effectiveRate.toFixed(2)}%</strong>.
                         {summary.rbt12Oscillation.message && ` ${summary.rbt12Oscillation.message}`}
                         {summary.accumulatedRevenuePreviousYear > 0 && (
@@ -493,11 +484,11 @@ export function ReportCover({ files, companyName, cnpj, isDark = false }: Report
 
                 {/* 2. Estrutura do Faturamento */}
                 <section>
-                    <h2 className={cn("text-xl font-bold uppercase tracking-wide mb-3 flex items-center gap-2", textPrimary)}>
+                    <h2 className={cn("text-xl font-bold uppercase tracking-wide mb-2 flex items-center gap-2", textPrimary, "print-title-section")}>
                         <span className={cn("w-6 h-6 rounded flex items-center justify-center text-xs", bgBadge)}>2</span>
                         Estrutura do Faturamento
                     </h2>
-                    <p className={cn("text-justify leading-relaxed", textSecondary)}>
+                    <p className={cn("text-justify leading-relaxed", textSecondary, "print-text-body")}>
                         A composição da receita demonstra uma predominância de <strong>{summary.mainActivity}</strong>. 
                         Do total faturado, <strong>{formatCurrency(summary.activityBreakdown.servicos)}</strong> provêm de Serviços, 
                         <strong> {formatCurrency(summary.activityBreakdown.mercadorias)}</strong> de Comércio e 
@@ -508,11 +499,11 @@ export function ReportCover({ files, companyName, cnpj, isDark = false }: Report
 
                 {/* 3. Evolução da Receita */}
                 <section>
-                    <h2 className={cn("text-xl font-bold uppercase tracking-wide mb-3 flex items-center gap-2", textPrimary)}>
+                    <h2 className={cn("text-xl font-bold uppercase tracking-wide mb-2 flex items-center gap-2", textPrimary, "print-title-section")}>
                         <span className={cn("w-6 h-6 rounded flex items-center justify-center text-xs", bgBadge)}>3</span>
                         Evolução da Receita
                     </h2>
-                    <p className={cn("text-justify leading-relaxed", textSecondary)}>
+                    <p className={cn("text-justify leading-relaxed", textSecondary, "print-text-body")}>
                         O faturamento médio mensal situou-se em <strong>{formatCurrency(summary.averageRevenue)}</strong>. 
                         Destaca-se o período de <strong>{summary.bestQuarter.name}</strong> como o de melhor performance, somando <strong>{formatCurrency(summary.bestQuarter.amount)}</strong>.
                         {summary.recentTrend !== 'stable' && (
@@ -524,15 +515,15 @@ export function ReportCover({ files, companyName, cnpj, isDark = false }: Report
 
                 {/* 4. Distribuição da Carga Tributária */}
                 <section>
-                    <h2 className={cn("text-xl font-bold uppercase tracking-wide mb-3 flex items-center gap-2", textPrimary)}>
+                    <h2 className={cn("text-xl font-bold uppercase tracking-wide mb-2 flex items-center gap-2", textPrimary, "print-title-section")}>
                         <span className={cn("w-6 h-6 rounded flex items-center justify-center text-xs", bgBadge)}>4</span>
                         Distribuição da Carga Tributária
                     </h2>
-                    <p className={cn("text-justify leading-relaxed mb-2", textSecondary)}>
+                    <p className={cn("text-justify leading-relaxed mb-2", textSecondary, "print-text-body")}>
                         O pagamento de impostos é composto por diversos tributos federais, estaduais e municipais. A maior fatia corresponde ao 
                         <strong> {Object.entries(summary.taxesBreakdown).sort(([,a], [,b]) => b - a)[0][0]}</strong>. Abaixo o detalhamento:
                     </p>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
                         {Object.entries(summary.taxesBreakdown).filter(([k, v]) => v > 0 && k !== 'Total').map(([key, value]) => {
                             const percentage = summary.totalTax > 0 ? (value / summary.totalTax) * 100 : 0
                             return (
@@ -550,11 +541,11 @@ export function ReportCover({ files, companyName, cnpj, isDark = false }: Report
 
                 {/* 5. Análise de Alíquota Efetiva */}
                 <section>
-                    <h2 className={cn("text-xl font-bold uppercase tracking-wide mb-3 flex items-center gap-2", textPrimary)}>
+                    <h2 className={cn("text-xl font-bold uppercase tracking-wide mb-2 print:mb-1 flex items-center gap-2", textPrimary)}>
                         <span className={cn("w-6 h-6 rounded flex items-center justify-center text-xs", bgBadge)}>5</span>
                         Análise de Alíquota e Enquadramento
                     </h2>
-                    <p className={cn("text-justify leading-relaxed", textSecondary)}>
+                    <p className={cn("text-justify leading-relaxed print:leading-snug", textSecondary)}>
                         A alíquota efetiva de <strong>{summary.effectiveRate.toFixed(2)}%</strong> reflete o peso real dos impostos sobre o faturamento.
                         Com base na Receita Bruta dos últimos 12 meses (RBT12) de <strong>{formatCurrency(summary.rbt12)}</strong>, a empresa encontra-se na <strong>{summary.currentFaixa}</strong> do Simples Nacional.
                         {summary.rbt12 < summary.nextFaixaLimit && summary.nextFaixaLimit < 4800000 && (
@@ -568,7 +559,7 @@ export function ReportCover({ files, companyName, cnpj, isDark = false }: Report
                         )}
                     </p>
                     {summary.lastMonthAnexos.length > 0 && (
-                        <ul className="list-disc list-inside mt-2 ml-4 text-justify leading-relaxed text-slate-700 dark:text-slate-300">
+                        <ul className="list-disc list-inside mt-2 print:mt-1 ml-4 text-justify leading-relaxed print:leading-snug text-slate-700 dark:text-slate-300">
                             {summary.lastMonthAnexos.map((a, idx) => (
                                 <li key={idx}>Anexo {a.anexo}: Alíquota de {a.aliquota.toFixed(2)}% sobre {formatCurrency(a.receita)}</li>
                             ))}
@@ -576,14 +567,14 @@ export function ReportCover({ files, companyName, cnpj, isDark = false }: Report
                     )}
                 </section>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 print:gap-2">
                     {/* 6. Oportunidades */}
                     <section>
-                        <h2 className={cn("text-xl font-bold uppercase tracking-wide mb-3 flex items-center gap-2", isDark ? "text-emerald-400" : "text-emerald-700")}>
+                        <h2 className={cn("text-xl font-bold uppercase tracking-wide mb-3 print:mb-1 flex items-center gap-2", isDark ? "text-emerald-400" : "text-emerald-700")}>
                             <span className={cn("w-6 h-6 rounded flex items-center justify-center text-xs", isDark ? "bg-emerald-900 text-emerald-100 [print-color-adjust:exact]" : "bg-emerald-700 text-white [print-color-adjust:exact]")}>6</span>
                             Oportunidades
                         </h2>
-                        <ul className="space-y-3">
+                        <ul className="space-y-3 print:space-y-1">
                             {summary.insights.filter(i => i.type === 'opportunity' || i.type === 'success').map((insight, idx) => (
                                 <li key={idx} className={cn("flex gap-2 items-start text-sm", textSecondary)}>
                                     <CheckCircle2 className={cn("w-4 h-4 mt-0.5 shrink-0", isDark ? "text-emerald-400" : "text-emerald-600")} />
@@ -598,11 +589,11 @@ export function ReportCover({ files, companyName, cnpj, isDark = false }: Report
 
                     {/* 7. Alertas */}
                     <section>
-                        <h2 className={cn("text-xl font-bold uppercase tracking-wide mb-3 flex items-center gap-2", isDark ? "text-amber-400" : "text-amber-700")}>
+                        <h2 className={cn("text-xl font-bold uppercase tracking-wide mb-3 print:mb-1 flex items-center gap-2", isDark ? "text-amber-400" : "text-amber-700")}>
                             <span className={cn("w-6 h-6 rounded flex items-center justify-center text-xs", isDark ? "bg-amber-900 text-amber-100 [print-color-adjust:exact]" : "bg-amber-700 text-white [print-color-adjust:exact]")}>7</span>
                             Alertas
                         </h2>
-                        <ul className="space-y-3">
+                        <ul className="space-y-3 print:space-y-1">
                             {summary.insights.filter(i => i.type === 'warning' || i.type === 'info').map((insight, idx) => (
                                 <li key={idx} className={cn("flex gap-2 items-start text-sm", textSecondary)}>
                                     <AlertTriangle className={cn("w-4 h-4 mt-0.5 shrink-0", isDark ? "text-amber-400" : "text-amber-600")} />
@@ -617,12 +608,12 @@ export function ReportCover({ files, companyName, cnpj, isDark = false }: Report
                 </div>
 
                 {/* 8. Conclusão */}
-                <section className={cn("p-6 rounded-lg border", isDark ? "bg-slate-900 border-slate-800" : "bg-slate-50 border-slate-200")}>
-                    <h2 className={cn("text-xl font-bold uppercase tracking-wide mb-3 flex items-center gap-2", textPrimary)}>
+                <section className={cn("p-4 print:p-2 rounded-lg border", isDark ? "bg-slate-900 border-slate-800" : "bg-slate-50 border-slate-200")}>
+                    <h2 className={cn("text-xl font-bold uppercase tracking-wide mb-2 print:mb-1 flex items-center gap-2", textPrimary)}>
                         <span className={cn("w-6 h-6 rounded flex items-center justify-center text-xs", bgBadge)}>8</span>
                         Conclusão
                     </h2>
-                    <p className={cn("text-justify leading-relaxed", textSecondary)}>
+                    <p className={cn("text-justify leading-relaxed print:leading-snug", textSecondary)}>
                         A análise do período indica uma empresa {summary.totalRevenue > 0 ? 'operacionalmente ativa' : 'com pouca movimentação'}, atualmente enquadrada na <strong>{summary.currentFaixa}</strong>.
                         {summary.recentTrend !== 'stable' && ` Observa-se um momento de ${summary.recentTrend === 'up' ? 'crescimento recente' : 'desaceleração'} nas operações.`} 
                         Recomenda-se {summary.mainActivity === 'Mercadorias' ? 'atenção especial à segregação de produtos monofásicos para redução legal de impostos' : 'monitoramento do Fator R para garantir a melhor alíquota nos serviços'}.
@@ -631,14 +622,14 @@ export function ReportCover({ files, companyName, cnpj, isDark = false }: Report
                 </section>
 
                 {/* 9. Contato e Ações */}
-                <section className={cn("p-6 rounded-lg border", isDark ? "bg-slate-900 border-slate-800" : "bg-slate-50 border-slate-200")}>
-                     <div className="grid md:grid-cols-2 gap-8 items-center">
+                <section className={cn("p-4 print:p-2 rounded-lg border", isDark ? "bg-slate-900 border-slate-800" : "bg-slate-50 border-slate-200", isPdfGen && "p-2")}>
+                     <div className={cn("grid md:grid-cols-2 gap-4 print:gap-2 items-center", isPdfGen && "gap-2")}>
                         <div>
-                             <h2 className={cn("text-xl font-bold uppercase tracking-wide mb-3 flex items-center gap-2", textPrimary)}>
+                             <h2 className={cn("text-xl font-bold uppercase tracking-wide mb-3 print:mb-1 flex items-center gap-2 print:text-base", textPrimary, isPdfGen && "text-base mb-1")}>
                                 <span className={cn("w-6 h-6 rounded flex items-center justify-center text-xs", bgBadge)}>9</span>
                                 Próximos Passos
                             </h2>
-                            <p className={cn("text-justify leading-relaxed mb-4", textSecondary)}>
+                            <p className={cn("text-justify leading-relaxed print:leading-snug mb-4 print:mb-2", textSecondary, isPdfGen && "text-sm leading-snug mb-2")}>
                                 Para maximizar seus resultados, nossa equipe de especialistas preparou recomendações personalizadas baseadas nos dados deste relatório.
                             </p>
                             <ul className="space-y-2 text-sm">
@@ -652,8 +643,8 @@ export function ReportCover({ files, companyName, cnpj, isDark = false }: Report
                                 </li>
                             </ul>
                         </div>
-                        <div className={cn("p-6 rounded-xl", isDark ? "bg-slate-800" : "bg-white border border-slate-200 shadow-sm")}>
-                             <h3 className={cn("font-bold mb-4 flex items-center gap-2", textPrimary)}>
+                        <div className={cn("p-6 print:p-3 rounded-xl", isDark ? "bg-slate-800" : "bg-white border border-slate-200 shadow-sm", isPdfGen && "p-3")}>
+                             <h3 className={cn("font-bold mb-4 print:mb-2 flex items-center gap-2 print:text-base", textPrimary, isPdfGen && "text-base mb-2")}>
                                 <MessageCircle className="w-5 h-5 text-blue-500" />
                                 Fale com a Integra
                             </h3>
@@ -675,7 +666,7 @@ export function ReportCover({ files, companyName, cnpj, isDark = false }: Report
                      </div>
                 </section>
 
-                <div className="pt-12 text-center">
+                <div className="pt-6 text-center">
                     <p className="text-xs text-slate-400">Relatório gerado automaticamente por Inteligência Artificial - V0 PGDAS</p>
                 </div>
 

@@ -157,10 +157,8 @@ export async function GET(req: NextRequest) {
     if (isPaginated && !isOnlyConsolidated) {
       pdfOptions = {
         ...pdfOptions,
-        width: '1280px',
-        height: '2600px',
-        scale: 0.75,
-        margin: { top: 20, right: 20, bottom: 20, left: 20 },
+        format: 'A4',
+        margin: { top: '1.5cm', right: '1.5cm', bottom: '1.5cm', left: '1.5cm' },
       }
     } else {
       pdfOptions = {

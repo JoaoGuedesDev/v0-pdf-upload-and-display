@@ -129,3 +129,78 @@
     font-synthesis: none;
   }
 }
+
+@media print {
+  @page {
+    size: A4;
+    margin: 1.5cm;
+  }
+
+  body {
+    background: #ffffff;
+    color: #111111;
+  }
+
+  .print-page {
+    width: 18cm;
+    margin: 0 auto;
+  }
+
+  .print-section {
+    page-break-inside: avoid;
+  }
+
+  .print-title-main {
+    font-size: 17pt;
+    font-weight: 700;
+    line-height: 1.1;
+  }
+
+  .print-title-section {
+    font-size: 13pt;
+    font-weight: 600;
+    line-height: 1.1;
+  }
+
+  .print-text-body {
+    font-size: 9.5pt;
+    line-height: 1.15;
+  }
+
+  .print-text-muted {
+    font-size: 9pt;
+    line-height: 1.15;
+    color: #4b5563;
+  }
+
+  .print-chart {
+    max-width: 18cm;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .print-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .print-table th,
+  .print-table td {
+    font-size: 8.5pt;
+    line-height: 1.1;
+    padding: 4px 6px;
+  }
+
+  .print-table th {
+    font-weight: 600;
+  }
+
+  .print-number {
+    text-align: right;
+  }
+
+  .print-columns-2 {
+    column-count: 2;
+    column-gap: 1cm;
+  }
+}
