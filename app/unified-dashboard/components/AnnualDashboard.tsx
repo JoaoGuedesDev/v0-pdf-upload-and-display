@@ -161,12 +161,173 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [files])
 
+    // State for Consolidated View (Multi-Company)
+    const [selectedUnifyCnpjs, setSelectedUnifyCnpjs] = useState<Set<string>>(new Set())
+    const [showUnifyModal, setShowUnifyModal] = useState(false)
+
     // Filter files for the current view (Consolidated Charts/Tables)
     // We only want to show data for the ACTIVE company
     const companyFiles = useMemo(() => {
+        if (activeCnpj === 'UNIFIED') {
+             const relevantFiles = localFiles.filter(f => selectedUnifyCnpjs.has(f.data.identificacao.cnpj))
+             
+             // Merge logic for UNIFIED view
+             const groupedByPeriod = new Map<string, MonthlyFile[]>()
+             relevantFiles.forEach(f => {
+                 const p = f.data.identificacao.periodoApuracao
+                 if (!groupedByPeriod.has(p)) groupedByPeriod.set(p, [])
+                 groupedByPeriod.get(p)?.push(f)
+             })
+
+             const merged: MonthlyFile[] = []
+             groupedByPeriod.forEach((files, period) => {
+                 if (files.length === 0) return
+
+                 // Base clone from first file
+                 const base = JSON.parse(JSON.stringify(files[0]))
+                 base.data.identificacao.razaoSocial = `Consolidado (${selectedUnifyCnpjs.size} Empresas)`
+                 base.data.identificacao.cnpj = 'UNIFIED'
+                 base.filename = `Consolidado_${period.replace(/\//g, '-')}`
+
+                 // Sum others
+                 for (let i = 1; i < files.length; i++) {
+                     const f = files[i]
+                     
+                     // Sum Receitas
+                     if (base.data.receitas && f.data.receitas) {
+                        base.data.receitas.receitaPA = (base.data.receitas.receitaPA || 0) + (f.data.receitas.receitaPA || 0)
+                        base.data.receitas.rbt12 = (base.data.receitas.rbt12 || 0) + (f.data.receitas.rbt12 || 0)
+                     }
+                     
+                     // Sum Tributos
+                     const tBase = base.data.tributos || {}
+                     const tCurr = f.data.tributos || {}
+                     Object.keys(tBase).forEach(k => {
+                         if (typeof tBase[k] === 'number') {
+                             tBase[k] = (tBase[k] || 0) + (tCurr[k] || 0)
+                         }
+                     })
+                     
+                     // Merge Activity Details (Concat)
+                     const dBase = base.data.calculos?.analise_aliquota?.detalhe || []
+                     const dCurr = f.data.calculos?.analise_aliquota?.detalhe || []
+                     if (base.data.calculos?.analise_aliquota) {
+                        base.data.calculos.analise_aliquota.detalhe = [...dBase, ...dCurr]
+                     } else if (base.data.calculos && dCurr.length > 0) {
+                         base.data.calculos.analise_aliquota = { detalhe: dCurr }
+                     }
+
+                     // Sum Tributos Breakdown
+                    const breakdowns = [
+                        'tributosMercadoriasInterno', 'tributosMercadoriasExterno',
+                        'tributosIndustriaInterno', 'tributosIndustriaExterno',
+                        'tributosServicosInterno', 'tributosServicosExterno'
+                    ]
+                    breakdowns.forEach(bk => {
+                        const bBase = base.data[bk]
+                        const bCurr = f.data[bk]
+                        if (bBase && bCurr) {
+                            Object.keys(bBase).forEach(k => {
+                                if (typeof bBase[k] === 'number') {
+                                    bBase[k] += (bCurr[k] || 0)
+                                }
+                            })
+                        } else if (bCurr) {
+                            base.data[bk] = JSON.parse(JSON.stringify(bCurr))
+                        }
+                    })
+
+                    // Helper to parse values (same as in consolidatedData)
+                    const parseValue = (val: any) => {
+                         if (typeof val === 'number') return val
+                         if (typeof val === 'string') {
+                             let v = val.replace(/[R$\s]/g, '')
+                             if (v.includes(',') && !v.includes('.')) {
+                                 v = v.replace(',', '.')
+                             } else if (v.includes('.') && v.includes(',')) {
+                                 const lastDot = v.lastIndexOf('.')
+                                 const lastComma = v.lastIndexOf(',')
+                                 if (lastComma > lastDot) { 
+                                     v = v.replace(/\./g, '').replace(',', '.')
+                                 } else { 
+                                     v = v.replace(/,/g, '')
+                                 }
+                             }
+                             return Number(v) || 0
+                         }
+                         return 0
+                    }
+
+                    // Merge Receitas Anteriores (History)
+                    const mergeHistoryList = (listBase: any[], listCurr: any[], keyName: string, valName: string) => {
+                         if (!listCurr) return listBase || []
+                         if (!listBase) return JSON.parse(JSON.stringify(listCurr))
+                         
+                         const map = new Map<string, number>()
+                         
+                         // Helper to normalize period
+                         const norm = (p: string) => p ? p.trim() : ''
+                         
+                         // Add Base
+                         listBase.forEach(item => {
+                             const k = norm(item[keyName])
+                             if (k) map.set(k, (map.get(k) || 0) + parseValue(item[valName]))
+                         })
+                         
+                         // Add Curr
+                         listCurr.forEach(item => {
+                             const k = norm(item[keyName])
+                             if (k) map.set(k, (map.get(k) || 0) + parseValue(item[valName]))
+                         })
+                         
+                         // Reconstruct
+                         return Array.from(map.entries()).map(([k, v]) => ({ [keyName]: k, [valName]: v }))
+                    }
+
+                    // Merge n8n format
+                    if (base.data.receitas_anteriores || f.data.receitas_anteriores) {
+                         base.data.receitas_anteriores = base.data.receitas_anteriores || {}
+                         const fRec = f.data.receitas_anteriores || {}
+                         
+                         base.data.receitas_anteriores.mercado_interno = mergeHistoryList(
+                             base.data.receitas_anteriores.mercado_interno,
+                             fRec.mercado_interno,
+                             'mes', 'valor'
+                         )
+                         base.data.receitas_anteriores.mercado_externo = mergeHistoryList(
+                             base.data.receitas_anteriores.mercado_externo,
+                             fRec.mercado_externo,
+                             'mes', 'valor'
+                         )
+                    }
+
+                    // Merge das-parse format
+                    if (base.data.historico || f.data.historico) {
+                         base.data.historico = base.data.historico || {}
+                         const fHist = f.data.historico || {}
+                         
+                         base.data.historico.mercadoInterno = mergeHistoryList(
+                             base.data.historico.mercadoInterno,
+                             fHist.mercadoInterno,
+                             'periodo', 'valor'
+                         )
+                         base.data.historico.mercadoExterno = mergeHistoryList(
+                             base.data.historico.mercadoExterno,
+                             fHist.mercadoExterno,
+                             'periodo', 'valor'
+                         )
+                    }
+                 }
+                 merged.push(base)
+             })
+             
+             return merged
+        }
+
         if (!activeCnpj) return localFiles
         return localFiles.filter(f => f.data.identificacao.cnpj === activeCnpj)
-    }, [localFiles, activeCnpj])
+
+    }, [localFiles, activeCnpj, selectedUnifyCnpjs])
 
     // Filtered files for PDF Pages / Tables (respects user selection)
     const filteredCompanyFiles = useMemo(() => {
@@ -249,6 +410,16 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
     const uniqueCnpjs = useMemo(() => {
         const cnpjs = new Set(localFiles.map(f => f.data.identificacao.cnpj))
         return Array.from(cnpjs)
+    }, [localFiles])
+    
+    const uniqueCompanies = useMemo(() => {
+        const map = new Map<string, string>()
+        localFiles.forEach(f => {
+            const cnpj = f.data.identificacao.cnpj
+            const name = f.data.identificacao.razaoSocial
+            if (cnpj && name) map.set(cnpj, name)
+        })
+        return Array.from(map.entries()).map(([cnpj, name]) => ({ cnpj, name }))
     }, [localFiles])
     
     const isMultiCompany = uniqueCnpjs.length > 1
@@ -785,6 +956,9 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
         const handler = (event: MessageEvent) => {
             if (event.data?.type === 'EXPORT_PDF') {
                 openPdfSelection()
+            }
+            if (event.data?.type === 'OPEN_UNIFY_MODAL') {
+                setShowUnifyModal(true)
             }
         }
         window.addEventListener('message', handler)
@@ -2011,6 +2185,19 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                 </Button>
                             )
                         })}
+                        
+                        {/* Tab Consolidado (Gerado após unificação) */}
+                        {selectedUnifyCnpjs.size > 0 && (
+                            <Button
+                                variant={activeCnpj === 'UNIFIED' ? "secondary" : "ghost"}
+                                size="sm"
+                                className={cn("shrink-0 gap-2", activeCnpj === 'UNIFIED' && "font-bold")}
+                                onClick={() => setActiveCnpj('UNIFIED')}
+                            >
+                                <Grid className="w-4 h-4" />
+                                Visão Unificada ({selectedUnifyCnpjs.size})
+                            </Button>
+                        )}
                     </div>
                 )}
 
@@ -2171,6 +2358,67 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                         </div>
                     )}
 
+                    {/* Modal de Unificação de Empresas */}
+                    {showUnifyModal && !isPdfGen && (
+                        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                            <Card className="w-full max-w-lg shadow-2xl border-border/50 bg-background/95 backdrop-blur">
+                                <CardHeader className="border-b pb-4">
+                                    <div className="flex items-center justify-between">
+                                        <CardTitle className="text-lg font-bold">Unificar Resultados</CardTitle>
+                                        <Button variant="ghost" size="icon" onClick={() => setShowUnifyModal(false)}>
+                                            <X className="w-4 h-4" />
+                                        </Button>
+                                    </div>
+                                    <p className="text-sm text-muted-foreground mt-1">
+                                        Selecione as empresas que deseja consolidar em uma única visualização.
+                                    </p>
+                                </CardHeader>
+                                <CardContent className="pt-4">
+                                    <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-2">
+                                        {uniqueCompanies.map(({ cnpj, name }) => (
+                                            <div 
+                                                key={cnpj} 
+                                                className="flex items-center gap-3 p-3 rounded-lg border hover:bg-muted/50 cursor-pointer transition-colors"
+                                                onClick={() => {
+                                                    const next = new Set(selectedUnifyCnpjs)
+                                                    if (next.has(cnpj)) next.delete(cnpj)
+                                                    else next.add(cnpj)
+                                                    setSelectedUnifyCnpjs(next)
+                                                }}
+                                            >
+                                                <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${selectedUnifyCnpjs.has(cnpj) ? 'bg-primary border-primary text-primary-foreground' : 'border-muted-foreground'}`}>
+                                                    {selectedUnifyCnpjs.has(cnpj) && <CheckCircle className="w-3.5 h-3.5" />}
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="font-medium text-sm truncate">{name}</p>
+                                                    <p className="text-xs text-muted-foreground">{cnpj}</p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <div className="flex justify-end pt-4 border-t mt-4 gap-2">
+                                        <Button variant="ghost" onClick={() => setShowUnifyModal(false)}>
+                                            Cancelar
+                                        </Button>
+                                        <Button 
+                                            onClick={() => {
+                                                if (selectedUnifyCnpjs.size > 0) {
+                                                    setActiveCnpj('UNIFIED')
+                                                    setSelectedFileIndex(null)
+                                                    setTargetFilename(null)
+                                                    setShowUnifyModal(false)
+                                                }
+                                            }}
+                                            disabled={selectedUnifyCnpjs.size === 0}
+                                        >
+                                            Confirmar Unificação ({selectedUnifyCnpjs.size})
+                                        </Button>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </div>
+                    )}
+
                     {/* Common Actions (Visible on both Consolidated and Single File views) */}
                     {!isPdfGen && (
                         <div className="flex justify-end mb-6 px-6 pt-4 mx-6 mt-4">
@@ -2181,6 +2429,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                 isSaving={isSaving}
                                 onDownloadSingle={currentFile ? () => handleSingleFileDownload(currentFile) : undefined}
                                 onDownloadConsolidated={isConsolidated ? handleConsolidatedDownload : undefined}
+                                onUnify={isMultiCompany ? () => setShowUnifyModal(true) : undefined}
                                 hideExportButton={isEmbedded}
                                 hideUploadButton={isEmbedded}
                             />
@@ -3141,6 +3390,13 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                     onRemoveFromQueue={handleRemoveFromQueue}
                     activeTab={activeTab}
                     onTabSelect={setActiveTab}
+                    hasUnifiedResults={selectedUnifyCnpjs.size > 0}
+                    onClearUnifiedResults={() => {
+                        setSelectedUnifyCnpjs(new Set())
+                        if (activeCnpj === 'UNIFIED') {
+                            setActiveCnpj(undefined)
+                        }
+                    }}
                 />
             )}
 

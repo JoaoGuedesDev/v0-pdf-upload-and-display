@@ -3,7 +3,7 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { ConfiguracaoProcessamento } from "@/components/dashboard/ConfiguracaoProcessamento"
-import { ExternalLink, CheckCircle, XCircle, Clock, Trash2, LayoutDashboard, ArrowLeft, Download } from "lucide-react"
+import { ExternalLink, CheckCircle, XCircle, Clock, Trash2, LayoutDashboard, ArrowLeft, Download, Grid } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ModeToggle } from "@/components/mode-toggle"
 import { HeaderLogo } from '@/components/header-logo'
@@ -304,6 +304,18 @@ export default function Home() {
 
             <div className="flex items-center gap-2">
               <ModeToggle />
+              <Button 
+                variant="outline"
+                className="gap-2 border-dashed"
+                onClick={() => {
+                 const iframe = document.querySelector('iframe')
+                 if (iframe && iframe.contentWindow) {
+                   iframe.contentWindow.postMessage({ type: 'OPEN_UNIFY_MODAL' }, '*')
+                 }
+               }}>
+                 <Grid className="w-4 h-4 mr-2" />
+                 Unificar Resultados
+              </Button>
               <Button onClick={() => {
                  const iframe = document.querySelector('iframe')
                  if (iframe && iframe.contentWindow) {

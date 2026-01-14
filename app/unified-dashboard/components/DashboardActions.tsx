@@ -1,7 +1,7 @@
 'use client'
 
 import { Button } from "@/components/ui/button"
-import { Download, Moon, Sun } from "lucide-react"
+import { Download, Moon, Sun, Grid } from "lucide-react"
 import { useTheme } from "next-themes"
 
 interface DashboardActionsProps {
@@ -12,11 +12,12 @@ interface DashboardActionsProps {
   isSaving?: boolean
   onDownloadSingle?: () => void
   onDownloadConsolidated?: () => void
+  onUnify?: () => void
   hideExportButton?: boolean
   hideUploadButton?: boolean
 }
 
-export function DashboardActions({ onUpload, isUploading, onExportPdf, className, isSaving, onDownloadSingle, onDownloadConsolidated, hideExportButton, hideUploadButton }: DashboardActionsProps) {
+export function DashboardActions({ onUpload, isUploading, onExportPdf, className, isSaving, onDownloadSingle, onDownloadConsolidated, onUnify, hideExportButton, hideUploadButton }: DashboardActionsProps) {
   const { theme, setTheme } = useTheme()
 
   return (
@@ -41,6 +42,16 @@ export function DashboardActions({ onUpload, isUploading, onExportPdf, className
         >
           <Download className="h-4 w-4" />
           Baixar PDF (Mês)
+        </Button>
+      )}
+      {onUnify && (
+        <Button 
+          variant="ghost" 
+          className="bg-[#007AFF]/10 text-[#007AFF] hover:bg-[#007AFF]/20 dark:bg-[#007AFF]/20 dark:text-[#00C2FF] gap-2 mr-2" 
+          onClick={onUnify}
+        >
+          <Grid className="h-4 w-4" />
+          Unificar Resultados
         </Button>
       )}
       {!hideExportButton && (
