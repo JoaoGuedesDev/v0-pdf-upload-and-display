@@ -11,9 +11,11 @@ interface ReportCoverProps {
     companyName: string
     cnpj: string
     isDark?: boolean
+    isPdfGen?: boolean
+    unifiedCompanies?: { cnpj: string; name: string }[]
 }
 
-export function ReportCover({ files, companyName, cnpj, isDark = false }: ReportCoverProps) {
+export function ReportCover({ files, companyName, cnpj, isDark = false, isPdfGen = false, unifiedCompanies }: ReportCoverProps) {
     
     const summary = useMemo(() => {
         if (!files || files.length === 0) return null
@@ -49,6 +51,8 @@ export function ReportCover({ files, companyName, cnpj, isDark = false }: Report
 
         // Quarter tracking
         const quarters: Record<string, number> = {}
+
+        const companyMap = new Map<string, { name: string; revenue: number }>()
 
         sortedFiles.forEach(file => {
             const dados = file.data as any
@@ -172,10 +176,21 @@ export function ReportCover({ files, companyName, cnpj, isDark = false }: Report
             marketBreakdown.interno += (revenue - rpaExterno)
 
             // Track Quarter
-            const parts = file.data.identificacao.periodoApuracao.split('/')
-            if (parts.length >= 2) {
-                const month = parseInt(parts.length === 3 ? parts[1] : parts[0])
-                const year = parts.length === 3 ? parts[2] : parts[1]
+            const rawPeriod = String(file.data.identificacao.periodoApuracao || '')
+            const datePart = rawPeriod.split(' ')[0]
+            const parts = datePart.split('/')
+            let month = 0
+            let year = 0
+            if (parts.length === 2) {
+                month = parseInt(parts[0])
+                year = parseInt(parts[1])
+                if (!isNaN(year) && year < 100) year = 2000 + year
+            } else if (parts.length === 3) {
+                month = parseInt(parts[1])
+                year = parseInt(parts[2])
+                if (!isNaN(year) && year < 100) year = 2000 + year
+            }
+            if (!isNaN(month) && month > 0 && !isNaN(year) && year > 0) {
                 const quarter = Math.ceil(month / 3)
                 const qKey = `${quarter}º Trimestre/${year}`
                 quarters[qKey] = (quarters[qKey] || 0) + revenue
@@ -193,6 +208,15 @@ export function ReportCover({ files, companyName, cnpj, isDark = false }: Report
             activityBreakdown.mercadorias += mercadorias
             activityBreakdown.servicos += servicos
             activityBreakdown.industria += industria
+
+            const cnpj = file.data.identificacao.cnpj || ''
+            const name = file.data.identificacao.razaoSocial || ''
+            if (cnpj) {
+                const current = companyMap.get(cnpj) || { name, revenue: 0 }
+                current.revenue += revenue
+                if (!current.name && name) current.name = name
+                companyMap.set(cnpj, current)
+            }
         })
 
         if (minRevenue.amount === Infinity) minRevenue = { amount: 0, period: '-' }
@@ -364,6 +388,42 @@ export function ReportCover({ files, companyName, cnpj, isDark = false }: Report
             else if (last3Avg < averageRevenue * 0.9) recentTrend = 'down'
         }
 
+        let companyCount = companyMap.size
+        let topCompanyName = ''
+        let topCompanyShare = 0
+        let companies = Array.from(companyMap.entries()).map(([cnpj, info]) => {
+            let n = (info.name || '').trim()
+            if (n) {
+                n = n.replace(/\b(LTDA|LTD\.?|ME|EPP|S\/A|SA)\b\.?/gi, '').trim()
+            }
+            return { cnpj, name: n || info.name || cnpj, revenue: info.revenue }
+        })
+        if (companyCount > 1 && totalRevenue > 0) {
+            let topRevenue = 0
+            companyMap.forEach(({ name, revenue }) => {
+                if (revenue > topRevenue) {
+                    topRevenue = revenue
+                    topCompanyName = name || ''
+                }
+            })
+            if (topRevenue > 0) {
+                topCompanyShare = (topRevenue / totalRevenue) * 100
+            }
+        }
+
+        if (unifiedCompanies && unifiedCompanies.length > 0) {
+            companyCount = unifiedCompanies.length
+            companies = unifiedCompanies.map(({ cnpj, name }) => {
+                let n = (name || '').trim()
+                if (n) {
+                    n = n.replace(/\b(LTDA|LTD\.?|ME|EPP|S\/A|SA)\b\.?/gi, '').trim()
+                }
+                return { cnpj, name: n || name || cnpj, revenue: 0 }
+            })
+            topCompanyName = ''
+            topCompanyShare = 0
+        }
+
         return {
             period: `${formatPeriod(startDate)} a ${formatPeriod(endDate)}`,
             totalRevenue,
@@ -389,9 +449,13 @@ export function ReportCover({ files, companyName, cnpj, isDark = false }: Report
             currentFaixa,
             nextFaixaLimit,
             rbt12,
-            recentTrend
+            recentTrend,
+            companyCount,
+            topCompanyName,
+            topCompanyShare,
+            companies
         }
-    }, [files])
+    }, [files, unifiedCompanies])
 
     if (!summary) return null
 
@@ -418,8 +482,25 @@ export function ReportCover({ files, companyName, cnpj, isDark = false }: Report
                     </p>
                 </div>
                 <div className="text-right">
-                    <p className={cn("text-sm font-bold uppercase tracking-widest print:text-xs", textMuted)}>{companyName}</p>
-                    <p className="text-xs text-slate-400 font-mono print:text-[10px]">{cnpj}</p>
+                    {summary.companyCount > 1 && summary.companies && summary.companies.length > 0 ? (
+                        <div className="space-y-0.5">
+                            {summary.companies.map((c) => (
+                                <div key={c.cnpj} className="leading-tight">
+                                    <p className={cn("text-[11px] font-semibold uppercase tracking-widest print:text-[10px]", textMuted)}>
+                                        {c.name}
+                                    </p>
+                                    <p className="text-[10px] text-slate-400 font-mono print:text-[9px]">
+                                        {c.cnpj}
+                                    </p>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <>
+                            <p className={cn("text-sm font-bold uppercase tracking-widest print:text-xs", textMuted)}>{companyName}</p>
+                            <p className="text-xs text-slate-400 font-mono print:text-[10px]">{cnpj}</p>
+                        </>
+                    )}
                 </div>
             </div>
 
@@ -474,10 +555,17 @@ export function ReportCover({ files, companyName, cnpj, isDark = false }: Report
                     </div>
 
                     <p className={cn("text-justify leading-relaxed text-sm opacity-80", textSecondary, "print-text-body")}>
-                        Referente ao período de <strong>{summary.period}</strong>. A carga tributária efetiva média foi de <strong>{summary.effectiveRate.toFixed(2)}%</strong>.
+                        Referente ao período de <strong>{summary.period}</strong>, com <strong>{summary.fileCount}</strong> competências apuradas
+                        {summary.companyCount > 1 && (
+                            <> e consolidação de <strong>{summary.companyCount}</strong> empresas</>
+                        )}
+                        . O faturamento bruto total foi de <strong>{formatCurrency(summary.totalRevenue)}</strong>, com carga tributária efetiva média de <strong>{summary.effectiveRate.toFixed(2)}%</strong>.
+                        {summary.companyCount > 1 && summary.topCompanyShare > 0 && (
+                            <> A maior empresa do grupo responde por aproximadamente <strong>{summary.topCompanyShare.toFixed(1)}%</strong> do faturamento consolidado.</>
+                        )}
                         {summary.rbt12Oscillation.message && ` ${summary.rbt12Oscillation.message}`}
                         {summary.accumulatedRevenuePreviousYear > 0 && (
-                            <> Comparado ao acumulado do ano anterior, observamos uma {summary.accumulatedRevenueCurrentYear > summary.accumulatedRevenuePreviousYear ? 'evolução' : 'retração'} de {Math.abs(((summary.accumulatedRevenueCurrentYear - summary.accumulatedRevenuePreviousYear) / summary.accumulatedRevenuePreviousYear) * 100).toFixed(1)}%.</>
+                            <> Em relação ao acumulado do ano anterior, observamos uma {summary.accumulatedRevenueCurrentYear > summary.accumulatedRevenuePreviousYear ? 'evolução' : 'retração'} de {Math.abs(((summary.accumulatedRevenueCurrentYear - summary.accumulatedRevenuePreviousYear) / summary.accumulatedRevenuePreviousYear) * 100).toFixed(1)}%.</>
                         )}
                     </p>
                 </section>
@@ -490,9 +578,22 @@ export function ReportCover({ files, companyName, cnpj, isDark = false }: Report
                     </h2>
                     <p className={cn("text-justify leading-relaxed", textSecondary, "print-text-body")}>
                         A composição da receita demonstra uma predominância de <strong>{summary.mainActivity}</strong>. 
-                        Do total faturado, <strong>{formatCurrency(summary.activityBreakdown.servicos)}</strong> provêm de Serviços, 
-                        <strong> {formatCurrency(summary.activityBreakdown.mercadorias)}</strong> de Comércio e 
-                        <strong> {formatCurrency(summary.activityBreakdown.industria)}</strong> de Indústria.
+                        {(() => {
+                            const partes: string[] = []
+                            if (summary.activityBreakdown.servicos > 0) {
+                                partes.push(`${formatCurrency(summary.activityBreakdown.servicos)} provêm de Serviços`)
+                            }
+                            if (summary.activityBreakdown.mercadorias > 0) {
+                                partes.push(`${formatCurrency(summary.activityBreakdown.mercadorias)} de Comércio`)
+                            }
+                            if (summary.activityBreakdown.industria > 0) {
+                                partes.push(`${formatCurrency(summary.activityBreakdown.industria)} de Indústria`)
+                            }
+                            if (partes.length === 0) return ''
+                            if (partes.length === 1) return ` Do total faturado, ${partes[0]}.`
+                            if (partes.length === 2) return ` Do total faturado, ${partes[0]} e ${partes[1]}.`
+                            return ` Do total faturado, ${partes[0]}, ${partes[1]} e ${partes[2]}.`
+                        })()}
                         {summary.marketBreakdown.externo > 0 && ` A atuação no mercado externo representou ${formatCurrency(summary.marketBreakdown.externo)} do total.`}
                     </p>
                 </section>

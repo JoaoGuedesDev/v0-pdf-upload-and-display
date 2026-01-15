@@ -457,6 +457,16 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
         })
         return Array.from(map.entries()).map(([cnpj, name]) => ({ cnpj, name }))
     }, [localFiles])
+
+    const headerCompanies = useMemo(() => {
+        const activeUnifiedView = unifiedViews.find(v => v.id === activeCnpj)
+        if (!activeUnifiedView) return undefined
+        const nameMap = new Map(uniqueCompanies.map(c => [c.cnpj, c.name]))
+        return activeUnifiedView.cnpjs.map(cnpj => ({
+            cnpj,
+            name: nameMap.get(cnpj) || cnpj
+        }))
+    }, [unifiedViews, activeCnpj, uniqueCompanies])
     
     const isMultiCompany = uniqueCnpjs.length > 1
 
@@ -786,6 +796,9 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
             // Update target_cnpj
             if (activeCnpj) {
                 params.set('target_cnpj', activeCnpj)
+                if (activeCnpj === 'UNIFIED') {
+                    params.set('unify', Array.from(selectedUnifyCnpjs).join(','))
+                }
             }
             
             // Remove visible params as Single View handles its own visibility
@@ -2365,8 +2378,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                         </Button>
                                     </div>
                                     <div className="space-y-1 max-h-[50vh] overflow-y-auto pr-2">
-                                        {localFiles
-                                            .filter(f => f.data.identificacao.cnpj === activeCnpj)
+                                        {[...sortedFiles]
                                             .sort((a, b) => {
                                                 // Sort by period
                                                 const getVal = (d: string) => {
@@ -2551,6 +2563,8 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                         companyName={sortedFiles[0]?.data.identificacao.razaoSocial || activeCnpj || 'Empresa'}
                                         cnpj={activeCnpj || ''}
                                         isDark={isDark}
+                                        isPdfGen={isPdfGen}
+                                        unifiedCompanies={headerCompanies}
                                     />
                                 </div>
                             )}

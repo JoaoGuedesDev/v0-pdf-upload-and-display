@@ -52,9 +52,11 @@ export async function getMonthlyFiles(): Promise<{ files: MonthlyFile[], invalid
              invalidFiles.push(...content.invalidFiles);
            }
         } else if (content.success && content.dados) {
-          // Old single file format
+          const stats = fs.statSync(filePath);
           const item: MonthlyFile = {
+            id: file,
             filename: file,
+            uploadDate: stats.mtime.toISOString(),
             data: content.dados as DashboardData
           };
           validateAndAdd([item]);
