@@ -99,6 +99,7 @@ export default async function Page({ params, searchParams }: any) {
             receitas_anteriores={(data as any).receitas_anteriores}
             isOwner={isOwner}
             invalidFiles={invalidFiles}
+            partnerConfigs={(data as any).partnerConfigs}
           />
         </main>
       )

@@ -67,8 +67,193 @@ interface AnnualDashboardProps {
     isEmbedded?: boolean
 }
 
+interface PartnerConfig {
+    id: string
+    name: string
+    percentage: number
+}
 
-export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex, initialTargetCnpj, isPdfGen, onFilesUpdated, receitas_anteriores, isOwner = true, invalidFiles, onInvalidFilesUpdated, isEmbedded: propIsEmbedded }: AnnualDashboardProps) {
+const PartnerRow = ({ 
+    partner, 
+    totalDistribution, 
+    isPdfGen, 
+    onUpdate, 
+    onRemove 
+}: {
+    partner: PartnerConfig
+    totalDistribution: number
+    isPdfGen: boolean
+    onUpdate: (id: string, field: 'name' | 'percentage', value: string) => void
+    onRemove: (id: string) => void
+}) => {
+    const [percentageInput, setPercentageInput] = useState(
+        partner.percentage ? String(partner.percentage).replace('.', ',') : ''
+    )
+    const [nameInput, setNameInput] = useState(partner.name || '')
+
+    // Update local state if prop changes (e.g. from initial load or external reset)
+    // We compare with current parsed value to avoid overriding user input while typing if they match conceptually
+    useEffect(() => {
+        const currentNum = Number(percentageInput.replace(',', '.'))
+        if (!isNaN(currentNum) && Math.abs(currentNum - partner.percentage) > 0.001) {
+             setPercentageInput(String(partner.percentage).replace('.', ','))
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [partner.percentage])
+
+    // We initialize nameInput with partner.name but do NOT sync back from props in useEffect
+    // to avoid cursor jumps/reverts during fast typing if parent re-renders are delayed.
+    // Since this component is the primary editor for this field, local state is sufficient.
+    // If the partner ID changes, the component is remounted and state is reset anyway.
+
+    const amount = (totalDistribution * (partner.percentage || 0)) / 100
+
+    return (
+        <TableRow className="align-middle group">
+            <TableCell className="py-1">
+                {isPdfGen ? (
+                    <span className="font-medium">{partner.name || 'Sócio'}</span>
+                ) : (
+                    <input
+                        value={nameInput}
+                        onChange={e => {
+                            setNameInput(e.target.value)
+                            onUpdate(partner.id, 'name', e.target.value)
+                        }}
+                        className="w-full bg-transparent border-b border-transparent hover:border-border focus:border-primary px-2 py-1 text-xs outline-none transition-colors"
+                        placeholder="Nome do sócio"
+                    />
+                )}
+            </TableCell>
+            <TableCell className="py-1 text-right">
+                {isPdfGen ? (
+                    <span>{(partner.percentage || 0).toFixed(2)}%</span>
+                ) : (
+                    <div className="relative flex items-center justify-end">
+                        <input
+                            value={percentageInput}
+                            onChange={e => {
+                                setPercentageInput(e.target.value)
+                                // Optional: Real-time update if valid number and not ending in comma/dot
+                                const val = e.target.value
+                                if (val && !val.endsWith(',') && !val.endsWith('.')) {
+                                    onUpdate(partner.id, 'percentage', val)
+                                }
+                            }}
+                            onBlur={() => onUpdate(partner.id, 'percentage', percentageInput)}
+                            className="w-20 bg-transparent border-b border-transparent hover:border-border focus:border-primary px-2 py-1 text-right text-xs outline-none transition-colors"
+                            placeholder="0,00"
+                        />
+                        <span className="text-muted-foreground ml-1">%</span>
+                    </div>
+                )}
+            </TableCell>
+            <TableCell className="py-1 text-right">
+                <span className="font-semibold text-emerald-700 dark:text-emerald-300">
+                    {amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </span>
+            </TableCell>
+            {!isPdfGen && (
+                <TableCell className="py-1 text-right w-10">
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => onRemove(partner.id)}
+                    >
+                        <Trash2 className="w-3 h-3" />
+                    </Button>
+                </TableCell>
+            )}
+        </TableRow>
+    )
+}
+
+
+function computeRevenueBreakdownForFile(file: MonthlyFile) {
+    const dados = file.data as any
+    let detalhe = dados.calculos?.analise_aliquota?.detalhe || []
+    const parcelasGlobal = dados.calculos?.analise_aliquota?.parcelas_ajuste || []
+
+    const normalizeAnexo = (v: any): number => {
+        if (typeof v === 'number') return v
+        const s = String(v || '').trim().toUpperCase()
+        if (!s) return 0
+        const n = Number(s)
+        if (!isNaN(n)) return n
+        const clean = s.replace('ANEXO', '').trim()
+        const n2 = Number(clean)
+        if (!isNaN(n2)) return n2
+        const romanos: Record<string, number> = { I: 1, II: 2, III: 3, IV: 4, V: 5 }
+        if (romanos[clean]) return romanos[clean]
+        return 0
+    }
+
+    if (detalhe.length > 0 && parcelasGlobal.length > 0) {
+        detalhe = detalhe.map((d: any) => {
+            if (!d.parcelas_ajuste || d.parcelas_ajuste.length === 0) {
+                const anexoNum = normalizeAnexo(d.anexo || d.anexo_numero)
+                const matching = parcelasGlobal.filter((p: any) => normalizeAnexo(p.numero) === anexoNum)
+                if (matching.length > 0) {
+                    return { ...d, parcelas_ajuste: matching }
+                }
+            }
+            return d
+        })
+    }
+
+    let servicos = 0
+    let mercadorias = 0
+    let industria = 0
+
+    if (detalhe.length > 0) {
+        detalhe.forEach((d: any) => {
+            const anexo = normalizeAnexo(d.anexo)
+            const valor = d.parcelas_ajuste?.reduce((acc: number, p: any) => acc + (Number(p.valor) || 0), 0) || 0
+
+            if ([1].includes(anexo)) {
+                mercadorias += valor
+            } else if ([2].includes(anexo)) {
+                industria += valor
+            } else if ([3, 4, 5].includes(anexo)) {
+                servicos += valor
+            }
+        })
+    } else {
+        const rpa = dados.receitas?.receitaPA || 0
+        if (dados.cenario === 'servicos') servicos = rpa
+        else if (dados.cenario === 'mercadorias') mercadorias = rpa
+        else if (dados.cenario === 'misto') {
+            const atividades = dados.debug?.atividades || []
+            if (atividades.length > 0) {
+                atividades.forEach((at: any) => {
+                    const nome = String(at.nome || at.name || at.descricao || '').toLowerCase()
+                    const val = Number(at.receita_bruta_informada || 0)
+                    if (nome.includes('servi')) servicos += val
+                    else mercadorias += val
+                })
+            } else {
+                const tServ = (dados.tributosServicosInterno?.Total || 0) + (dados.tributosServicosExterno?.Total || 0)
+                const tMerc = (dados.tributosMercadoriasInterno?.Total || 0) + (dados.tributosMercadoriasExterno?.Total || 0)
+                const tInd = (dados.tributosIndustriaInterno?.Total || 0) + (dados.tributosIndustriaExterno?.Total || 0)
+                const totalT = tServ + tMerc + tInd
+
+                if (totalT > 0) {
+                    servicos = rpa * (tServ / totalT)
+                    mercadorias = rpa * (tMerc / totalT)
+                    industria = rpa * (tInd / totalT)
+                } else {
+                    servicos = rpa
+                }
+            }
+        }
+    }
+
+    return { servicos, mercadorias, industria }
+}
+
+
+export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex, initialTargetCnpj, isPdfGen, onFilesUpdated, receitas_anteriores, isOwner = true, invalidFiles, onInvalidFilesUpdated, isEmbedded: propIsEmbedded, partnerConfigs: initialPartnerConfigs }: AnnualDashboardProps) {
     const [localFiles, setLocalFiles] = useState<MonthlyFile[]>(files)
     const [selectedFileIndex, setSelectedFileIndex] = useState<number | null>(initialViewIndex ?? null)
     
@@ -86,6 +271,36 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
             return files[initialViewIndex].data.identificacao.cnpj
         }
         return files[0]?.data.identificacao.cnpj
+    })
+
+    const partnersStorageKey = dashboardCode ? `partners_${dashboardCode}` : 'partners'
+    const [partnerConfigs, setPartnerConfigs] = useState<Record<string, PartnerConfig[]>>(() => {
+        // Try reading from URL params (for PDF generation context)
+        // This takes precedence over initialPartnerConfigs/localStorage to ensure PDF has latest data
+        if (typeof window !== 'undefined') {
+            const params = new URLSearchParams(window.location.search)
+            const urlConfigs = params.get('partner_configs')
+            if (urlConfigs) {
+                try {
+                    return JSON.parse(decodeURIComponent(urlConfigs))
+                } catch (e) {
+                    console.error('Failed to parse partner_configs from URL', e)
+                }
+            }
+        }
+
+        if (initialPartnerConfigs) return initialPartnerConfigs
+
+        if (typeof window === 'undefined') return {}
+        try {
+            const raw = window.localStorage.getItem(partnersStorageKey)
+            if (!raw) return {}
+            const parsed = JSON.parse(raw)
+            if (parsed && typeof parsed === 'object') return parsed
+            return {}
+        } catch {
+            return {}
+        }
     })
 
     const [isUploading, setIsUploading] = useState(false)
@@ -118,7 +333,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
         }
         return null
     })
-
+    
     const [urlUnifiedLabel] = useState<string | null>(() => {
         if (typeof window !== 'undefined') {
             const params = new URLSearchParams(window.location.search)
@@ -127,6 +342,13 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
         }
         return null
     })
+    
+    useEffect(() => {
+        if (typeof window === 'undefined') return
+        try {
+            window.localStorage.setItem(partnersStorageKey, JSON.stringify(partnerConfigs))
+        } catch {}
+    }, [partnerConfigs, partnersStorageKey])
 
     const onlyConsolidated = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('only_consolidated') === 'true' : false
 
@@ -767,7 +989,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                 const res = await fetch('/api/dashboard/create', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ files: localFiles })
+                    body: JSON.stringify({ files: localFiles, partnerConfigs })
                 })
                 
                 if (!res.ok) throw new Error('Falha ao salvar dados temporários')
@@ -847,7 +1069,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                 const res = await fetch('/api/dashboard/create', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ files: localFiles })
+                    body: JSON.stringify({ files: localFiles, partnerConfigs })
                 })
                 
                 if (!res.ok) throw new Error('Falha ao salvar dados temporários')
@@ -887,6 +1109,10 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
             
             // Ensure annual view is visible
             params.set('visible', 'annual')
+
+            if (partnerConfigs && Object.keys(partnerConfigs).length > 0) {
+                 params.set('partner_configs', encodeURIComponent(JSON.stringify(partnerConfigs)))
+            }
 
             const path = `${basePath}?${params.toString()}`
 
@@ -932,7 +1158,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                 const res = await fetch('/api/dashboard/create', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ files: localFiles })
+                    body: JSON.stringify({ files: localFiles, partnerConfigs })
                 })
                 
                 if (!res.ok) throw new Error('Falha ao salvar dados temporários')
@@ -984,6 +1210,10 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                 params.set('visible', visibleParts.join(','))
             } else {
                 params.delete('visible')
+            }
+
+            if (partnerConfigs && Object.keys(partnerConfigs).length > 0) {
+                 params.set('partner_configs', encodeURIComponent(JSON.stringify(partnerConfigs)))
             }
 
             const path = `${basePath}?${params.toString()}`
@@ -1534,105 +1764,167 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
         }
     }), [theme, chartTheme, showGrid, datalabelsConfig, isPdfGen])
 
-
     const monthlyRevenueBreakdown = useMemo(() => {
         return sortedFiles.map(file => {
-            const dados = file.data as any
-            let detalhe = dados.calculos?.analise_aliquota?.detalhe || []
-            const parcelasGlobal = dados.calculos?.analise_aliquota?.parcelas_ajuste || []
-
-            // Normalize Anexo Helper
-            const normalizeAnexo = (v: any): number => {
-                if (typeof v === 'number') return v;
-                const s = String(v || '').trim().toUpperCase();
-                if (!s) return 0;
-                const n = Number(s);
-                if (!isNaN(n)) return n;
-                const clean = s.replace('ANEXO', '').trim();
-                const n2 = Number(clean);
-                if (!isNaN(n2)) return n2;
-                const romanos: Record<string, number> = { 'I': 1, 'II': 2, 'III': 3, 'IV': 4, 'V': 5 };
-                if (romanos[clean]) return romanos[clean];
-                return 0;
-            };
-
-            // Merge logic if needed
-            if (detalhe.length > 0 && parcelasGlobal.length > 0) {
-                 // Create a shallow copy to avoid mutating original state if it's reused
-                 detalhe = detalhe.map((d: any) => {
-                     if (!d.parcelas_ajuste || d.parcelas_ajuste.length === 0) {
-                         const anexoNum = normalizeAnexo(d.anexo || d.anexo_numero);
-                         const matching = parcelasGlobal.filter((p: any) => normalizeAnexo(p.numero) === anexoNum);
-                         if (matching.length > 0) {
-                             return { ...d, parcelas_ajuste: matching }
-                         }
-                     }
-                     return d
-                 })
-            }
-
-            let servicos = 0
-            let mercadorias = 0
-            let industria = 0
-
-            if (detalhe.length > 0) {
-                detalhe.forEach((d: any) => {
-                    const anexo = normalizeAnexo(d.anexo)
-                    const valor = d.parcelas_ajuste?.reduce((acc: number, p: any) => acc + (Number(p.valor) || 0), 0) || 0
-
-                    if ([1].includes(anexo)) {
-                        mercadorias += valor
-                    } else if ([2].includes(anexo)) {
-                        industria += valor
-                    } else if ([3, 4, 5].includes(anexo)) {
-                        servicos += valor
-                    }
-                })
-            } else {
-                // Fallback logic
-                const rpa = dados.receitas?.receitaPA || 0
-                if (dados.cenario === 'servicos') servicos = rpa
-                else if (dados.cenario === 'mercadorias') mercadorias = rpa
-                else if (dados.cenario === 'misto') {
-                    // Try to use debug activities if analise_aliquota is missing
-                    const atividades = dados.debug?.atividades || []
-                    if (atividades.length > 0) {
-                        atividades.forEach((at: any) => {
-                            const nome = String(at.nome || at.name || at.descricao || '').toLowerCase()
-                            const val = Number(at.receita_bruta_informada || 0)
-                            if (nome.includes('servi')) servicos += val
-                            else mercadorias += val
-                        })
-                    } else {
-                        // Even split fallback? Or just put everything in one bucket based on hints?
-                        // Let's assume equal split if we really don't know, or just dump to services (safest for many clients)
-                        // But actually, we have 'tributosMercadoriasInterno' etc.
-                        const tServ = (dados.tributosServicosInterno?.Total || 0) + (dados.tributosServicosExterno?.Total || 0)
-                        const tMerc = (dados.tributosMercadoriasInterno?.Total || 0) + (dados.tributosMercadoriasExterno?.Total || 0)
-                        const tInd = (dados.tributosIndustriaInterno?.Total || 0) + (dados.tributosIndustriaExterno?.Total || 0)
-                        const totalT = tServ + tMerc + tInd
-                        
-                        if (totalT > 0) {
-                            servicos = rpa * (tServ / totalT)
-                            mercadorias = rpa * (tMerc / totalT)
-                            industria = rpa * (tInd / totalT)
-                        } else {
-                            servicos = rpa // Default
-                        }
-                    }
-                }
-            }
-
+            const breakdown = computeRevenueBreakdownForFile(file)
             return {
                 month: file.data.identificacao.periodoApuracao.split(' ')[0],
-                servicos,
-                mercadorias,
-                industria
+                servicos: breakdown.servicos,
+                mercadorias: breakdown.mercadorias,
+                industria: breakdown.industria
             }
         })
     }, [sortedFiles])
 
+    const isUnifiedView = useMemo(
+        () => unifiedViews.some(v => v.id === activeCnpj),
+        [unifiedViews, activeCnpj]
+    )
 
+    const totalDistribution = useMemo(() => {
+        let total = 0
+        sortedFiles.forEach((file, index) => {
+            const breakdown = monthlyRevenueBreakdown[index]
+            const irpjTotal = file.data.tributos?.IRPJ || 0
+            const baseMerc = breakdown.mercadorias * 0.08
+            const baseServ = breakdown.servicos * 0.32
+            const totalBase = baseMerc + baseServ
+            const irpjMerc = totalBase > 0 ? (irpjTotal * (baseMerc / totalBase)) : 0
+            const irpjServ = totalBase > 0 ? (irpjTotal * (baseServ / totalBase)) : 0
+            const distMerc = baseMerc - irpjMerc
+            const distServ = baseServ - irpjServ
+            total += distMerc + distServ
+        })
+        return total
+    }, [sortedFiles, monthlyRevenueBreakdown])
+
+    const perCompanyDistribution = useMemo(() => {
+        const result: Record<string, { name: string; amount: number }> = {}
+        const activeUnifiedView = unifiedViews.find(v => v.id === activeCnpj)
+        if (!activeUnifiedView) return result
+
+        const periodFilter = urlFilteredPeriods
+
+        activeUnifiedView.cnpjs.forEach(cnpj => {
+            const companyFiles = localFiles.filter(f => {
+                if (f.data.identificacao.cnpj !== cnpj) return false
+                if (periodFilter && periodFilter.size > 0) {
+                    return periodFilter.has(f.data.identificacao.periodoApuracao)
+                }
+                return true
+            })
+
+            let total = 0
+            companyFiles.forEach(file => {
+                const breakdown = computeRevenueBreakdownForFile(file)
+                const irpjTotal = file.data.tributos?.IRPJ || 0
+                const baseMerc = breakdown.mercadorias * 0.08
+                const baseServ = breakdown.servicos * 0.32
+                const totalBase = baseMerc + baseServ
+                const irpjMerc = totalBase > 0 ? (irpjTotal * (baseMerc / totalBase)) : 0
+                const irpjServ = totalBase > 0 ? (irpjTotal * (baseServ / totalBase)) : 0
+                const distMerc = baseMerc - irpjMerc
+                const distServ = baseServ - irpjServ
+                total += distMerc + distServ
+            })
+
+            if (total > 0) {
+                const anyFile = localFiles.find(f => f.data.identificacao.cnpj === cnpj)
+                const fullName = anyFile?.data.identificacao.razaoSocial || cnpj
+                let name = fullName.trim()
+                name = name.replace(/\b(LTDA|LTD\.?|ME|EPP|S\/A|SA)\b\.?/gi, '').trim()
+                if (!name) name = cnpj
+                result[cnpj] = { name, amount: total }
+            }
+        })
+
+        return result
+    }, [unifiedViews, activeCnpj, localFiles, urlFilteredPeriods])
+
+    const currentViewKey = activeCnpj || 'DEFAULT'
+    const currentPartners: PartnerConfig[] = partnerConfigs[currentViewKey] || []
+    const partnersSumPercent = currentPartners.reduce((acc, p) => acc + (p.percentage || 0), 0)
+
+    const unifiedPartnersSummary = useMemo(() => {
+        const activeUnifiedView = unifiedViews.find(v => v.id === activeCnpj)
+        if (!activeUnifiedView) return null
+
+        const companies = activeUnifiedView.cnpjs
+            .map(cnpj => ({
+                cnpj,
+                name: perCompanyDistribution[cnpj]?.name || cnpj,
+                distribution: perCompanyDistribution[cnpj]?.amount || 0
+            }))
+            .filter(c => c.distribution > 0)
+
+        if (companies.length === 0) return { companies: [] as Array<{ cnpj: string; name: string; distribution: number }>, partners: [] as any[] }
+
+        const nameMap = new Map<string, string>()
+        companies.forEach(company => {
+            const list = partnerConfigs[company.cnpj] || []
+            list.forEach(p => {
+                const raw = (p.name || '').trim()
+                if (!raw) return
+                const key = raw.toLowerCase()
+                if (!nameMap.has(key)) nameMap.set(key, raw)
+            })
+        })
+
+        const partners = Array.from(nameMap.entries()).map(([key, displayName]) => {
+            const amounts = companies.map(company => {
+                const list = partnerConfigs[company.cnpj] || []
+                const match = list.find(p => (p.name || '').trim().toLowerCase() === key)
+                const pct = match?.percentage || 0
+                const amount = (company.distribution * pct) / 100
+                return { cnpj: company.cnpj, amount, percentage: pct }
+            })
+            const total = amounts.reduce((sum, a) => sum + a.amount, 0)
+            return { key, name: displayName, amounts, total }
+        })
+
+        partners.sort((a, b) => b.total - a.total)
+
+        return { companies, partners }
+    }, [unifiedViews, activeCnpj, partnerConfigs, perCompanyDistribution])
+
+    const partnerDistribution = useMemo(
+        () =>
+            currentPartners.map(p => ({
+                ...p,
+                amount: (totalDistribution * (p.percentage || 0)) / 100
+            })),
+        [currentPartners, totalDistribution]
+    )
+
+    const addPartner = () => {
+        const id = `${Date.now()}_${Math.random().toString(16).slice(2)}`
+        const next: PartnerConfig = { id, name: '', percentage: 0 }
+        setPartnerConfigs(prev => ({
+            ...prev,
+            [currentViewKey]: [...(prev[currentViewKey] || []), next]
+        }))
+    }
+
+    const updatePartner = (id: string, field: 'name' | 'percentage', value: string) => {
+        setPartnerConfigs(prev => {
+            const list = prev[currentViewKey] || []
+            const nextList = list.map(p => {
+                if (p.id !== id) return p
+                if (field === 'name') return { ...p, name: value }
+                const num = Number(value.replace(',', '.'))
+                return { ...p, percentage: isNaN(num) ? 0 : num }
+            })
+            return { ...prev, [currentViewKey]: nextList }
+        })
+    }
+
+    const removePartner = (id: string) => {
+        setPartnerConfigs(prev => {
+            const list = prev[currentViewKey] || []
+            const nextList = list.filter(p => p.id !== id)
+            return { ...prev, [currentViewKey]: nextList }
+        })
+    }
 
     const monthlyTaxesBreakdown = useMemo(() => {
         return sortedFiles.map((file, index) => {
@@ -3441,6 +3733,155 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                         })()}
                                     </TableBody>
                                 </Table>
+                            </CardContent>
+                        </Card>
+
+                        <Card className="mt-4" style={{ breakInside: 'avoid' }}>
+                            <CardHeader className="py-2 flex flex-row items-center justify-between">
+                                <CardTitle className={cn("text-base font-semibold", isPdfGen && "print-title-section")}>Sócios e Distribuição de Resultados</CardTitle>
+                                {!isPdfGen && !isUnifiedView && (
+                                    <Button variant="outline" size="sm" className="h-8" onClick={addPartner}>
+                                        Adicionar sócio
+                                    </Button>
+                                )}
+                            </CardHeader>
+                            <CardContent className="pb-3 space-y-3">
+                                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                                    <span>Total disponível para distribuição</span>
+                                    <span className="font-semibold text-emerald-700 dark:text-emerald-300">
+                                        {totalDistribution.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                    </span>
+                                </div>
+                                {isUnifiedView && unifiedPartnersSummary && (
+                                    <Table className={cn("text-xs", isPdfGen && "print-table")}>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead>Nome do Sócio</TableHead>
+                                                {unifiedPartnersSummary.companies.map(company => (
+                                                    <TableHead key={company.cnpj} className="text-right">
+                                                        {company.name}
+                                                    </TableHead>
+                                                ))}
+                                                <TableHead className="w-32 text-right">Total</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {unifiedPartnersSummary.partners.length === 0 && (
+                                                <TableRow>
+                                                    <TableCell colSpan={unifiedPartnersSummary.companies.length + 2} className="py-4 text-center text-muted-foreground">
+                                                        Nenhum sócio cadastrado nas empresas unificadas.
+                                                    </TableCell>
+                                                </TableRow>
+                                            )}
+                                            {unifiedPartnersSummary.partners.map(row => (
+                                                <TableRow key={row.key} className="align-middle">
+                                                    <TableCell className="py-1">
+                                                        <span className="font-medium">{row.name}</span>
+                                                    </TableCell>
+                                                    {unifiedPartnersSummary.companies.map(company => {
+                                                        const cell = row.amounts.find((a: any) => a.cnpj === company.cnpj)
+                                                        const amount = cell?.amount || 0
+                                                        const pct = cell?.percentage || 0
+                                                        return (
+                                                            <TableCell key={company.cnpj} className="py-1 text-right">
+                                                                <div className="flex flex-col items-end">
+                                                                    <span>{amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                                                                    {pct > 0 && (
+                                                                        <span className="text-[10px] text-muted-foreground">
+                                                                            {pct.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}%
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            </TableCell>
+                                                        )
+                                                    })}
+                                                    <TableCell className="py-1 text-right">
+                                                        <span className="font-semibold text-emerald-700 dark:text-emerald-300">
+                                                            {row.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                                        </span>
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))}
+                                            {/* Unified Total Row */}
+                                            {unifiedPartnersSummary.partners.length > 0 && (
+                                                <TableRow className="bg-muted/30 font-bold border-t-2 border-muted">
+                                                    <TableCell className="py-2">Total</TableCell>
+                                                    {unifiedPartnersSummary.companies.map(company => {
+                                                        const colTotal = unifiedPartnersSummary.partners.reduce((sum, p) => {
+                                                            const cell = p.amounts.find((a: any) => a.cnpj === company.cnpj)
+                                                            return sum + (cell?.amount || 0)
+                                                        }, 0)
+                                                        return (
+                                                            <TableCell key={company.cnpj} className="py-2 text-right">
+                                                                {colTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                                            </TableCell>
+                                                        )
+                                                    })}
+                                                    <TableCell className="py-2 text-right text-emerald-700 dark:text-emerald-300">
+                                                        {unifiedPartnersSummary.partners
+                                                            .reduce((sum, p) => sum + p.total, 0)
+                                                            .toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                                    </TableCell>
+                                                </TableRow>
+                                            )}
+                                        </TableBody>
+                                    </Table>
+                                )}
+                                {!isUnifiedView && (
+                                    <>
+                                        <Table className={cn("text-xs", isPdfGen && "print-table")}>
+                                            <TableHeader>
+                                                <TableRow>
+                                                    <TableHead>Nome do Sócio</TableHead>
+                                                    <TableHead className="w-24 text-right">% Quota</TableHead>
+                                                    <TableHead className="w-32 text-right">Valor</TableHead>
+                                                    {!isPdfGen && <TableHead className="w-10"></TableHead>}
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {currentPartners.length === 0 && (
+                                                    <TableRow>
+                                                        <TableCell colSpan={isPdfGen ? 3 : 4} className="py-4 text-center text-muted-foreground">
+                                                            Nenhum sócio cadastrado.
+                                                        </TableCell>
+                                                    </TableRow>
+                                                )}
+                                                {currentPartners.map(p => (
+                                                    <PartnerRow
+                                                        key={p.id}
+                                                        partner={p}
+                                                        totalDistribution={totalDistribution}
+                                                        isPdfGen={isPdfGen || false}
+                                                        onUpdate={updatePartner}
+                                                        onRemove={removePartner}
+                                                    />
+                                                ))}
+                                                {/* Total Row */}
+                                                {currentPartners.length > 0 && (
+                                                    <TableRow className="bg-muted/30 font-bold border-t-2 border-muted">
+                                                        <TableCell className="py-2">Total</TableCell>
+                                                        <TableCell className={cn("py-2 text-right", Math.abs(partnersSumPercent - 100) > 0.01 ? "text-red-500" : "text-emerald-600")}>
+                                                            {partnersSumPercent.toFixed(2)}%
+                                                        </TableCell>
+                                                        <TableCell className="py-2 text-right text-emerald-700 dark:text-emerald-300">
+                                                            {(totalDistribution * (partnersSumPercent / 100)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                                        </TableCell>
+                                                        {!isPdfGen && <TableCell className="py-2"></TableCell>}
+                                                    </TableRow>
+                                                )}
+                                            </TableBody>
+                                        </Table>
+                                        {!isPdfGen && (
+                                            <div className="flex items-center justify-between text-[11px] text-muted-foreground px-2">
+                                                <span className={cn(Math.abs(partnersSumPercent - 100) > 0.01 && "text-red-500 font-medium")}>
+                                                    {Math.abs(partnersSumPercent - 100) < 0.01
+                                                        ? 'Distribuição completa (100%)'
+                                                        : `Atenção: A soma das quotas é ${partnersSumPercent.toFixed(2)}%. Ajuste para 100%.`}
+                                                </span>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
                             </CardContent>
                         </Card>
                     </div>
