@@ -64,6 +64,8 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
   const [showGrid, setShowGrid] = useState(false)
 
   const [scale, setScale] = useState(1)
+  const [pdfScale, setPdfScale] = useState<number | null>(null)
+  const containerRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     const handleResize = () => {
@@ -79,6 +81,34 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
     handleResize()
     return () => window.removeEventListener('resize', handleResize)
   }, [])
+
+  useEffect(() => {
+    if (!isPdfGen) return
+    if (typeof window === 'undefined') return
+    const el = containerRef.current
+    if (!el) return
+
+    const measure = () => {
+      const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0
+      if (!viewportHeight) return
+      const safePageHeight = viewportHeight * 0.8
+      const prevZoom = (el.style as any).zoom
+      ;(el.style as any).zoom = '1'
+      const rect = el.getBoundingClientRect()
+      if (rect.height <= safePageHeight) {
+        setPdfScale(1)
+        ;(el.style as any).zoom = prevZoom || ''
+        return
+      }
+      const raw = rect.height > 0 ? safePageHeight / rect.height : 1
+      const clamped = Math.max(0.4, Math.min(0.9, raw))
+      setPdfScale(clamped)
+      ;(el.style as any).zoom = prevZoom || ''
+    }
+
+    const id = window.setTimeout(measure, 100)
+    return () => window.clearTimeout(id)
+  }, [isPdfGen, data, showGrid])
 
   // Hydrate initial data if provided
   useEffect(() => {
@@ -533,10 +563,11 @@ export const PGDASDProcessor = memo(function PGDASDProcessor({ initialData, shar
   return (
     <div className={`${isPdfGen ? '' : 'min-h-screen'} bg-background w-full overflow-x-hidden flex justify-center items-start`}>
       <div
+        ref={containerRef}
         className={`bg-background ${isPdfGen ? '' : 'min-h-screen'} p-4 origin-top`}
         style={{
           width: '1600px',
-          ['zoom' as any]: scale,
+          ['zoom' as any]: isPdfGen ? (pdfScale ?? 1) : scale,
         }}
       >
         <div className={`w-full ${isPdfGen ? 'space-y-4' : 'space-y-6'}`}>

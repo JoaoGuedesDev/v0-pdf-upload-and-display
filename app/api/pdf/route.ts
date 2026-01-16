@@ -17,15 +17,20 @@ async function getChromium() {
 }
 
 function guessLocalChrome(): string | null {
+  const localAppData = process.env.LOCALAPPDATA || ''
   const candidates = [
     process.env.CHROME_BIN || '',
     'C:/Program Files/Google/Chrome/Application/chrome.exe',
     'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe',
     'C:/Program Files/Microsoft/Edge/Application/msedge.exe',
     'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
+    localAppData ? path.join(localAppData, 'Google/Chrome/Application/chrome.exe') : '',
+    localAppData ? path.join(localAppData, 'Microsoft/Edge/Application/msedge.exe') : '',
   ].filter(Boolean)
   for (const p of candidates) {
-    try { if (fs.existsSync(p)) return p } catch {}
+    try {
+      if (fs.existsSync(p)) return p
+    } catch {}
   }
   return null
 }
@@ -143,28 +148,29 @@ export async function GET(req: NextRequest) {
     const isPaginated = pathQ.includes('pdf_gen=true')
     const isOnlyConsolidated = pathQ.includes('only_consolidated=true')
 
-    const size = await page.evaluate(() => ({
-      w: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth, window.innerWidth),
-      h: Math.max(document.documentElement.scrollHeight, document.body.scrollHeight),
-    }))
-
     let pdfOptions: any = {
       printBackground: true,
       preferCSSPageSize: true,
       timeout: 120000,
     }
 
-    if (isPaginated && !isOnlyConsolidated) {
-      pdfOptions = {
-        ...pdfOptions,
-        format: 'A4',
-        margin: { top: '1.5cm', right: '1.5cm', bottom: '1.5cm', left: '1.5cm' },
-      }
-    } else {
+    if (!isPaginated || isOnlyConsolidated) {
+      const size = await page.evaluate(() => ({
+        w: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth, window.innerWidth),
+        h: Math.max(document.documentElement.scrollHeight, document.body.scrollHeight),
+      }))
+
       pdfOptions = {
         ...pdfOptions,
         width: `${Math.max(size.w, w)}px`,
         height: `${Math.max(size.h, h)}px`,
+        margin: { top: 0, right: 0, bottom: 0, left: 0 },
+      }
+    } else {
+      pdfOptions = {
+        ...pdfOptions,
+        width: `${w}px`,
+        height: `${h}px`,
         margin: { top: 0, right: 0, bottom: 0, left: 0 },
       }
     }

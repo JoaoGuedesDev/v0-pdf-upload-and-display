@@ -392,6 +392,12 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
 
     const fileInputRef = useRef<HTMLInputElement>(null)
     const { theme } = useTheme()
+    const [resumoZoom, setResumoZoom] = useState<number | null>(null)
+    const [visaoZoom, setVisaoZoom] = useState<number | null>(null)
+    const [distZoom, setDistZoom] = useState<number | null>(null)
+    const resumoRef = useRef<HTMLDivElement | null>(null)
+    const visaoRef = useRef<HTMLDivElement | null>(null)
+    const distRef = useRef<HTMLDivElement | null>(null)
 
     useEffect(() => {
         // Only update if files prop changes and is different (simple length check or deep compare if needed)
@@ -757,6 +763,38 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
         initialViewIndex !== undefined && files[initialViewIndex] ? files[initialViewIndex].filename : null
     )
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false)
+
+    useEffect(() => {
+        if (!isPdfGen) return
+        if (typeof window === 'undefined') return
+
+        const measure = (el: HTMLDivElement | null, setter: (v: number) => void) => {
+            if (!el) return
+            const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0
+            if (!viewportHeight) return
+            const safePageHeight = viewportHeight * 0.8
+            const prevZoom = (el.style as any).zoom
+            ;(el.style as any).zoom = '1'
+            const rect = el.getBoundingClientRect()
+            if (rect.height <= safePageHeight) {
+                setter(1)
+                ;(el.style as any).zoom = prevZoom || ''
+                return
+            }
+            const raw = rect.height > 0 ? safePageHeight / rect.height : 1
+            const clamped = Math.max(0.4, Math.min(0.9, raw))
+            setter(clamped)
+            ;(el.style as any).zoom = prevZoom || ''
+        }
+
+        const id = window.setTimeout(() => {
+            measure(resumoRef.current, v => setResumoZoom(v))
+            measure(visaoRef.current, v => setVisaoZoom(v))
+            measure(distRef.current, v => setDistZoom(v))
+        }, 100)
+
+        return () => window.clearTimeout(id)
+    }, [isPdfGen])
 
     // History State to remember selected file per Company
     const [viewHistory, setViewHistory] = useState<Record<string, string | null>>({})
@@ -1896,6 +1934,27 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
         [currentPartners, totalDistribution]
     )
 
+    const reportPartnersData = useMemo(() => {
+        if (isUnifiedView && unifiedPartnersSummary) {
+            const totalAmount = unifiedPartnersSummary.partners.reduce((sum, p) => sum + p.total, 0)
+            const partners = unifiedPartnersSummary.partners.map(p => ({
+                name: p.name,
+                amount: p.total,
+                percentage: totalAmount > 0 ? (p.total / totalAmount) * 100 : 0
+            }))
+            return { partners, totalAmount }
+        }
+        
+        // Single View
+        const totalAmount = totalDistribution
+        const partners = currentPartners.map(p => ({
+            name: p.name,
+            percentage: p.percentage,
+            amount: (totalAmount * (p.percentage || 0)) / 100
+        }))
+        return { partners, totalAmount }
+    }, [isUnifiedView, unifiedPartnersSummary, currentPartners, totalDistribution])
+
     const addPartner = () => {
         const id = `${Date.now()}_${Math.random().toString(16).slice(2)}`
         const next: PartnerConfig = { id, name: '', percentage: 0 }
@@ -2847,8 +2906,18 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                             {/* Report Cover (Resumo Geral) */}
                             {((activeTab === 'resumo' && !isPdfGen) || isPdfGen) && sortedFiles.length > 0 && (
                                 <div
-                                    className={isPdfGen ? "print-section" : undefined}
-                                    style={isPdfGen ? { pageBreakAfter: 'always' } : undefined}
+                                    ref={resumoRef}
+                                    className={isPdfGen ? 'origin-top' : undefined}
+                                    style={
+                                        isPdfGen
+                                            ? {
+                                                width: '1600px',
+                                                pageBreakAfter: 'always',
+                                                margin: '0 auto',
+                                                ['zoom' as any]: resumoZoom ?? 1,
+                                            }
+                                            : undefined
+                                    }
                                 >
                                     <ReportCover 
                                         files={sortedFiles}
@@ -2857,6 +2926,7 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                                         isDark={isDark}
                                         isPdfGen={isPdfGen}
                                         unifiedCompanies={headerCompanies}
+                                        partnersData={reportPartnersData}
                                     />
                                 </div>
                             )}
@@ -2864,8 +2934,18 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                             {/* Consolidated Charts (Visão Geral) */}
                             {((activeTab === 'visao-geral' && !isPdfGen) || isPdfGen) && (
                                 <div
-                                    className={`${isPdfGen ? 'p-0 space-y-1 print:p-0 print:space-y-1' : 'p-6 space-y-6'} ${isPdfGen ? 'print-section' : ''}`}
-                                    style={isPdfGen ? { pageBreakAfter: onlyConsolidated ? 'auto' : 'always' } : undefined}
+                                    ref={visaoRef}
+                                    className={isPdfGen ? 'p-0 space-y-1 print:p-0 print:space-y-1 origin-top' : 'p-6 space-y-6'}
+                                    style={
+                                        isPdfGen
+                                            ? {
+                                                width: '1600px',
+                                                pageBreakAfter: 'always',
+                                                margin: '0 auto',
+                                                ['zoom' as any]: visaoZoom ?? 1,
+                                            }
+                                            : undefined
+                                    }
                                 >
                                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
                                         <div>
@@ -3402,8 +3482,18 @@ export function AnnualDashboard({ files, onBack, dashboardCode, initialViewIndex
                 {/* Quadro de Distribuição de Resultados (Dedicated Tab) */}
                     {((isConsolidated && activeTab === 'distribuicao-resultados' && !isPdfGen) || isPdfGen) && (
                     <div
-                        className={`${isPdfGen ? 'p-2 space-y-2 print:p-0 print:space-y-2' : 'p-6 space-y-6'} ${isPdfGen ? 'print-section' : ''}`}
-                        style={isPdfGen ? { pageBreakAfter: onlyConsolidated ? 'auto' : 'always' } : undefined}
+                        ref={distRef}
+                        className={isPdfGen ? 'p-2 space-y-2 print:p-0 print:space-y-2 origin-top' : 'p-6 space-y-6'}
+                        style={
+                            isPdfGen
+                                ? {
+                                    width: '1600px',
+                                    pageBreakAfter: 'always',
+                                    margin: '0 auto',
+                                    ['zoom' as any]: distZoom ?? 1,
+                                }
+                                : undefined
+                        }
                     >
                          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
                             <div>

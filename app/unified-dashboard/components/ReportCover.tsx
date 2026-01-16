@@ -13,9 +13,13 @@ interface ReportCoverProps {
     isDark?: boolean
     isPdfGen?: boolean
     unifiedCompanies?: { cnpj: string; name: string }[]
+    partnersData?: {
+        partners: Array<{ name: string; percentage?: number; amount: number }>;
+        totalAmount: number;
+    }
 }
 
-export function ReportCover({ files, companyName, cnpj, isDark = false, isPdfGen = false, unifiedCompanies }: ReportCoverProps) {
+export function ReportCover({ files, companyName, cnpj, isDark = false, isPdfGen = false, unifiedCompanies, partnersData }: ReportCoverProps) {
     
     const summary = useMemo(() => {
         if (!files || files.length === 0) return null
@@ -504,10 +508,10 @@ export function ReportCover({ files, companyName, cnpj, isDark = false, isPdfGen
                 </div>
             </div>
 
-            <div className="w-full max-w-4xl space-y-6 print:space-y-2">
+            <div className="w-full max-w-4xl space-y-6 print:space-y-4">
                 
                 {/* 1. Visão Geral */}
-                <section>
+                <section className="print-section">
                     <h2 className={cn("text-xl font-bold uppercase tracking-wide mb-6 print:mb-2 flex items-center gap-2 print:text-base", textPrimary, "print-title-section")}>
                         <span className={cn("w-6 h-6 rounded flex items-center justify-center text-xs", bgBadge)}>1</span>
                         Visão Geral
@@ -571,7 +575,7 @@ export function ReportCover({ files, companyName, cnpj, isDark = false, isPdfGen
                 </section>
 
                 {/* 2. Estrutura do Faturamento */}
-                <section>
+                <section className="print-section">
                     <h2 className={cn("text-xl font-bold uppercase tracking-wide mb-2 flex items-center gap-2", textPrimary, "print-title-section")}>
                         <span className={cn("w-6 h-6 rounded flex items-center justify-center text-xs", bgBadge)}>2</span>
                         Estrutura do Faturamento
@@ -599,7 +603,7 @@ export function ReportCover({ files, companyName, cnpj, isDark = false, isPdfGen
                 </section>
 
                 {/* 3. Evolução da Receita */}
-                <section>
+                <section className="print-section">
                     <h2 className={cn("text-xl font-bold uppercase tracking-wide mb-2 flex items-center gap-2", textPrimary, "print-title-section")}>
                         <span className={cn("w-6 h-6 rounded flex items-center justify-center text-xs", bgBadge)}>3</span>
                         Evolução da Receita
@@ -615,7 +619,7 @@ export function ReportCover({ files, companyName, cnpj, isDark = false, isPdfGen
                 </section>
 
                 {/* 4. Distribuição da Carga Tributária */}
-                <section>
+                <section className="print-section">
                     <h2 className={cn("text-xl font-bold uppercase tracking-wide mb-2 flex items-center gap-2", textPrimary, "print-title-section")}>
                         <span className={cn("w-6 h-6 rounded flex items-center justify-center text-xs", bgBadge)}>4</span>
                         Distribuição da Carga Tributária
@@ -640,10 +644,56 @@ export function ReportCover({ files, companyName, cnpj, isDark = false, isPdfGen
                     </div>
                 </section>
 
-                {/* 5. Análise de Alíquota Efetiva */}
-                <section>
+                {/* 5. Distribuição de Resultados */}
+                {partnersData && partnersData.partners.length > 0 && (
+                    <section className="print-section">
+                        <h2 className={cn("text-xl font-bold uppercase tracking-wide mb-2 flex items-center gap-2", textPrimary, "print-title-section")}>
+                            <span className={cn("w-6 h-6 rounded flex items-center justify-center text-xs", bgBadge)}>5</span>
+                            Distribuição de Resultados
+                        </h2>
+                        <p className={cn("text-justify leading-relaxed mb-3", textSecondary, "print-text-body")}>
+                             O valor total disponível para distribuição de lucros no período foi de <strong>{formatCurrency(partnersData.totalAmount)}</strong>.
+                             Abaixo a discriminação por sócio:
+                        </p>
+                        <div className="overflow-hidden rounded-lg border border-slate-200 dark:border-slate-800">
+                             <table className="w-full text-sm print-table">
+                                 <thead className={cn("bg-slate-50 dark:bg-slate-900 font-medium", textMuted)}>
+                                     <tr>
+                                         <th className="px-4 py-2 text-left">Sócio</th>
+                                         <th className="px-4 py-2 text-right">Participação</th>
+                                         <th className="px-4 py-2 text-right">Valor Distribuído</th>
+                                     </tr>
+                                 </thead>
+                                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                     {partnersData.partners.map((partner, idx) => (
+                                         <tr key={idx} className={cn("group hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors", textSecondary)}>
+                                             <td className="px-4 py-2 font-medium">{partner.name}</td>
+                                             <td className="px-4 py-2 text-right text-xs text-slate-500">
+                                                 {partner.percentage !== undefined && partner.percentage > 0 
+                                                     ? `${partner.percentage.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}%`
+                                                     : '-'}
+                                             </td>
+                                             <td className="px-4 py-2 text-right font-semibold text-emerald-600 dark:text-emerald-400">
+                                                 {formatCurrency(partner.amount)}
+                                             </td>
+                                         </tr>
+                                     ))}
+                                     <tr className="bg-slate-50/50 dark:bg-slate-900/50 font-bold">
+                                         <td className="px-4 py-2 text-right" colSpan={2}>Total</td>
+                                         <td className="px-4 py-2 text-right text-emerald-700 dark:text-emerald-300">
+                                             {formatCurrency(partnersData.totalAmount)}
+                                         </td>
+                                     </tr>
+                                 </tbody>
+                             </table>
+                        </div>
+                    </section>
+                )}
+
+                {/* 6. Análise de Alíquota Efetiva */}
+                <section className="print-section">
                     <h2 className={cn("text-xl font-bold uppercase tracking-wide mb-2 print:mb-1 flex items-center gap-2", textPrimary)}>
-                        <span className={cn("w-6 h-6 rounded flex items-center justify-center text-xs", bgBadge)}>5</span>
+                        <span className={cn("w-6 h-6 rounded flex items-center justify-center text-xs", bgBadge)}>6</span>
                         Análise de Alíquota e Enquadramento
                     </h2>
                     <p className={cn("text-justify leading-relaxed print:leading-snug", textSecondary)}>
@@ -669,10 +719,10 @@ export function ReportCover({ files, companyName, cnpj, isDark = false, isPdfGen
                 </section>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 print:gap-2">
-                    {/* 6. Oportunidades */}
-                    <section>
+                    {/* 7. Oportunidades */}
+                    <section className="print-section">
                         <h2 className={cn("text-xl font-bold uppercase tracking-wide mb-3 print:mb-1 flex items-center gap-2", isDark ? "text-emerald-400" : "text-emerald-700")}>
-                            <span className={cn("w-6 h-6 rounded flex items-center justify-center text-xs", isDark ? "bg-emerald-900 text-emerald-100 [print-color-adjust:exact]" : "bg-emerald-700 text-white [print-color-adjust:exact]")}>6</span>
+                            <span className={cn("w-6 h-6 rounded flex items-center justify-center text-xs", isDark ? "bg-emerald-900 text-emerald-100 [print-color-adjust:exact]" : "bg-emerald-700 text-white [print-color-adjust:exact]")}>7</span>
                             Oportunidades
                         </h2>
                         <ul className="space-y-3 print:space-y-1">
@@ -688,10 +738,10 @@ export function ReportCover({ files, companyName, cnpj, isDark = false, isPdfGen
                         </ul>
                     </section>
 
-                    {/* 7. Alertas */}
-                    <section>
+                    {/* 8. Alertas */}
+                    <section className="print-section">
                         <h2 className={cn("text-xl font-bold uppercase tracking-wide mb-3 print:mb-1 flex items-center gap-2", isDark ? "text-amber-400" : "text-amber-700")}>
-                            <span className={cn("w-6 h-6 rounded flex items-center justify-center text-xs", isDark ? "bg-amber-900 text-amber-100 [print-color-adjust:exact]" : "bg-amber-700 text-white [print-color-adjust:exact]")}>7</span>
+                            <span className={cn("w-6 h-6 rounded flex items-center justify-center text-xs", isDark ? "bg-amber-900 text-amber-100 [print-color-adjust:exact]" : "bg-amber-700 text-white [print-color-adjust:exact]")}>8</span>
                             Alertas
                         </h2>
                         <ul className="space-y-3 print:space-y-1">
@@ -708,10 +758,10 @@ export function ReportCover({ files, companyName, cnpj, isDark = false, isPdfGen
                     </section>
                 </div>
 
-                {/* 8. Conclusão */}
-                <section className={cn("p-4 print:p-2 rounded-lg border", isDark ? "bg-slate-900 border-slate-800" : "bg-slate-50 border-slate-200")}>
+                {/* 9. Conclusão */}
+                <section className={cn("p-4 print:p-2 rounded-lg border print-section", isDark ? "bg-slate-900 border-slate-800" : "bg-slate-50 border-slate-200")}>
                     <h2 className={cn("text-xl font-bold uppercase tracking-wide mb-2 print:mb-1 flex items-center gap-2", textPrimary)}>
-                        <span className={cn("w-6 h-6 rounded flex items-center justify-center text-xs", bgBadge)}>8</span>
+                        <span className={cn("w-6 h-6 rounded flex items-center justify-center text-xs", bgBadge)}>9</span>
                         Conclusão
                     </h2>
                     <p className={cn("text-justify leading-relaxed print:leading-snug", textSecondary)}>
@@ -722,12 +772,12 @@ export function ReportCover({ files, companyName, cnpj, isDark = false, isPdfGen
                     </p>
                 </section>
 
-                {/* 9. Contato e Ações */}
+                {/* 10. Contato e Ações */}
                 <section className={cn("p-4 print:p-2 rounded-lg border", isDark ? "bg-slate-900 border-slate-800" : "bg-slate-50 border-slate-200", isPdfGen && "p-2")}>
                      <div className={cn("grid md:grid-cols-2 gap-4 print:gap-2 items-center", isPdfGen && "gap-2")}>
                         <div>
                              <h2 className={cn("text-xl font-bold uppercase tracking-wide mb-3 print:mb-1 flex items-center gap-2 print:text-base", textPrimary, isPdfGen && "text-base mb-1")}>
-                                <span className={cn("w-6 h-6 rounded flex items-center justify-center text-xs", bgBadge)}>9</span>
+                                <span className={cn("w-6 h-6 rounded flex items-center justify-center text-xs", bgBadge)}>10</span>
                                 Próximos Passos
                             </h2>
                             <p className={cn("text-justify leading-relaxed print:leading-snug mb-4 print:mb-2", textSecondary, isPdfGen && "text-sm leading-snug mb-2")}>
